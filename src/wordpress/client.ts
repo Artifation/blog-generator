@@ -9,6 +9,7 @@ export interface WordpressClient {
   get<T>(path: string): Promise<T>;
   postJson<T>(path: string, body: unknown): Promise<T>;
   postBinary<T>(path: string, body: Buffer, contentType: string, filename: string): Promise<T>;
+  patchJson<T>(path: string, body: unknown): Promise<T>;
 }
 
 export function createWordpressClient(opts: WordpressClientOpts): WordpressClient {
@@ -43,6 +44,12 @@ export function createWordpressClient(opts: WordpressClientOpts): WordpressClien
           "Content-Disposition": `attachment; filename="${filename}"`,
         },
         body,
+      }),
+    patchJson: (path, body) =>
+      call(path, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
       }),
   };
 }
