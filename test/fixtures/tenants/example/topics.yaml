@@ -1,0 +1,14 @@
+- id: ai-hr
+  title: "AI in HR"
+  pillar: a
+  target_keyword: "AI in HR"
+  intended_word_count: 1500
+  status: queued
+  priority: 10
+- id: ai-finance
+  title: "AI in finance"
+  pillar: a
+  target_keyword: "AI in finance"
+  intended_word_count: 1500
+  status: queued
+  priority: 5
