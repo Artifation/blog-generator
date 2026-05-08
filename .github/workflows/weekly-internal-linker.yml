@@ -1,0 +1,59 @@
+name: Weekly internal linker
+
+on:
+  schedule:
+    - cron: "0 5 * * 1"  # Monday 05:00 UTC
+  workflow_dispatch:
+    inputs:
+      tenant:
+        description: "Tenant slug"
+        default: "artifation"
+        required: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: internal-linker-${{ github.event.inputs.tenant || 'artifation' }}
+  cancel-in-progress: false
+
+jobs:
+  link:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci
+
+      - name: Run internal-linker
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          WP_USER: ${{ secrets.WP_USER }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: npx tsx src/pipeline/internalLinkerJob.ts --tenant=${{ github.event.inputs.tenant || 'artifation' }}
+
+      - name: Commit run log
+        if: success()
+        run: |
+          git config user.name "blog-bot"
+          git config user.email "blog-bot@artifation.nl"
+          git add data/internal-linker-runs/
+          git diff --staged --quiet || git commit -m "chore(state): internal-linker run $(date -u +%Y-%m-%d)"
+          git push
+
+      - name: Upload run log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: internal-linker-${{ github.run_id }}
+          path: data/internal-linker-runs/
+          retention-days: 60
+          if-no-files-found: ignore
