@@ -53,6 +53,7 @@ jobs:
           git config user.email "blog-bot@artifation.nl"
           git add tenants/*/topics.yaml
           git diff --staged --quiet || git commit -m "chore(state): topic queue update from $(date -u +%Y-%m-%dT%H:%MZ)"
+          git pull --rebase origin main
           git push
 
       - name: Upload run log

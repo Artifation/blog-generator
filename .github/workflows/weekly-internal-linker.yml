@@ -47,6 +47,7 @@ jobs:
           git config user.email "blog-bot@artifation.nl"
           git add data/internal-linker-runs/
           git diff --staged --quiet || git commit -m "chore(state): internal-linker run $(date -u +%Y-%m-%d)"
+          git pull --rebase origin main
           git push
 
       - name: Upload run log artifact
