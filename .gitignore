@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+.env.local
+*.log
+.DS_Store
+.vitest-cache/
+coverage/
+
+# Runtime artifacts that change every run — kept out of commits
+data/runs/
+data/cost-counter.json
+
+# Generated images cached locally
+data/images/
