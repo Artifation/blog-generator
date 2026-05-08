@@ -300,12 +300,14 @@ describe("orchestrator integration — happy path (GO)", () => {
     expect(state.emailCalls).toHaveLength(1);
     expect(state.emailCalls[0]!.subject).toMatch(/Concept klaar/);
 
-    // Verifieer: topic gemarkeerd als published
+    // Verifieer: topic gemarkeerd als published met wp_post_id
     const topicsAfter = await readFile(
       path.join(dir, "artifation", "topics.yaml"),
       "utf-8"
     );
     expect(topicsAfter).toContain("status: published");
+    expect(topicsAfter).toContain("wp_post_id: 99");
+    expect(topicsAfter).toContain("wp_post_url: https://artifation.nl/?p=99");
   });
 });
 

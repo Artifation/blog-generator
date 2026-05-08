@@ -30,4 +30,14 @@ describe("state helpers", () => {
     expect(updated.find((x) => x.id === "a")?.status).toBe("published");
     expect(updated.find((x) => x.id === "a")?.last_attempted).toBeDefined();
   });
+
+  it("preserves wp_post_id passed via patch", () => {
+    const list = [t({ id: "a" })];
+    const updated = markTopicStatus(list, "a", "published", new Date("2026-05-08"), {
+      wp_post_id: 99,
+      wp_post_url: "https://artifation.nl/?p=99",
+    });
+    expect(updated.find((x) => x.id === "a")?.wp_post_id).toBe(99);
+    expect(updated.find((x) => x.id === "a")?.wp_post_url).toBe("https://artifation.nl/?p=99");
+  });
 });

@@ -315,7 +315,10 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       html,
     });
 
-    topics = markTopicStatus(topics, next.id, "published", now);
+    topics = markTopicStatus(topics, next.id, "published", now, {
+      wp_post_id: post.id,
+      wp_post_url: post.link,
+    });
     await saveTopics(topics, opts.tenantSlug, baseDir);
 
     const cost = computeRunCost(usage);

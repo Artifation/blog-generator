@@ -24,6 +24,8 @@ export const TopicSchema = z.object({
   last_attempted: z.string().datetime().optional(),
   retry_after: z.string().datetime().optional(),
   reject_reason: z.string().optional(),
+  wp_post_id: z.number().int().optional(),
+  wp_post_url: z.string().url().optional(),
 });
 export type Topic = z.infer<typeof TopicSchema>;
 
