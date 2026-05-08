@@ -99,8 +99,8 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
         continue;
       }
 
-      // Idempotency: skip if already linked.
-      if (oldPost.content.rendered.includes(`href="${newPost.link}"`)) {
+      // Idempotency: skip if already linked (handles single-quoted + trailing-slash variants).
+      if (isAlreadyLinked(oldPost.content.rendered, newPost.link)) {
         log.skipped.push({
           from_post_id: oldPost.id,
           to_post_id: newPost.id,
@@ -195,6 +195,16 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
   );
 }
 
+function escapeRegex(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function isAlreadyLinked(html: string, url: string): boolean {
+  const normalized = url.replace(/\/+$/, "");
+  const pattern = new RegExp(`href=['"]${escapeRegex(normalized)}/?['"]`, "i");
+  return pattern.test(html);
+}
+
 function replaceParagraphBySignature(
   html: string,
   signature: string,
@@ -205,7 +215,7 @@ function replaceParagraphBySignature(
   const paragraphs = root.querySelectorAll("p");
   for (const p of paragraphs) {
     const plainText = p.text.toLowerCase().trim();
-    if (plainText.startsWith(sigLower.slice(0, Math.min(40, sigLower.length)))) {
+    if (plainText.startsWith(sigLower.slice(0, Math.min(60, sigLower.length)))) {
       p.replaceWith(replacement);
       return root.toString();
     }

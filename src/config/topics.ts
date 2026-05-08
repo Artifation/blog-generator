@@ -24,7 +24,9 @@ export const TopicSchema = z.object({
   last_attempted: z.string().datetime().optional(),
   retry_after: z.string().datetime().optional(),
   reject_reason: z.string().optional(),
+  /** Populated by orchestrator on successful publish; consumed by internal-linker for new-post correlation. */
   wp_post_id: z.number().int().optional(),
+  /** Populated by orchestrator on successful publish; consumed by internal-linker for new-post correlation. */
   wp_post_url: z.string().url().optional(),
   key_entities: z.array(z.string()).optional(),
 });
