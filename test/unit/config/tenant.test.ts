@@ -55,4 +55,29 @@ describe("parseTenantConfig", () => {
   it("rejects quality_threshold buiten 0-10", () => {
     expect(() => parseTenantConfig({ ...valid, quality_threshold: 11 })).toThrow();
   });
+
+  it("parses features.internal_linker config with defaults", () => {
+    const cfg = parseTenantConfig({
+      ...valid,
+      features: {
+        internal_linker: {
+          enabled: true,
+          max_links_per_run: 8,
+          lookback_posts: 30,
+          exclude_post_ids: [12, 34],
+        },
+      },
+    });
+    expect(cfg.features.internal_linker.enabled).toBe(true);
+    expect(cfg.features.internal_linker.max_links_per_run).toBe(8);
+    expect(cfg.features.internal_linker.exclude_post_ids).toEqual([12, 34]);
+  });
+
+  it("provides default features.internal_linker if absent", () => {
+    const cfg = parseTenantConfig(valid);
+    expect(cfg.features.internal_linker.enabled).toBe(false);
+    expect(cfg.features.internal_linker.max_links_per_run).toBe(10);
+    expect(cfg.features.internal_linker.lookback_posts).toBe(50);
+    expect(cfg.features.internal_linker.exclude_post_ids).toEqual([]);
+  });
 });

@@ -47,6 +47,50 @@ export const TenantConfigSchema = z
     pillars: z.array(PillarSchema).min(1),
     quality_threshold: z.number().min(0).max(10),
     max_posts_per_week_published: z.number().int().min(0),
+
+    features: z
+      .object({
+        internal_linker: z
+          .object({
+            enabled: z.boolean().default(false),
+            max_links_per_run: z.number().int().min(1).max(100).default(10),
+            lookback_posts: z.number().int().min(1).max(500).default(50),
+            exclude_post_ids: z.array(z.number().int()).default([]),
+          })
+          .optional()
+          .transform((v) => {
+            const s = z.object({
+              enabled: z.boolean().default(false),
+              max_links_per_run: z.number().int().min(1).max(100).default(10),
+              lookback_posts: z.number().int().min(1).max(500).default(50),
+              exclude_post_ids: z.array(z.number().int()).default([]),
+            });
+            return s.parse(v ?? {});
+          }),
+      })
+      .optional()
+      .transform((v) => {
+        const s = z.object({
+          internal_linker: z
+            .object({
+              enabled: z.boolean().default(false),
+              max_links_per_run: z.number().int().min(1).max(100).default(10),
+              lookback_posts: z.number().int().min(1).max(500).default(50),
+              exclude_post_ids: z.array(z.number().int()).default([]),
+            })
+            .optional()
+            .transform((v2) => {
+              const s2 = z.object({
+                enabled: z.boolean().default(false),
+                max_links_per_run: z.number().int().min(1).max(100).default(10),
+                lookback_posts: z.number().int().min(1).max(500).default(50),
+                exclude_post_ids: z.array(z.number().int()).default([]),
+              });
+              return s2.parse(v2 ?? {});
+            }),
+        });
+        return s.parse(v ?? {});
+      }),
   })
   .refine(
     (c) => Math.abs(c.pillars.reduce((s, p) => s + p.weight, 0) - 1) < 0.001,

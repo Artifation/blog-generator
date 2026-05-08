@@ -65,3 +65,10 @@ pillars:
 
 quality_threshold: 8.0
 max_posts_per_week_published: 4
+
+features:
+  internal_linker:
+    enabled: false
+    max_links_per_run: 10
+    lookback_posts: 50
+    exclude_post_ids: []
