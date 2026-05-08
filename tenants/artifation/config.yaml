@@ -1,0 +1,67 @@
+# tenants/artifation/config.yaml
+slug: artifation
+domain: artifation.nl
+language: nl-NL
+
+brand:
+  name: Artifation
+  voice: |
+    Informeel-direct, jij/jouw-vorm. Probleem-eerst (begin met de pijn van de MKB-eigenaar).
+    Concrete getallen en ROI-focus boven abstracte beloften. Korte zinnen mixen met langere.
+    Geen jargon zonder uitleg, maar engelse AI-termen ("prompt", "agent") zijn OK.
+  ban_list:
+    - "in conclusion"
+    - "to sum up"
+    - "tot slot"
+    - "samenvattend"
+    - "in een wereld waar"
+    - "in today's fast-paced"
+    - "in de steeds veranderende wereld"
+    - "delve"
+    - "leverage"
+    - "harness the power of"
+    - "unlock the potential"
+    - "navigate the complexities"
+    - "moreover"
+    - "furthermore"
+    - "additionally"
+    - "notably"
+    - "it's worth noting"
+    - "het is belangrijk om op te merken"
+  signature_phrases:
+    - "Wij kijken verder dan de hype"
+    - "De kortste weg naar een schaalbaar bedrijf"
+
+# TODO: vul in voor productie (zie spec §14 open vragen)
+author:
+  name: "REPLACE_ME"
+  linkedin: "https://linkedin.com/in/REPLACE_ME"
+  bio: "REPLACE_ME"
+  photo_url: "https://artifation.nl/REPLACE_ME.jpg"
+
+organization:
+  legal_name: "Artifation B.V."
+  kvk: "REPLACE_ME"
+  btw: "REPLACE_ME"
+  address: "REPLACE_ME"
+
+wordpress:
+  base_url: https://artifation.nl
+  user_secret_ref: WP_USER
+  app_password_secret_ref: WP_APP_PASSWORD
+
+email:
+  from: "blog-bot@artifation.nl"
+  to: "algemeen@artifation.nl"
+  reply_to: "algemeen@artifation.nl"
+
+pillars:
+  - id: ai-per-afdeling
+    weight: 0.5
+  - id: ai-act
+    weight: 0.3
+  - id: sector-extensie
+    weight: 0.2
+
+quality_threshold: 8.0
+max_posts_per_week_published: 4
