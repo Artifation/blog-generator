@@ -10,7 +10,8 @@ export type AgentRole =
   | "seoEditor"
   | "factChecker"
   | "qualityJudge"
-  | "imagePrompter";
+  | "imagePrompter"
+  | "internalLinker";
 
 export interface AgentModelChoice {
   provider: LLMProviderName;
@@ -26,6 +27,7 @@ const ROLE_TO_MODEL: Record<AgentRole, AgentModelChoice> = {
   factChecker: { provider: "anthropic", model: "claude-opus-4-7", maxTokens: 4000 },
   qualityJudge: { provider: "anthropic", model: "claude-opus-4-7", maxTokens: 4000 },
   imagePrompter: { provider: "groq", model: "llama-3.3-70b-versatile", maxTokens: 1000 },
+  internalLinker: { provider: "anthropic", model: "claude-sonnet-4-6", maxTokens: 4000 },
 };
 
 export function resolveAgentModel(role: AgentRole): AgentModelChoice {

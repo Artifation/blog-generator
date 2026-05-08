@@ -11,4 +11,10 @@ describe("resolveAgentModel", () => {
     expect(resolveAgentModel("qualityJudge").provider).toBe("anthropic");
     expect(resolveAgentModel("imagePrompter").provider).toBe("groq");
   });
+
+  it("resolves internalLinker to anthropic sonnet", () => {
+    const m = resolveAgentModel("internalLinker");
+    expect(m.provider).toBe("anthropic");
+    expect(m.model).toBe("claude-sonnet-4-6");
+  });
 });
