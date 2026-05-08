@@ -15,10 +15,8 @@ export function createAnthropicProvider(apiKey: string): LLMProvider {
         messages: [{ role: "user", content: req.userPrompt }],
       });
 
-      const textBlock = res.content.find(
-        (c): c is { type: "text"; text: string; citations?: unknown } => c.type === "text"
-      );
-      if (!textBlock) {
+      const textBlock = res.content.find((c) => c.type === "text");
+      if (!textBlock || textBlock.type !== "text") {
         throw new Error("Anthropic response had no text block");
       }
 
