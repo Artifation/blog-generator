@@ -1,0 +1,31 @@
+slug: example
+domain: example.test
+language: nl-NL
+brand:
+  name: Example
+  voice: "test"
+  ban_list: []
+  signature_phrases: []
+author:
+  name: A
+  linkedin: https://linkedin.com/in/a
+  bio: bio
+  photo_url: https://example.test/p.png
+organization:
+  legal_name: Example BV
+  kvk: "1"
+  btw: "NL1B01"
+  address: addr
+wordpress:
+  base_url: https://example.test
+  user_secret_ref: WP_USER
+  app_password_secret_ref: WP_APP_PASSWORD
+email:
+  from: a@example.test
+  to: b@example.test
+  reply_to: b@example.test
+pillars:
+  - id: a
+    weight: 1.0
+quality_threshold: 8.0
+max_posts_per_week_published: 4
