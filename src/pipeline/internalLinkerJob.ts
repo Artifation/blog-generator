@@ -80,6 +80,7 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
   let linksAddedCount = 0;
+  const usedAnchorsThisRun: string[] = [];
 
   for (const oldPost of oldPosts) {
     if (linksAddedCount >= cfg.max_links_per_run) break;
@@ -129,9 +130,9 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
               tldr_one_liner: newPostTopic.title,
               focus_keyword: newPostTopic.target_keyword,
               url: newPost.link,
-              key_entities: [],
+              key_entities: newPostTopic.key_entities ?? [],
             },
-            constraint_anchor_already_used: [],
+            constraint_anchor_already_used: usedAnchorsThisRun,
           },
           { provider: providers.get("anthropic"), sleepImpl: sleep }
         );
@@ -168,6 +169,7 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
           confidence: r.parsed.confidence,
         });
         linksAddedCount++;
+        usedAnchorsThisRun.push(r.parsed.anchor_text);
 
         // Update local copy so iteration sees the new link.
         oldPost.content.rendered = newHtml;
@@ -212,6 +214,7 @@ function replaceParagraphBySignature(
 }
 
 async function persistLog(baseDir: string, slug: string, now: Date, log: RunLog): Promise<void> {
+  // baseDir defaults to "tenants" (relative to repo root), so logs land in `data/internal-linker-runs/<slug>/` — committed back by the workflow.
   const dir = path.join(baseDir, "..", "data", "internal-linker-runs", slug);
   await mkdir(dir, { recursive: true });
   const file = path.join(dir, `${now.toISOString().slice(0, 10)}.json`);

@@ -318,6 +318,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
     topics = markTopicStatus(topics, next.id, "published", now, {
       wp_post_id: post.id,
       wp_post_url: post.link,
+      key_entities: research.parsed.key_entities,
     });
     await saveTopics(topics, opts.tenantSlug, baseDir);
 

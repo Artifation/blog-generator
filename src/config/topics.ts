@@ -26,6 +26,7 @@ export const TopicSchema = z.object({
   reject_reason: z.string().optional(),
   wp_post_id: z.number().int().optional(),
   wp_post_url: z.string().url().optional(),
+  key_entities: z.array(z.string()).optional(),
 });
 export type Topic = z.infer<typeof TopicSchema>;
 
