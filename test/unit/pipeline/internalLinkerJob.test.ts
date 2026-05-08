@@ -1,5 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
+import { describe, expect, it, vi, beforeEach } from "vitest";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import type { WordpressClient } from "@/wordpress/client";
@@ -15,6 +15,31 @@ const mockWp = {
   patchJson: vi.fn(async () => ({ id: 42, link: "https://artifation.nl/?p=42" })),
 } as unknown as WordpressClient;
 
+// Shared mutable state, captured at vi.mock hoist-time via vi.hoisted
+const state = vi.hoisted(() => ({ llmResponse: "" as string }));
+
+const DEFAULT_AGENT_OUT = JSON.stringify({
+  should_link: true,
+  confidence: 0.8,
+  anchor_text: "AI in HR",
+  anchor_type: "partial",
+  target_paragraph_signature: "Veel MKB-bedrijven worstelen met AI in HR-processen en wat",
+  rewritten_paragraph_html:
+    '<p>Veel MKB-bedrijven worstelen met AI in HR-processen en wat dat in de praktijk betekent. Lees onze diepte-analyse: <a href="https://artifation.nl/ai-in-hr-mkb/">AI in HR</a>.</p>',
+  rationale: "x",
+});
+
+const MISMATCH_AGENT_OUT = JSON.stringify({
+  should_link: true,
+  confidence: 0.8,
+  anchor_text: "AI in HR",
+  anchor_type: "partial",
+  target_paragraph_signature: "DEZE BESTAAT NIET IN DE OUDE POST_____",
+  rewritten_paragraph_html:
+    '<p>DEZE BESTAAT NIET IN DE OUDE POST_____. Lees onze diepte-analyse: <a href="https://artifation.nl/ai-in-hr-mkb/">AI in HR</a>.</p>',
+  rationale: "x",
+});
+
 vi.mock("@/llm/client", async () => {
   const actual = await vi.importActual<typeof import("@/llm/client")>("@/llm/client");
   return {
@@ -23,16 +48,7 @@ vi.mock("@/llm/client", async () => {
       get: () => ({
         name: "anthropic" as const,
         call: vi.fn(async () => ({
-          text: JSON.stringify({
-            should_link: true,
-            confidence: 0.8,
-            anchor_text: "AI in HR",
-            anchor_type: "partial",
-            target_paragraph_signature: "Veel MKB-bedrijven worstelen met AI in HR-processen en wat",
-            rewritten_paragraph_html:
-              '<p>Veel MKB-bedrijven worstelen met AI in HR-processen en wat dat in de praktijk betekent. Lees onze diepte-analyse: <a href="https://artifation.nl/ai-in-hr-mkb/">AI in HR</a>.</p>',
-            rationale: "x",
-          }),
+          text: state.llmResponse,
           inputTokens: 1000,
           outputTokens: 200,
           model: "claude-sonnet-4-6",
@@ -109,6 +125,15 @@ const ENV = {
 };
 
 describe("runInternalLinkerJob", () => {
+  beforeEach(() => {
+    (mockWp.get as ReturnType<typeof vi.fn>).mockReset();
+    (mockWp.patchJson as ReturnType<typeof vi.fn>).mockReset();
+    (mockWp.patchJson as ReturnType<typeof vi.fn>).mockImplementation(
+      async () => ({ id: 42, link: "https://artifation.nl/?p=42" })
+    );
+    state.llmResponse = DEFAULT_AGENT_OUT;
+  });
+
   it("identifies new posts and links them into older candidates (happy path)", async () => {
     const baseDir = await fixtureDir();
 
@@ -137,8 +162,6 @@ describe("runInternalLinkerJob", () => {
       throw new Error(`unmocked get: ${url}`);
     });
 
-    (mockWp.patchJson as ReturnType<typeof vi.fn>).mockClear();
-
     await runInternalLinkerJob({
       tenantSlug: "artifation",
       baseDir,
@@ -164,8 +187,6 @@ describe("runInternalLinkerJob", () => {
       TENANT_CONFIG_YAML.replace("enabled: true", "enabled: false")
     );
     await writeFile(path.join(tenantDir, "topics.yaml"), TOPICS_YAML);
-
-    (mockWp.patchJson as ReturnType<typeof vi.fn>).mockClear();
 
     await runInternalLinkerJob({
       tenantSlug: "artifation",
@@ -205,7 +226,45 @@ describe("runInternalLinkerJob", () => {
       throw new Error(`unmocked get: ${url}`);
     });
 
-    (mockWp.patchJson as ReturnType<typeof vi.fn>).mockClear();
+    await runInternalLinkerJob({
+      tenantSlug: "artifation",
+      baseDir,
+      env: ENV,
+      now: new Date(),
+    });
+
+    expect(mockWp.patchJson).not.toHaveBeenCalled();
+  });
+
+  it("skips PATCH when agent returns a signature that does not match any paragraph (signature mismatch)", async () => {
+    const baseDir = await fixtureDir();
+
+    state.llmResponse = MISMATCH_AGENT_OUT;
+
+    (mockWp.get as ReturnType<typeof vi.fn>).mockImplementation(async (url: string) => {
+      if (url.includes("/posts?")) {
+        return [
+          {
+            id: 99, slug: "ai-in-hr-mkb",
+            link: "https://artifation.nl/ai-in-hr-mkb/",
+            title: { rendered: "AI in HR voor MKB" },
+            content: { rendered: "<p>nieuwe post inhoud</p>" },
+            date: new Date(Date.now() - 2 * 86400000).toISOString(),
+          },
+          {
+            id: 42, slug: "oudere-post",
+            link: "https://artifation.nl/oudere-post/",
+            title: { rendered: "Oude post" },
+            content: {
+              rendered:
+                "<p>Inleiding zonder match.</p><p>Veel MKB-bedrijven worstelen met AI in HR-processen en wat dat in de praktijk betekent.</p><p>Conclusie.</p>",
+            },
+            date: new Date(Date.now() - 60 * 86400000).toISOString(),
+          },
+        ];
+      }
+      throw new Error(`unmocked get: ${url}`);
+    });
 
     await runInternalLinkerJob({
       tenantSlug: "artifation",

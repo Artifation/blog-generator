@@ -120,57 +120,66 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
         continue;
       }
 
-      log.agent_calls++;
-      const r = await runInternalLinker(
-        {
-          old_post_html: oldPost.content.rendered,
-          new_post: {
-            title: newPost.title.rendered,
-            tldr_one_liner: newPostTopic.title,
-            focus_keyword: newPostTopic.target_keyword,
-            url: newPost.link,
-            key_entities: [],
+      try {
+        const r = await runInternalLinker(
+          {
+            old_post_html: oldPost.content.rendered,
+            new_post: {
+              title: newPost.title.rendered,
+              tldr_one_liner: newPostTopic.title,
+              focus_keyword: newPostTopic.target_keyword,
+              url: newPost.link,
+              key_entities: [],
+            },
+            constraint_anchor_already_used: [],
           },
-          constraint_anchor_already_used: [],
-        },
-        { provider: providers.get("anthropic"), sleepImpl: sleep }
-      );
+          { provider: providers.get("anthropic"), sleepImpl: sleep }
+        );
+        log.agent_calls++;
 
-      if (!r.parsed.should_link || r.parsed.confidence < 0.7) {
+        if (!r.parsed.should_link || r.parsed.confidence < 0.7) {
+          log.skipped.push({
+            from_post_id: oldPost.id,
+            to_post_id: newPost.id,
+            reason: `agent declined (conf=${r.parsed.confidence})`,
+          });
+          continue;
+        }
+
+        const newHtml = replaceParagraphBySignature(
+          oldPost.content.rendered,
+          r.parsed.target_paragraph_signature,
+          r.parsed.rewritten_paragraph_html
+        );
+        if (newHtml === null) {
+          log.skipped.push({
+            from_post_id: oldPost.id,
+            to_post_id: newPost.id,
+            reason: "signature mismatch",
+          });
+          continue;
+        }
+
+        await updatePostContent(wp, oldPost.id, newHtml);
+        log.links_added.push({
+          from_post_id: oldPost.id,
+          to_post_id: newPost.id,
+          anchor: r.parsed.anchor_text,
+          confidence: r.parsed.confidence,
+        });
+        linksAddedCount++;
+
+        // Update local copy so iteration sees the new link.
+        oldPost.content.rendered = newHtml;
+        break; // 1 link per oude post
+      } catch (err) {
         log.skipped.push({
           from_post_id: oldPost.id,
           to_post_id: newPost.id,
-          reason: `agent declined (conf=${r.parsed.confidence})`,
+          reason: `error: ${(err as Error).message}`,
         });
         continue;
       }
-
-      const newHtml = replaceParagraphBySignature(
-        oldPost.content.rendered,
-        r.parsed.target_paragraph_signature,
-        r.parsed.rewritten_paragraph_html
-      );
-      if (newHtml === null) {
-        log.skipped.push({
-          from_post_id: oldPost.id,
-          to_post_id: newPost.id,
-          reason: "signature mismatch",
-        });
-        continue;
-      }
-
-      await updatePostContent(wp, oldPost.id, newHtml);
-      log.links_added.push({
-        from_post_id: oldPost.id,
-        to_post_id: newPost.id,
-        anchor: r.parsed.anchor_text,
-        confidence: r.parsed.confidence,
-      });
-      linksAddedCount++;
-
-      // Update local copy so iteration sees the new link.
-      oldPost.content.rendered = newHtml;
-      break; // 1 link per oude post
     }
   }
 
