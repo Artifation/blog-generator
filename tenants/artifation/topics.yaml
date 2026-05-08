@@ -1,0 +1,132 @@
+# tenants/artifation/topics.yaml
+# Pillar A — AI per afdeling (focus eerste 6 weken)
+- id: ai-per-afdeling-pillar
+  title: "Welke AI past bij welke afdeling? Compleet overzicht voor MKB-bedrijven"
+  pillar: ai-per-afdeling
+  target_keyword: "AI per afdeling MKB"
+  intended_word_count: 3000
+  status: queued
+  priority: 100
+- id: ai-in-hr
+  title: "AI in HR: van vacature tot exitgesprek"
+  pillar: ai-per-afdeling
+  target_keyword: "AI in HR Nederland"
+  intended_word_count: 1800
+  status: queued
+  priority: 90
+- id: ai-in-finance
+  title: "AI in finance: facturatie, debiteuren, forecasting"
+  pillar: ai-per-afdeling
+  target_keyword: "AI voor finance MKB"
+  intended_word_count: 1800
+  status: queued
+  priority: 88
+- id: ai-in-sales
+  title: "AI in sales: lead scoring & follow-up automatisering"
+  pillar: ai-per-afdeling
+  target_keyword: "AI voor sales MKB"
+  intended_word_count: 1800
+  status: queued
+  priority: 86
+- id: ai-in-marketing
+  title: "AI in marketing: contentproductie & SEO voor MKB"
+  pillar: ai-per-afdeling
+  target_keyword: "AI marketing MKB"
+  intended_word_count: 1800
+  status: queued
+  priority: 84
+- id: ai-in-inkoop
+  title: "AI in inkoop: leveranciersanalyse & contractcheck"
+  pillar: ai-per-afdeling
+  target_keyword: "AI in inkoop MKB"
+  intended_word_count: 1800
+  status: queued
+  priority: 82
+- id: ai-in-customer-service
+  title: "AI in customer service: chatbots & e-mail triage"
+  pillar: ai-per-afdeling
+  target_keyword: "AI klantenservice MKB"
+  intended_word_count: 1800
+  status: queued
+  priority: 80
+- id: ai-in-operations
+  title: "AI in operations: voorraad & planning"
+  pillar: ai-per-afdeling
+  target_keyword: "AI in operations MKB"
+  intended_word_count: 1800
+  status: queued
+  priority: 78
+
+# Pillar B — AI Act
+- id: ai-act-pillar
+  title: "EU AI Act voor MKB: complete gids 2026 (zonder juridische bullshit)"
+  pillar: ai-act
+  target_keyword: "AI Act MKB"
+  intended_word_count: 3000
+  status: queued
+  priority: 95
+- id: ai-register-opzetten
+  title: "AI-register opzetten in 1 dag — stappenplan voor MKB"
+  pillar: ai-act
+  target_keyword: "AI register MKB"
+  intended_word_count: 1500
+  status: queued
+  priority: 75
+- id: ai-policy-template
+  title: "Hoe schrijf je een AI-policy voor je MKB? (gratis template)"
+  pillar: ai-act
+  target_keyword: "AI policy MKB"
+  intended_word_count: 1500
+  status: queued
+  priority: 73
+- id: ai-geletterdheid-team
+  title: "AI-geletterdheid: training voor je team verplicht volgens AI Act"
+  pillar: ai-act
+  target_keyword: "AI geletterdheid MKB"
+  intended_word_count: 1500
+  status: queued
+  priority: 71
+- id: ai-tools-avg-proof
+  title: "Welke AI-tools zijn AVG-proof? Lijst voor MKB"
+  pillar: ai-act
+  target_keyword: "AI tools AVG MKB"
+  intended_word_count: 1800
+  status: queued
+  priority: 69
+- id: ai-act-boetes
+  title: "AI Act-boetes voor MKB: wat staat er op het spel?"
+  pillar: ai-act
+  target_keyword: "AI Act boetes MKB"
+  intended_word_count: 1500
+  status: queued
+  priority: 67
+
+# Pillar C — Sector-extensie
+- id: ai-voor-accountants
+  title: "AI voor accountants: 8 use cases die nu al productiviteit verdubbelen"
+  pillar: sector-extensie
+  target_keyword: "AI voor accountants Nederland"
+  intended_word_count: 1800
+  status: queued
+  priority: 60
+- id: ai-voor-advocaten
+  title: "AI voor advocaten en notarissen: kansen, risico's en AI Act-grenzen"
+  pillar: sector-extensie
+  target_keyword: "AI voor advocaten Nederland"
+  intended_word_count: 1800
+  status: queued
+  priority: 58
+- id: ai-voor-horeca
+  title: "AI voor horeca: van reserveringen tot voorraadbeheer"
+  pillar: sector-extensie
+  target_keyword: "AI voor horeca"
+  intended_word_count: 1500
+  status: queued
+  priority: 56
+- id: ai-voor-transport
+  title: "AI voor transport en logistiek: route, capaciteit, en compliance"
+  pillar: sector-extensie
+  target_keyword: "AI voor transport en logistiek"
+  intended_word_count: 1500
+  status: queued
+  priority: 54
