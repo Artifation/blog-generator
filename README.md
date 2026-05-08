@@ -55,6 +55,21 @@ npx tsx src/pipeline/orchestrator.ts --tenant=artifation
 3. Voeg tenant-specifieke secrets toe.
 4. (Optioneel) Voeg een 2e workflow-job toe voor de nieuwe tenant.
 
+### 7. Internal-linker
+
+De reverse internal-linker draait wekelijks (maandag 05:00 UTC) en plaatst links in oudere posts naar de nieuwste posts. Inschakelen per tenant:
+
+```yaml
+features:
+  internal_linker:
+    enabled: true
+    max_links_per_run: 10
+    lookback_posts: 50
+    exclude_post_ids: [12, 34]   # pillar/product pages waar geen links bij mogen
+```
+
+Logs van elke run staan in `data/internal-linker-runs/<tenant>/<date>.json`.
+
 ## Tests
 
 ```bash
