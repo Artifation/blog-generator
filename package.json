@@ -1,0 +1,52 @@
+{
+  "name": "blog",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "run": "tsx src/pipeline/orchestrator.ts",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Artifation/blog-generator.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/Artifation/blog-generator/issues"
+  },
+  "homepage": "https://github.com/Artifation/blog-generator#readme",
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "0.95.1",
+    "@fal-ai/client": "1.10.1",
+    "@google/genai": "2.0.0",
+    "@react-email/components": "1.0.12",
+    "@react-email/render": "2.0.8",
+    "groq-sdk": "1.1.2",
+    "js-yaml": "4.1.1",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "resend": "6.12.3",
+    "undici": "8.2.0",
+    "zod": "4.4.3"
+  },
+  "devDependencies": {
+    "@types/js-yaml": "4.0.9",
+    "@types/node": "25.6.2",
+    "@types/react": "19.2.14",
+    "tsx": "4.21.0",
+    "typescript": "6.0.3",
+    "vitest": "4.1.5"
+  }
+}
