@@ -30,6 +30,18 @@ const IndexNowFeatureSchema = z.object({
  */
 const AiCrawlersSchema = z.record(z.string(), z.enum(["allow", "block"])).default({});
 
+const AnchorTrackerFeatureSchema = z.object({
+  enabled: z.boolean().default(false),
+  max_exact_match_per_url: z.number().int().min(1).default(3),
+  cache_ttl_hours: z.number().int().min(1).default(24),
+});
+
+const CwvMonitoringFeatureSchema = z.object({
+  enabled: z.boolean().default(false),
+  alert_on_poor: z.boolean().default(true),
+  psi_api_key_secret_ref: z.string().default("PSI_API_KEY"),
+});
+
 const FeaturesSchema = z
   .object({
     internal_linker: InternalLinkerFeatureSchema.default(() =>
@@ -40,12 +52,20 @@ const FeaturesSchema = z
     ),
     indexnow: IndexNowFeatureSchema.default(() => IndexNowFeatureSchema.parse({})),
     ai_crawlers: AiCrawlersSchema,
+    anchor_tracker: AnchorTrackerFeatureSchema.optional().default(() =>
+      AnchorTrackerFeatureSchema.parse({})
+    ),
+    cwv_monitoring: CwvMonitoringFeatureSchema.optional().default(() =>
+      CwvMonitoringFeatureSchema.parse({})
+    ),
   })
   .default(() => ({
     internal_linker: InternalLinkerFeatureSchema.parse({}),
     ai_detection: AiDetectionFeatureSchema.parse({}),
     indexnow: IndexNowFeatureSchema.parse({}),
     ai_crawlers: {},
+    anchor_tracker: AnchorTrackerFeatureSchema.parse({}),
+    cwv_monitoring: CwvMonitoringFeatureSchema.parse({}),
   }));
 
 export const TenantConfigSchema = z

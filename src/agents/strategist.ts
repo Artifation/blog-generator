@@ -4,6 +4,7 @@ import { resolveAgentModel } from "@/llm/client";
 import type { LLMProvider } from "@/llm/types";
 import type { ResearchOutput } from "./researcher.ts";
 import { STRATEGIST_SYSTEM_PROMPT } from "./prompts/strategist.ts";
+import type { AnchorHistoryEntry } from "@/pipeline/anchorTracker";
 
 export const StrategistOutputSchema = z.object({
   outline: z.object({
@@ -43,6 +44,7 @@ export interface StrategistInput {
   target_keyword: string;
   intent?: "informational" | "commercial" | "transactional";
   intended_word_count_target?: number;
+  anchor_history?: AnchorHistoryEntry[];
 }
 
 export interface StrategistDeps {

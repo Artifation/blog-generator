@@ -25,6 +25,8 @@ import { uploadMedia } from "@/wordpress/media";
 import { createDraftPost, buildEditUrl } from "@/wordpress/posts";
 import { setRankMathMeta } from "@/wordpress/rankMath";
 import { pingIndexNow } from "./indexNow.ts";
+import { buildAnchorHistory, loadCachedAnchorHistory, saveCachedAnchorHistory } from "./anchorTracker.ts";
+import type { AnchorHistoryEntry } from "./anchorTracker.ts";
 import { appendEditorialLogEntry } from "./editorialLog.ts";
 import { sendEmail } from "@/email/resend";
 import { Success } from "@/email/templates/Success";
@@ -95,6 +97,34 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       outputTokens: research.raw.outputTokens,
     });
 
+    // Build anchor history before Strategist to inform anchor diversity
+    let anchorHistory: AnchorHistoryEntry[] = [];
+    if (tenant.features.anchor_tracker?.enabled) {
+      const publishedUrls = topics
+        .filter((t) => t.status === "published" && t.wp_post_url)
+        .map((t) => t.wp_post_url!);
+      if (publishedUrls.length > 0) {
+        const cacheFile = `data/anchor-history-${opts.tenantSlug}.json`;
+        const ttlHours = tenant.features.anchor_tracker.cache_ttl_hours;
+        const cached = await loadCachedAnchorHistory(cacheFile, ttlHours);
+        if (cached) {
+          anchorHistory = cached;
+        } else {
+          try {
+            anchorHistory = await buildAnchorHistory({
+              publishedPostUrls: publishedUrls,
+              fetchImpl: opts.fetchImpl,
+            });
+            await saveCachedAnchorHistory(cacheFile, anchorHistory);
+          } catch (err) {
+            console.log(
+              JSON.stringify({ stage: "anchor-tracker", warning: (err as Error).message })
+            );
+          }
+        }
+      }
+    }
+
     currentStage = "strategist";
     const outline = await runStrategist(
       {
@@ -103,6 +133,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         target_keyword: next.target_keyword,
         intent: next.intent,
         intended_word_count_target: next.intended_word_count_target,
+        ...(anchorHistory.length > 0 ? { anchor_history: anchorHistory } : {}),
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );

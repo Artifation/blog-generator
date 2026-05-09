@@ -35,6 +35,11 @@ INTENT-AWARE WORD COUNT TARGET:
 - Als input.intended_word_count_target gegeven: respecteer dat target ±20%
 - Default (geen intent): 1000-1500 woorden, 5-7 H2 chunks
 
+ANCHOR-DISTRIBUTIE CONSTRAINT (uit anchor_history):
+- Als input.anchor_history aanwezig is: controleer voor elke target-URL of een exact-match anchor al ≥3 keer is gebruikt.
+- Voor zulke URLs: kies een partial of semantic anchor in internal_links_to_inject in plaats van exact-match.
+- Doel: voorkom over-optimalisatie (SpamBrain 3.0 devalueert dominant exact-match anchor-patronen).
+
 Strikte regels:
 - Minimaal 5 h2_chunks, maximaal 9.
 - intended_word_count per chunk: 200-300; totale post 1000-2700 woorden afhankelijk van intent.

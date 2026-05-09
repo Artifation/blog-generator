@@ -46,6 +46,8 @@ const TENANT: TenantConfig = {
     ai_detection: { enabled: false, provider: "gptzero" as const, threshold_max_ai_pct: 80 },
     indexnow: { enabled: false, key_secret_ref: "INDEXNOW_KEY" },
     ai_crawlers: {},
+    anchor_tracker: { enabled: false, max_exact_match_per_url: 3, cache_ttl_hours: 24 },
+    cwv_monitoring: { enabled: false, alert_on_poor: true, psi_api_key_secret_ref: "PSI_API_KEY" },
   },
 } as TenantConfig;
 

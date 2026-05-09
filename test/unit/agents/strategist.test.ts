@@ -61,4 +61,23 @@ describe("runStrategist", () => {
     );
     expect(r.parsed.outline.h2_chunks).toHaveLength(5);
   });
+
+  it("accepts optional anchor_history without error", async () => {
+    const r = await runStrategist(
+      {
+        research: {} as any,
+        brand_voice: "informeel",
+        target_keyword: "AI in HR",
+        anchor_history: [
+          {
+            target_url: "https://artifation.nl/ai-scan/",
+            exact_match_anchors: { "ai scan": 4 },
+            partial_match_anchors: {},
+          },
+        ],
+      },
+      { provider, sleepImpl: () => Promise.resolve() }
+    );
+    expect(r.parsed.outline.h2_chunks).toHaveLength(5);
+  });
 });
