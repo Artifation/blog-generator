@@ -31,6 +31,8 @@ brand:
   signature_phrases:
     - "Wij kijken verder dan de hype"
     - "De kortste weg naar een schaalbaar bedrijf"
+  # update monthly: review fresh AI output for new clichés en voeg toe aan ban_list
+  banlist_last_updated: "2026-05-09"
 
 # TODO: vul in voor productie (zie spec §14 open vragen)
 author:

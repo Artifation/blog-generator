@@ -70,6 +70,7 @@ export async function runWriter(input: WriterInput, deps: WriterDeps): Promise<W
         userPrompt,
         model: model.model,
         maxTokens: model.maxTokens,
+        temperature: 1.0 - i * 0.1,
         schema: WriterOutputSchema,
       },
       deps.sleepImpl

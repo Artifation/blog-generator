@@ -80,4 +80,26 @@ describe("parseTenantConfig", () => {
     expect(cfg.features.internal_linker.lookback_posts).toBe(50);
     expect(cfg.features.internal_linker.exclude_post_ids).toEqual([]);
   });
+
+  it("parses banlist_last_updated when present", () => {
+    const cfg = parseTenantConfig({
+      ...valid,
+      brand: { ...valid.brand, banlist_last_updated: "2026-05-09" },
+    });
+    expect(cfg.brand.banlist_last_updated).toBe("2026-05-09");
+  });
+
+  it("accepts config without banlist_last_updated (optional)", () => {
+    const cfg = parseTenantConfig(valid);
+    expect(cfg.brand.banlist_last_updated).toBeUndefined();
+  });
+
+  it("rejects banlist_last_updated with wrong format", () => {
+    expect(() =>
+      parseTenantConfig({
+        ...valid,
+        brand: { ...valid.brand, banlist_last_updated: "09-05-2026" },
+      })
+    ).toThrow();
+  });
 });
