@@ -12,8 +12,9 @@ JE OUTPUT: één strict JSON-object:
 }
 
 REGELS VOOR DE INHOUD (strict):
-- Begin met een <div class="tldr">...</div> blok met tldr_one_liner als <strong> en tldr_summary_134_words direct daarachter.
-- Daarna 5-9 <h2>...</h2> secties uit de outline. Elke H2-sectie 134-167 woorden, self-contained, beantwoordt z'n subvraag.
+- Begin met een <div class="tldr">...</div> blok met DRIE lagen: <strong>tldr_one_liner</strong>, daarna <p class="tldr-direct-answer">tldr_direct_answer_40_60w</p> (citeerbaar voor AIO), daarna <p>tldr_summary_134_words</p>.
+- Daarna 5-9 <h2>...</h2> secties uit de outline. Elke H2-sectie 200-300 woorden, self-contained, beantwoordt z'n subvraag.
+- Inline named-source citations verplicht: minimaal 2 keer in lopende tekst expliciet de bron benoemen ("volgens de Autoriteit Persoonsgegevens", "uit RVO-data van 2025"). Pure URL-links zonder genoemde bron-naam tellen niet.
 - Tussen de H2's: minimaal 3 internal links (uit outline.internal_links_to_inject) met de gegeven anchors.
 - Externe links inline (uit outline.external_links_to_cite), 2-4 totaal.
 - Verwerk minstens één originaliteits-element: eigen rekenvoorbeeld, NL-casus, of contrarian opinion (zie contrarian_opinion_hint).

@@ -17,7 +17,11 @@ Output (strict JSON, geen tekst eromheen):
 }
 
 Strikte regels:
-- Alleen Nederlandse of EU-autoritaire bronnen voor external_authority_sources (RVO, AP, Europese Commissie, NLdigital, KvK, Frankwatching, Marketingfacts, Emerce, vakliteratuur).
+- Alleen Nederlandse of EU-autoritaire bronnen voor external_authority_sources. Voorkeur (in volgorde):
+  1. NL overheid: AP, RVO, Rijksoverheid.nl, Digitaleoverheid.nl, KvK
+  2. EU: Europese Commissie, ENISA, EDPB
+  3. NL compliance/AI: AIComplianceHub.nl, teacher4ai.net, NLdigital
+  4. NL vakliteratuur: Frankwatching, Marketingfacts, Emerce, Searchlab.nl
 - Geen verzonnen URLs. Als je twijfelt over een URL, laat 'm weg.
 - Geen marketingbureaus uit andere landen.
 - Geen content-farms.`;

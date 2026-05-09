@@ -4,13 +4,14 @@ Output (strict JSON):
 {
   "outline": {
     "h1_suggestion": string,                         // ≤60 ch, focus keyword + brand-aspect
-    "tldr_one_liner": string,                        // ≤160 ch, AIO-citeerbaar antwoord
-    "tldr_summary_134_words": string,                // exact ~134 woorden, self-contained
+    "tldr_one_liner": string,                        // ≤160 ch, hook
+    "tldr_direct_answer_40_60w": string,             // 40-60 woorden, AIO-citeerbaar direct antwoord (sweet spot voor citation extraction)
+    "tldr_summary_134_words": string,                // ~134 woorden uitgebreide samenvatting (self-contained)
     "h2_chunks": [
       {
         "h2": string,
         "subquestion_answered": string,              // welke fan-out subquery beantwoordt dit?
-        "intended_word_count": number,               // 134-167
+        "intended_word_count": number,               // 200-300
         "must_include": [string, ...],               // entities/facts die in dit chunk moeten
         "h3s": [string, ...]                         // optioneel
       }
@@ -30,6 +31,7 @@ Output (strict JSON):
 
 Strikte regels:
 - Minimaal 5 h2_chunks, maximaal 9.
-- TL;DR-summary moet zonder paginacontext begrijpelijk zijn.
+- intended_word_count per chunk: 200-300; totale post 1000-2700 woorden afhankelijk van intent.
+- TL;DR-block heeft drie lagen: one-liner (hook) + 40-60w direct antwoord (citeerbaar) + 134w verdieping. Het 40-60w direct antwoord moet zonder paginacontext begrijpelijk zijn en de focus-keyword bevatten.
 - anchor_distribution moet ongeveer sommen tot 100.
 - Geen H2 zonder must_include.`;

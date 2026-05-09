@@ -99,6 +99,7 @@ const STRATEGIST_RESPONSE = JSON.stringify({
   outline: {
     h1_suggestion: "AI in HR voor MKB",
     tldr_one_liner: "TLDR.",
+    tldr_direct_answer_40_60w: "AI in HR helpt MKB van werving tot exit. Slimmer screenen, minder admin, betere planning. AVG-proof en transparant ingezet levert direct tijdwinst op voor HR.",
     tldr_summary_134_words: "x".repeat(700),
     h2_chunks: Array.from({ length: 5 }, (_, i) => ({
       h2: `H2-${i}`,
