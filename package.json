@@ -33,6 +33,7 @@
     "@google/genai": "2.0.0",
     "@react-email/components": "1.0.12",
     "@react-email/render": "2.0.8",
+    "googleapis": "^171.4.0",
     "groq-sdk": "1.1.2",
     "js-yaml": "4.1.1",
     "node-html-parser": "^7.1.0",
