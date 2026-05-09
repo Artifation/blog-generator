@@ -26,6 +26,7 @@ import { Success } from "@/email/templates/Success";
 import { Reject } from "@/email/templates/Reject";
 import { CapReached } from "@/email/templates/CapReached";
 import { ErrorMail } from "@/email/templates/Error";
+import { buildAllSchemaJsonLd } from "./schemaGenerator.ts";
 import type { TenantConfig } from "@/config/tenant";
 
 export interface OrchestratorOpts {
@@ -277,9 +278,27 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       filename: `${seo.parsed.slug}.png`,
       altText: ip.parsed.alt_text_nl,
     });
+
+    // Generate JSON-LD schema and append to edited HTML before publish
+    const schemaJsonLd = buildAllSchemaJsonLd({
+      tenant,
+      topic: { pillar: next.pillar, target_keyword: next.target_keyword },
+      post: {
+        headline: outline.parsed.outline.h1_suggestion,
+        description: outline.parsed.outline.tldr_one_liner,
+        slug: seo.parsed.slug,
+        url: `${tenant.wordpress.base_url}/${seo.parsed.slug}/`,
+        datePublished: now.toISOString(),
+        imageUrl: media.source_url,
+        imageAlt: ip.parsed.alt_text_nl,
+      },
+      keyEntities: research.parsed.key_entities,
+    });
+    const finalContent = `${seo.parsed.edited_html}\n${schemaJsonLd}`;
+
     const post = await createDraftPost(wp, {
       title: outline.parsed.outline.h1_suggestion,
-      content: seo.parsed.edited_html,
+      content: finalContent,
       slug: seo.parsed.slug,
       excerpt: outline.parsed.outline.tldr_one_liner,
       featuredMediaId: media.id,

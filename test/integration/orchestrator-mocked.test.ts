@@ -292,6 +292,14 @@ describe("orchestrator integration — happy path (GO)", () => {
     expect(postCall).toBeDefined();
     expect((postCall!.body as { status?: string }).status).toBe("draft");
 
+    // Verifieer: JSON-LD schema geïnjecteerd in post content
+    const content = (postCall!.body as { content?: string }).content ?? "";
+    expect(content).toContain('<script type="application/ld+json">');
+    expect(content).toMatch(/"@type"\s*:\s*"BlogPosting"/);
+    expect(content).toMatch(/"@type"\s*:\s*"BreadcrumbList"/);
+    expect(content).toMatch(/"@type"\s*:\s*"Person"/);
+    expect(content).toMatch(/"@type"\s*:\s*"Organization"/);
+
     // Verifieer: rank math meta gezet
     const metaCall = state.wpCalls.find((c) => c.path.includes("rank-math-api"));
     expect(metaCall).toBeDefined();
