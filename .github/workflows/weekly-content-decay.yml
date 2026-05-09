@@ -1,0 +1,41 @@
+name: Weekly content decay
+on:
+  schedule:
+    - cron: "0 7 * * 1"  # Monday 07:00 UTC
+  workflow_dispatch:
+    inputs:
+      tenant: { description: "Tenant slug", default: "artifation", required: true }
+
+permissions:
+  contents: write
+concurrency:
+  group: content-decay-${{ github.event.inputs.tenant || 'artifation' }}
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { token: '${{ secrets.GITHUB_TOKEN }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: npm }
+      - run: npm ci
+      - name: Run content-decay job
+        env:
+          GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: npx tsx src/pipeline/contentDecayJob.ts --tenant=${{ github.event.inputs.tenant || 'artifation' }}
+      - name: Commit run log
+        if: success()
+        run: |
+          git config user.name "blog-bot"
+          git config user.email "blog-bot@artifation.nl"
+          git add data/content-decay-runs/
+          git diff --staged --quiet || git commit -m "chore(state): content-decay $(date -u +%Y-%m-%d)"
+          git pull --rebase origin main
+          git push
+      - name: Upload run log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: 'content-decay-${{ github.run_id }}', path: 'data/content-decay-runs/', retention-days: 60, if-no-files-found: ignore }
