@@ -43,4 +43,48 @@ describe("computeDeterministicRubricSignals", () => {
     expect(r.keyword_density_pct).toBeGreaterThan(0.5);
     expect(r.keyword_density_pct).toBeLessThan(1.5);
   });
+
+  it("detects Article schema in JSON-LD", () => {
+    const html =
+      '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","name":"test"}</script>';
+    const r = computeDeterministicRubricSignals({ html, banList: [], targetKeyword: "x", internalUrls: [] });
+    expect(r.has_article_schema).toBe(true);
+    expect(r.has_breadcrumb_schema).toBe(false);
+    expect(r.has_person_schema).toBe(false);
+  });
+
+  it("detects BlogPosting as article schema", () => {
+    const html =
+      '<script type="application/ld+json">{"@context":"https://schema.org","@type":"BlogPosting","name":"test"}</script>';
+    const r = computeDeterministicRubricSignals({ html, banList: [], targetKeyword: "x", internalUrls: [] });
+    expect(r.has_article_schema).toBe(true);
+  });
+
+  it("detects BreadcrumbList schema in JSON-LD", () => {
+    const html =
+      '<script type="application/ld+json">{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[]}</script>';
+    const r = computeDeterministicRubricSignals({ html, banList: [], targetKeyword: "x", internalUrls: [] });
+    expect(r.has_breadcrumb_schema).toBe(true);
+    expect(r.has_article_schema).toBe(false);
+  });
+
+  it("detects Person schema in JSON-LD", () => {
+    const html =
+      '<script type="application/ld+json">{"@context":"https://schema.org","@type":"Person","name":"Jan"}</script>';
+    const r = computeDeterministicRubricSignals({ html, banList: [], targetKeyword: "x", internalUrls: [] });
+    expect(r.has_person_schema).toBe(true);
+    expect(r.has_article_schema).toBe(false);
+  });
+
+  it("returns false for all schema signals when no JSON-LD present", () => {
+    const r = computeDeterministicRubricSignals({
+      html: "<p>Gewone tekst zonder schema.</p>",
+      banList: [],
+      targetKeyword: "x",
+      internalUrls: [],
+    });
+    expect(r.has_article_schema).toBe(false);
+    expect(r.has_breadcrumb_schema).toBe(false);
+    expect(r.has_person_schema).toBe(false);
+  });
 });

@@ -17,6 +17,9 @@ export interface RubricSignals {
   has_tldr_block: boolean;
   has_cta: boolean;
   paragraph_length_variance: number;
+  has_article_schema: boolean;
+  has_breadcrumb_schema: boolean;
+  has_person_schema: boolean;
 }
 
 export function computeDeterministicRubricSignals(input: RubricSignalsInput): RubricSignals {
@@ -52,6 +55,10 @@ export function computeDeterministicRubricSignals(input: RubricSignalsInput): Ru
   );
   const variance = paragraphs.length > 1 ? stdev(paragraphs) : 0;
 
+  const hasArticleSchema = /"@type"\s*:\s*"(?:Article|BlogPosting)"/.test(input.html);
+  const hasBreadcrumbSchema = /"@type"\s*:\s*"BreadcrumbList"/.test(input.html);
+  const hasPersonSchema = /"@type"\s*:\s*"Person"/.test(input.html);
+
   return {
     word_count: wc,
     banlist_hits: banlistHits,
@@ -64,6 +71,9 @@ export function computeDeterministicRubricSignals(input: RubricSignalsInput): Ru
     has_tldr_block: hasTldr,
     has_cta: hasCta,
     paragraph_length_variance: variance,
+    has_article_schema: hasArticleSchema,
+    has_breadcrumb_schema: hasBreadcrumbSchema,
+    has_person_schema: hasPersonSchema,
   };
 }
 

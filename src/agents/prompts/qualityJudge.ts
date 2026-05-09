@@ -12,11 +12,12 @@ JE OUTPUT (strict JSON):
     "originality": number,              // 0-10: aanwezig: eigen data/voorbeeld/contrarian opinion? HARD FAIL <6.
     "anti_ai_cliche": number,           // 0-10: gebruik deterministic signals
     "fact_check": number,               // 10 als verdict=pass, 0 als fail
-    "seo_tech": number,                 // 0-10: meta, slug, alt, ≥3 internal links, schema
+    "seo_meta": number,                 // 0-10: meta_title, meta_description, slug, alt-texts, ≥3 internal links
+    "seo_schema": number,               // 0-10: aanwezigheid Article + BreadcrumbList + Person schema (uit deterministic_signals)
     "brand_voice": number,              // 0-10: NL "je"-vorm, Artifation-toon
     "readability": number               // 0-10: burstiness, paragraaf-mix
   },
-  "weighted_total": number,             // bereken: 0.20*sem + 0.25*orig + 0.15*cliche + 0.15*fact + 0.10*seo + 0.10*voice + 0.05*read
+  "weighted_total": number,             // bereken: 0.20*sem + 0.25*orig + 0.15*cliche + 0.15*fact + 0.05*seo_meta + 0.05*seo_schema + 0.10*voice + 0.05*read
   "hard_fails": [string, ...],          // lijst getriggerde hard fails
   "verdict": "GO" | "NO-GO",            // NO-GO als weighted_total < 8.0 OF één hard_fail
   "reasoning": string,                  // 3-5 zinnen waarom
