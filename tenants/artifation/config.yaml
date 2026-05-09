@@ -38,18 +38,17 @@ brand:
     ai-bewustwording: { min: 60, max: 75 }
     ai-tools-en-cases: { min: 55, max: 70 }
 
-# TODO: vul in voor productie (zie spec §14 open vragen)
 author:
-  name: "REPLACE_ME"
-  linkedin: "https://linkedin.com/in/REPLACE_ME"
-  bio: "REPLACE_ME"
-  photo_url: "https://artifation.nl/REPLACE_ME.jpg"
+  name: "Julian Dunsbergen"
+  linkedin: "https://www.linkedin.com/in/julian-dunsbergen-203252248"
+  bio: "Founder van Artifation. Helpt Nederlandse MKB-bedrijven AI praktisch en duurzaam in te zetten — van eerste experimenten tot integratie in dagelijkse processen."
+  photo_url: "https://artifation.nl/wp-content/uploads/julian-dunsbergen.jpg"  # upload echte foto naar WP-media-library en vervang URL als die anders is
 
 organization:
-  legal_name: "Artifation B.V."
-  kvk: "REPLACE_ME"
-  btw: "REPLACE_ME"
-  address: "REPLACE_ME"
+  legal_name: "Artifation"  # vennootschap onder firma (VOF) per algemene voorwaarden artifation.nl
+  kvk: "99459590"
+  btw: "REPLACE_ME_BTW"  # check je KvK-uittreksel of een eigen factuur — formaat NL...B01
+  address: "Van Goghstraat 17, 7701 ZL Dedemsvaart"
 
 wordpress:
   base_url: https://artifation.nl
