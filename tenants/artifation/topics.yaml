@@ -93,6 +93,7 @@
   intended_word_count: 1800
   status: queued
   priority: 69
+  intent: commercial
 - id: ai-act-boetes
   title: "AI Act-boetes voor MKB: wat staat er op het spel?"
   pillar: ai-act
@@ -109,6 +110,7 @@
   intended_word_count: 1800
   status: queued
   priority: 60
+  intent: commercial
 - id: ai-voor-advocaten
   title: "AI voor advocaten en notarissen: kansen, risico's en AI Act-grenzen"
   pillar: sector-extensie
@@ -116,6 +118,7 @@
   intended_word_count: 1800
   status: queued
   priority: 58
+  intent: commercial
 - id: ai-voor-horeca
   title: "AI voor horeca: van reserveringen tot voorraadbeheer"
   pillar: sector-extensie

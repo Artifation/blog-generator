@@ -41,6 +41,8 @@ export interface StrategistInput {
   research: ResearchOutput;
   brand_voice: string;
   target_keyword: string;
+  intent?: "informational" | "commercial" | "transactional";
+  intended_word_count_target?: number;
 }
 
 export interface StrategistDeps {

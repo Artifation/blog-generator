@@ -94,6 +94,8 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         research: research.parsed,
         brand_voice: tenant.brand.voice,
         target_keyword: next.target_keyword,
+        intent: next.intent,
+        intended_word_count_target: next.intended_word_count_target,
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );

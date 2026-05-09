@@ -47,4 +47,18 @@ describe("runStrategist", () => {
     );
     expect(r.parsed.outline.h2_chunks).toHaveLength(5);
   });
+
+  it("accepts intent and intended_word_count_target fields", async () => {
+    const r = await runStrategist(
+      {
+        research: {} as any,
+        brand_voice: "informeel",
+        target_keyword: "AI in HR",
+        intent: "commercial",
+        intended_word_count_target: 900,
+      },
+      { provider, sleepImpl: () => Promise.resolve() }
+    );
+    expect(r.parsed.outline.h2_chunks).toHaveLength(5);
+  });
 });

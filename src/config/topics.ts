@@ -29,6 +29,8 @@ export const TopicSchema = z.object({
   /** Populated by orchestrator on successful publish; consumed by internal-linker for new-post correlation. */
   wp_post_url: z.string().url().optional(),
   key_entities: z.array(z.string()).optional(),
+  intent: z.enum(["informational", "commercial", "transactional"]).optional(),
+  intended_word_count_target: z.number().int().optional(),
 });
 export type Topic = z.infer<typeof TopicSchema>;
 

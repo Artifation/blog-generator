@@ -29,6 +29,12 @@ Output (strict JSON):
   "contrarian_opinion_hint": string                   // korte aanwijzing voor de Writer
 }
 
+INTENT-AWARE WORD COUNT TARGET:
+- Als input.intent === "informational": totale post 1500-2500 woorden, dus 6-9 H2 chunks
+- Als input.intent === "commercial" of "transactional": totale post 750-1000 woorden, dus 5-6 H2 chunks
+- Als input.intended_word_count_target gegeven: respecteer dat target ±20%
+- Default (geen intent): 1000-1500 woorden, 5-7 H2 chunks
+
 Strikte regels:
 - Minimaal 5 h2_chunks, maximaal 9.
 - intended_word_count per chunk: 200-300; totale post 1000-2700 woorden afhankelijk van intent.
