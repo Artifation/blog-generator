@@ -9,7 +9,7 @@ export const StrategistOutputSchema = z.object({
   outline: z.object({
     h1_suggestion: z.string().max(80),
     tldr_one_liner: z.string().max(180),
-    tldr_direct_answer_40_60w: z.string().min(40).max(180),
+    tldr_direct_answer_40_60w: z.string().min(200).max(500),
     tldr_summary_134_words: z.string().min(100),
     h2_chunks: z
       .array(

@@ -6,7 +6,7 @@ const out = {
   outline: {
     h1_suggestion: "AI in HR voor MKB: stappenplan 2026",
     tldr_one_liner: "AI helpt MKB-HR vanaf vacature tot exit, mits AVG-proof.",
-    tldr_direct_answer_40_60w: "AI in HR helpt MKB van werving tot exit. Slimmer screenen, minder admin, betere planning. AVG-proof en transparant ingezet levert direct tijdwinst op voor HR.",
+    tldr_direct_answer_40_60w: "AI in HR helpt MKB-bedrijven het volledige proces van werving tot exit te versnellen: slimmer screenen, minder administratieve last, betere planning en datagedreven beslissingen. AVG-proof en transparant ingezet levert dit direct tijdwinst op voor HR-teams die anders verzuipen in handmatig CV-werk en spreadsheets.",
     tldr_summary_134_words: "x".repeat(700),
     h2_chunks: Array.from({ length: 5 }, (_, i) => ({
       h2: `H2-${i}`,
