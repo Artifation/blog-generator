@@ -6,6 +6,7 @@ import { selectNextTopic } from "./topicSelector.ts";
 import { detectCannibalization } from "./cannibalization.ts";
 import { fetchSitemapEntries } from "./sitemap.ts";
 import { computeDeterministicRubricSignals } from "./rubric.ts";
+import { checkCitations, enrichSignalsWithCitationCheck } from "./citationCheck.ts";
 import { computeRunCost, type UsageEntry } from "./costTracker.ts";
 import { countPublishedThisIsoWeek, markTopicStatus } from "./state.ts";
 import { createProviderRegistry } from "@/llm/client";
@@ -35,6 +36,7 @@ export interface OrchestratorOpts {
   baseDir?: string;
   env?: NodeJS.ProcessEnv;
   now?: Date;
+  fetchImpl?: typeof fetch;
 }
 
 export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
@@ -154,12 +156,24 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       outputTokens: fc.raw.outputTokens,
     });
 
-    const signals = computeDeterministicRubricSignals({
+    let signals = computeDeterministicRubricSignals({
       html: seo.parsed.edited_html,
       banList: tenant.brand.ban_list,
       targetKeyword: next.target_keyword,
       internalUrls: outline.parsed.outline.internal_links_to_inject.map((l) => l.url),
     });
+
+    currentStage = "citationCheck";
+    const citationUrls = [
+      ...research.parsed.external_authority_sources.map((s) => s.url),
+      ...outline.parsed.outline.external_links_to_cite,
+    ];
+    const citationResult = await checkCitations({
+      urls: citationUrls,
+      fetchImpl: opts.fetchImpl,
+      timeoutMs: 5000,
+    });
+    signals = enrichSignalsWithCitationCheck(signals, citationResult);
 
     currentStage = "qualityJudge";
     const judge = await runQualityJudge(
