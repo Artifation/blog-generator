@@ -25,6 +25,7 @@ import { uploadMedia } from "@/wordpress/media";
 import { createDraftPost, buildEditUrl } from "@/wordpress/posts";
 import { setRankMathMeta } from "@/wordpress/rankMath";
 import { pingIndexNow } from "./indexNow.ts";
+import { appendEditorialLogEntry } from "./editorialLog.ts";
 import { sendEmail } from "@/email/resend";
 import { Success } from "@/email/templates/Success";
 import { Reject } from "@/email/templates/Reject";
@@ -394,6 +395,22 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       subject: `[${tenant.brand.name}] Concept klaar: ${outline.parsed.outline.h1_suggestion} — score ${judge.parsed.weighted_total.toFixed(1)}`,
       html,
     });
+
+    // Editorial review log — Article 50 EU AI Act audit trail.
+    await appendEditorialLogEntry(
+      {
+        post_id: post.id,
+        post_url: post.link,
+        post_title: outline.parsed.outline.h1_suggestion,
+        reviewer: tenant.author.name,
+        approved_at: now.toISOString(),
+        ai_models_used: [...new Set(usage.map((u) => u.model))],
+        pipeline_version: env.GITHUB_SHA?.slice(0, 7) ?? "local",
+        rubric_total: judge.parsed.weighted_total,
+        topic_id: next.id,
+      },
+      { tenant_slug: opts.tenantSlug, baseDir, now }
+    );
 
     topics = markTopicStatus(topics, next.id, "published", now, {
       wp_post_id: post.id,
