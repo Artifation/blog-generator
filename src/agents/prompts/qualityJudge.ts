@@ -15,7 +15,7 @@ JE OUTPUT (strict JSON):
     "seo_meta": number,                 // 0-10: meta_title, meta_description, slug, alt-texts, ≥3 internal links
     "seo_schema": number,               // 0-10: aanwezigheid Article + BreadcrumbList + Person schema (uit deterministic_signals)
     "brand_voice": number,              // 0-10: NL "je"-vorm, Artifation-toon
-    "readability": number               // 0-10: burstiness, paragraaf-mix
+    "readability": number               // 0-10: burstiness, paragraaf-mix; leid af uit flesch_nl_score: 60-70 → 9, 50-60 → 7, 40-50 → 5, anders lager
   },
   "weighted_total": number,             // bereken: 0.20*sem + 0.25*orig + 0.15*cliche + 0.15*fact + 0.05*seo_meta + 0.05*seo_schema + 0.10*voice + 0.05*read
   "hard_fails": [string, ...],          // lijst getriggerde hard fails

@@ -1,3 +1,5 @@
+import { computeFleschNL } from "./readingLevel.ts";
+
 export interface RubricSignalsInput {
   html: string;
   banList: string[];
@@ -22,6 +24,7 @@ export interface RubricSignals {
   has_person_schema: boolean;
   dead_external_link_count: number;
   external_link_check_total: number;
+  flesch_nl_score: number;
 }
 
 export function computeDeterministicRubricSignals(input: RubricSignalsInput): RubricSignals {
@@ -78,6 +81,7 @@ export function computeDeterministicRubricSignals(input: RubricSignalsInput): Ru
     has_person_schema: hasPersonSchema,
     dead_external_link_count: 0,
     external_link_check_total: 0,
+    flesch_nl_score: computeFleschNL(text),
   };
 }
 

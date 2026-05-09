@@ -33,6 +33,10 @@ brand:
     - "De kortste weg naar een schaalbaar bedrijf"
   # update monthly: review fresh AI output for new clichés en voeg toe aan ban_list
   banlist_last_updated: "2026-05-09"
+  reading_level_targets:
+    ai-per-afdeling: { min: 50, max: 65 }
+    ai-bewustwording: { min: 60, max: 75 }
+    ai-tools-en-cases: { min: 55, max: 70 }
 
 # TODO: vul in voor productie (zie spec §14 open vragen)
 author:

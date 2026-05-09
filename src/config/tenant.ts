@@ -32,6 +32,9 @@ export const TenantConfigSchema = z
       ban_list: z.array(z.string()).default([]),
       signature_phrases: z.array(z.string()).default([]),
       banlist_last_updated: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+      reading_level_targets: z
+        .record(z.string(), z.object({ min: z.number(), max: z.number() }))
+        .optional(),
     }),
 
     author: z.object({
