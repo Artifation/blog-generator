@@ -78,17 +78,25 @@ Multi-agent research bevestigt dat het fundament aansluit op 2026 best practice;
 
 ### Phase-status
 
-| Phase | Status | Aanpassing |
+**Alle phases ✅ DONE** — implementatie-eindstaat 2026-05-09.
+
+| Phase | Status | Commits |
 |---|---|---|
-| 1 — Reverse internal-linker | **DONE** (commits `8b8d29b..1f057db`) | n.v.t. |
-| 2 — Pre-publish guards | als gepland | provider-keuze: **Originality.ai geprefereerd** boven GPTZero (parafrasering 96.7% vs 7.3% recall op GPT-5 mini); dashboard-only, geen auto-blok (real-world false positive 18%) |
-| 3 — Schema markup | scope-adjust | **drop FAQPage** (gedeprecieerd voor marketing in 2026); add **`Person` schema voor author byline** (E-E-A-T's meest engineerable signaal); add schema-detectie in `computeDeterministicRubricSignals` als deterministisch rubric-signal |
-| 4 — Image-SEO | scope-adjust | **AVIF als primary** (50% kleiner dan JPEG, >90% browser support), WebP als fallback via `<picture>`; **hero-image** krijgt `loading="eager" fetchpriority="high"`, body-images `loading="lazy"` |
-| 5 — IndexNow | doc-only | Google adopteert IndexNow nog steeds NIET in 2026 — werkt voor Bing/Yandex/Naver/Seznam/Yep; documenteer dit expliciet in README/comment |
-| 6 — Anchor-tracker | als gepland | bevestigd: SpamBrain 3.0 devalueert dominant exact-match patroon; threshold ≥3 exact-match per URL is conservatief |
-| 7 — Repurposer | als gepland | n.v.t. |
-| 8 — Search Console | **vooruithalen** | tekst-only cannibalization heeft ~70% recall voor obvious cases en ~40% voor semantische overlap; trigger om GSC eerder te bouwen: zodra 3 pillars elk ≥10 clusterposts hebben |
-| 9 — Topic-suggester | als gepland | aanvulling: target 10-15 cluster-posts per pillar (huidige queue heeft 6/pillar = boundary-laag) |
+| 1 — Reverse internal-linker | ✅ DONE | `8b8d29b..1f057db` (12 commits) |
+| 2 — Pre-publish guards | ✅ DONE | `29ec194` citation-fetcher, `52cc4b8` Flesch-NL, `e451e1b` AI-detection |
+| 3 — Schema markup | ✅ DONE | `35f342c` generator, `521fbaf` orchestrator-injectie |
+| 4 — Image-SEO (AVIF) | ✅ DONE | `9b00e08` sharp/AVIF, `800ea10` orchestrator AVIF-upload |
+| 5 — IndexNow | ✅ DONE | `3a60db1` (Bing/Yandex/Naver/Seznam/Yep — Google nog steeds niet in 2026) |
+| 6 — Anchor-tracker | ✅ DONE | `c9c2a0e` (cross-post, 24u cache, Strategist input) |
+| 7 — Repurposer | ✅ DONE | `eff15bb` agent, `38cea40` email-template, `423c630` orchestrator-stage |
+| 8 — Search Console | ✅ DONE | `82458f2` GSC client, `47a9bdf` GSC-cannibalization, `408c7f0` content-decay job |
+| 9 — Topic-suggester | ✅ DONE | `2e50e34` proposed-status, `da22b6e` competitor sitemaps, `0ca05a8` agent, `3d04dc8` job+workflow |
+| 10 — Core Web Vitals monitoring | ✅ DONE | `6e3d895` (PSI API + cron Mon 06:00 UTC) |
+| 11 — AI-crawler robots.txt | ✅ DONE | `6d4cb9a` (generator + tenant config + CLI script) |
+| 12 — Editorial review log | ✅ DONE | `6a46dd1` (Article 50 audittrail) |
+| Pipeline-parameter refactor (P1-P10) | ✅ DONE | `b79e2cd`, `d32eec2`, `18a9b68`, `e62f22e`, `7f54034` |
+
+**218 tests in 50 files passen, tsc schoon.** Roadmap volledig geïmplementeerd; resterend werk is operationeel: REPLACE_ME's in tenant config, secrets configureren, eerste live-run (zie [`LAUNCH-CHECKLIST.md`](../../LAUNCH-CHECKLIST.md)).
 
 ### Nieuwe phases (10-12)
 
