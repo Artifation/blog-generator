@@ -24,6 +24,7 @@ import { createWordpressClient } from "@/wordpress/client";
 import { uploadMedia } from "@/wordpress/media";
 import { createDraftPost, buildEditUrl } from "@/wordpress/posts";
 import { setRankMathMeta } from "@/wordpress/rankMath";
+import { pingIndexNow } from "./indexNow.ts";
 import { sendEmail } from "@/email/resend";
 import { Success } from "@/email/templates/Success";
 import { Reject } from "@/email/templates/Reject";
@@ -346,6 +347,29 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       rank_math_focus_keyword: next.target_keyword,
       rank_math_canonical_url: `${tenant.wordpress.base_url}/${seo.parsed.slug}/`,
     });
+
+    // IndexNow ping — notifies Bing, Yandex, Naver, Seznam, Yep (not Google).
+    // Failure is non-fatal: pipeline continues regardless.
+    if (tenant.features.indexnow.enabled) {
+      try {
+        const indexNowKey = env[tenant.features.indexnow.key_secret_ref] ?? "";
+        const host = new URL(tenant.wordpress.base_url).hostname;
+        await pingIndexNow({
+          host,
+          key: indexNowKey,
+          urlList: [`${tenant.wordpress.base_url}/${seo.parsed.slug}/`],
+          fetchImpl: opts.fetchImpl,
+        });
+      } catch (err) {
+        console.warn(
+          JSON.stringify({
+            stage: "indexNow",
+            warning: "IndexNow ping failed, skipping",
+            error: (err as Error).message,
+          })
+        );
+      }
+    }
 
     currentStage = "email";
     const editUrl = buildEditUrl(tenant.wordpress.base_url, post.id);

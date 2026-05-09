@@ -18,6 +18,12 @@ const AiDetectionFeatureSchema = z.object({
   threshold_max_ai_pct: z.number().min(0).max(100).default(80),
 });
 
+const IndexNowFeatureSchema = z.object({
+  enabled: z.boolean().default(false),
+  /** Name of the env var / secret that holds the 32-char hex key. */
+  key_secret_ref: z.string().default("INDEXNOW_KEY"),
+});
+
 const FeaturesSchema = z
   .object({
     internal_linker: InternalLinkerFeatureSchema.default(() =>
@@ -26,10 +32,12 @@ const FeaturesSchema = z
     ai_detection: AiDetectionFeatureSchema.default(() =>
       AiDetectionFeatureSchema.parse({})
     ),
+    indexnow: IndexNowFeatureSchema.default(() => IndexNowFeatureSchema.parse({})),
   })
   .default(() => ({
     internal_linker: InternalLinkerFeatureSchema.parse({}),
     ai_detection: AiDetectionFeatureSchema.parse({}),
+    indexnow: IndexNowFeatureSchema.parse({}),
   }));
 
 export const TenantConfigSchema = z

@@ -82,3 +82,6 @@ features:
     enabled: false
     provider: gptzero
     threshold_max_ai_pct: 80
+  indexnow:
+    enabled: false
+    key_secret_ref: INDEXNOW_KEY
