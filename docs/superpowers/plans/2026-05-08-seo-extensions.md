@@ -72,7 +72,108 @@ Elke fase eindigt met:
 
 ---
 
+## Update na SEO-validation research (2026-05-09)
+
+Multi-agent research bevestigt dat het fundament aansluit op 2026 best practice; details in [`docs/superpowers/research/2026-05-08-seo-validation.md`](../research/2026-05-08-seo-validation.md). De volgende aanpassingen zijn nodig:
+
+### Phase-status
+
+| Phase | Status | Aanpassing |
+|---|---|---|
+| 1 — Reverse internal-linker | **DONE** (commits `8b8d29b..1f057db`) | n.v.t. |
+| 2 — Pre-publish guards | als gepland | provider-keuze: **Originality.ai geprefereerd** boven GPTZero (parafrasering 96.7% vs 7.3% recall op GPT-5 mini); dashboard-only, geen auto-blok (real-world false positive 18%) |
+| 3 — Schema markup | scope-adjust | **drop FAQPage** (gedeprecieerd voor marketing in 2026); add **`Person` schema voor author byline** (E-E-A-T's meest engineerable signaal); add schema-detectie in `computeDeterministicRubricSignals` als deterministisch rubric-signal |
+| 4 — Image-SEO | scope-adjust | **AVIF als primary** (50% kleiner dan JPEG, >90% browser support), WebP als fallback via `<picture>`; **hero-image** krijgt `loading="eager" fetchpriority="high"`, body-images `loading="lazy"` |
+| 5 — IndexNow | doc-only | Google adopteert IndexNow nog steeds NIET in 2026 — werkt voor Bing/Yandex/Naver/Seznam/Yep; documenteer dit expliciet in README/comment |
+| 6 — Anchor-tracker | als gepland | bevestigd: SpamBrain 3.0 devalueert dominant exact-match patroon; threshold ≥3 exact-match per URL is conservatief |
+| 7 — Repurposer | als gepland | n.v.t. |
+| 8 — Search Console | **vooruithalen** | tekst-only cannibalization heeft ~70% recall voor obvious cases en ~40% voor semantische overlap; trigger om GSC eerder te bouwen: zodra 3 pillars elk ≥10 clusterposts hebben |
+| 9 — Topic-suggester | als gepland | aanvulling: target 10-15 cluster-posts per pillar (huidige queue heeft 6/pillar = boundary-laag) |
+
+### Nieuwe phases (10-12)
+
+#### Phase 10 — Core Web Vitals monitoring
+
+**Goal:** wekelijkse CWV-rapportage per published post (LCP, INP, CLS) via PageSpeed Insights API + GSC CWV-rapport.
+
+**Effort:** S (1-2 dagen)
+
+**Files to add:**
+- `src/integrations/pageSpeedInsights.ts` — PSI API client
+- `src/pipeline/cwvJob.ts` — wekelijkse job die alle published posts test
+- `src/email/templates/CwvAlert.tsx` — email als ≥1 metric in "poor" range
+- `.github/workflows/weekly-cwv.yml`
+
+**Approach:** PSI API gratis tot 25k requests/dag. Test elke `wp_post_url` uit `topics.yaml` waar `status=published`. Drempels: LCP <2.5s, INP <200ms, CLS <0.1. Bij metric in poor: email + log naar `data/cwv-runs/<tenant>/<date>.json`.
+
+**Open questions:** test-frequentie (wekelijks volstaat; CrUX field data komt elke 28d), scope (alleen recente posts of alle?). Default: alle posts elke week.
+
+#### Phase 11 — AI-crawler robots.txt strategie
+
+**Goal:** expliciete keuzes over welke AI-crawlers content mogen lezen, gepublicariseerd via `robots.txt`.
+
+**Effort:** S (halve dag, primair besluit + WP-side robots.txt update)
+
+**Files to modify:** `tenants/<slug>/config.yaml` — voeg `ai_crawlers` sectie toe met allow/block per crawler. Genereer `robots.txt` snippet die op WP geplaatst wordt (handmatig of via plugin).
+
+**Crawlers om te beslissen** (per [Appear on AI 2026](https://appearonai.com/insights/ai-crawler-configuration-robots-txt-guide)):
+
+| Crawler | Type | Aanbeveling |
+|---|---|---|
+| `GPTBot` | training | block (geen waarde voor jou) |
+| `OAI-SearchBot` | search retrieval | allow (ChatGPT search citaties) |
+| `ClaudeBot` | training | block |
+| `PerplexityBot` | search retrieval | allow |
+| `Google-Extended` | training (Gemini) | block |
+| `Applebot-Extended` | training | block |
+| `Meta-ExternalAgent` | mixed | tenant-keuze |
+
+Belangrijk: ClaudeBot (training) ≠ Anthropic search-variant; blokkeren van een training-crawler blokkeert NIET search-zichtbaarheid in dezelfde service.
+
+**Open questions:** wil je AI-crawlers toelaten voor zichtbaarheid (modern), of beschermen (klassiek)? Voor B2B-MKB-niche is "allow search, block training" de gebalanceerde keuze.
+
+#### Phase 12 — Editorial review logging (Article 50 EU AI Act)
+
+**Goal:** vóór 2 augustus 2026 (deadline Article 50 inwerkingtreding) een audittrail die de "editorial responsibility exception" sluitend maakt: per gepubliceerde post een log met reviewer-ID + goedkeuringsdatum + AI-toolset.
+
+**Effort:** S (1-2 dagen)
+
+**Files to add:**
+- `src/pipeline/editorialLog.ts` — append-only log naar `data/editorial-reviews/<tenant>/<year>.json` (per kalenderjaar)
+- `src/wordpress/customField.ts` — schrijf reviewer-ID + datum naar WP custom field zodat het ook op de WP-kant zichtbaar is
+
+**Files to modify:**
+- `src/email/templates/Success.tsx` — voeg form-veld toe voor reviewer-naam (default `tenant.author.name` als ingelogde gebruiker)
+- `src/pipeline/orchestrator.ts` — bij success: log entry met `{ post_id, reviewer, approved_at, ai_models_used: ["claude-sonnet-4-6", "gemini-2.5-pro", ...], pipeline_version }`
+
+**Approach:** de editorial responsibility exception in Artikel 50 vereist (1) echte menselijke review, (2) rechtspersoon draagt verantwoordelijkheid, (3) gedocumenteerd. Onze workflow voldoet aan (1) en (2); deze phase voegt (3) toe via append-only log + WP custom field. Bij audit-vraag: `data/editorial-reviews/artifation/2026.json` is bewijsmateriaal.
+
+**Open questions:** moet de log gecommitteerd naar git (transparant maar groeit) of S3-backed (privé)? Voor MKB-tenant: git is goedkoop en simpel; review jaarlijks of dit nog past.
+
+---
+
+## Pipeline-parameter adjustments (geen aparte phase)
+
+Aanpassingen op de bestaande pipeline-prompts/-rubrics die GEEN nieuw module vereisen, maar wel impact hebben. Bundel in één commit `refactor(pipeline): align prompts/rubric met 2026 SEO best practice`.
+
+| # | Bestand | Wijziging | Reden |
+|---|---|---|---|
+| P1 | `src/agents/prompts/strategist.ts` | H2 chunks: `intended_word_count` van 134-167 → **200-300** per chunk; total target 1000-2700w | passage indexing + featured snippet sweet spot |
+| P2 | `src/agents/prompts/strategist.ts` | TL;DR-structuur uitbreiden: outline.tldr_one_liner blijft + `tldr_direct_answer_40_60w` (nieuw) + `tldr_summary_134_words` (bestaand, optioneel uitgebreid) | AIO-citatie sweet spot (40-60w) |
+| P3 | `src/agents/prompts/writer.ts` | TL;DR-block instructie: eerst `<strong>` one-liner, dan `<p>` met direct-answer-40-60w (citeerbaar), dan `<p>` met 134-word verdieping | matcht P2 |
+| P4 | `src/agents/prompts/writer.ts` | Verplichte requirement: minimaal 2 inline named-source citations in lopende tekst (bijv. "volgens [bron]") | 2.1x AIO citation lift |
+| P5 | `src/pipeline/topicSelector.ts` of Topic schema | Voeg `intent: "informational" \| "commercial" \| "transactional"` veld toe; informational target ≥1500w, commercial 750-1000w | intent-match consensus |
+| P6 | `src/agents/prompts/writer.ts` + `tenants/<slug>/config.yaml` | Banlist-update procedure: maandelijks reviewen + `last_updated` veld in config | toekomstbestendigheid |
+| P7 | `src/agents/prompts/researcher.ts` | Authority-bronnenlijst uitbreiden met **Rijksoverheid.nl, Digitaleoverheid.nl, AIComplianceHub.nl, teacher4ai.net** | NL-AI-compliance-zwaartegewicht |
+| P8 | `src/agents/writer.ts` | Bij re-iteratie (self_score < 7): verlaag `temperature` met 0.1 per iteratie (start 1.0, dan 0.9, 0.8) | mitigeer self-score bias |
+| P9 | `src/agents/prompts/qualityJudge.ts` | seo_tech 10% → splits: schema-tech 5% + meta-tech 5%; expliciete check op aanwezigheid Article+BreadcrumbList+Person schema | schema = 2.3-2.8x AIO citation lift |
+| P10 | `src/pipeline/rubric.ts` | `computeDeterministicRubricSignals` voegt `has_article_schema`, `has_breadcrumb_schema`, `has_person_schema` toe | feed Quality Judge |
+
+---
+
 ## Phase 1 — Reverse internal-linker (HIGH PRIORITY)
+
+**Status: DONE.** Commits `8b8d29b..1f057db` (14 commits). Suite: 72 tests passen, tsc schoon. Sub-plan in [`docs/superpowers/plans/2026-05-08-internal-linker.md`](2026-05-08-internal-linker.md).
 
 **Goal:** Wekelijkse job die nieuwe gepubliceerde posts identificeert en relevante oudere posts bewerkt om er naartoe te linken (anchor + 1-2 zinnen herschrijving rondom de link).
 
