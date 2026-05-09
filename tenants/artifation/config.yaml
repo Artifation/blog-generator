@@ -109,3 +109,8 @@ features:
   search_console:
     enabled: false
     property_url: "sc-domain:artifation.nl"  # vereist GSC_SERVICE_ACCOUNT_JSON secret
+  topic_suggester:
+    enabled: false
+    competitor_domains: []
+    max_proposals_per_week: 5
+    expire_after_weeks: 4

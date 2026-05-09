@@ -50,6 +50,7 @@ const TENANT: TenantConfig = {
     cwv_monitoring: { enabled: false, alert_on_poor: true, psi_api_key_secret_ref: "PSI_API_KEY" },
     repurposer: { enabled: false, formats: [] },
     search_console: { enabled: false, property_url: "" },
+    topic_suggester: { enabled: false, competitor_domains: [], max_proposals_per_week: 5, expire_after_weeks: 4 },
   },
 } as TenantConfig;
 

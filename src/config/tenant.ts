@@ -54,6 +54,13 @@ const SearchConsoleFeatureSchema = z.object({
   property_url: z.string().min(1).default(""),
 });
 
+const TopicSuggesterFeatureSchema = z.object({
+  enabled: z.boolean().default(false),
+  competitor_domains: z.array(z.string()).default([]),
+  max_proposals_per_week: z.number().int().min(1).max(20).default(5),
+  expire_after_weeks: z.number().int().min(1).max(52).default(4),
+});
+
 const FeaturesSchema = z
   .object({
     internal_linker: InternalLinkerFeatureSchema.default(() =>
@@ -76,6 +83,9 @@ const FeaturesSchema = z
     search_console: SearchConsoleFeatureSchema.optional().default(() =>
       SearchConsoleFeatureSchema.parse({})
     ),
+    topic_suggester: TopicSuggesterFeatureSchema.default(() =>
+      TopicSuggesterFeatureSchema.parse({})
+    ),
   })
   .default(() => ({
     internal_linker: InternalLinkerFeatureSchema.parse({}),
@@ -86,6 +96,7 @@ const FeaturesSchema = z
     cwv_monitoring: CwvMonitoringFeatureSchema.parse({}),
     repurposer: RepurposerFeatureSchema.parse({}),
     search_console: SearchConsoleFeatureSchema.parse({}),
+    topic_suggester: TopicSuggesterFeatureSchema.parse({}),
   }));
 
 export const TenantConfigSchema = z
