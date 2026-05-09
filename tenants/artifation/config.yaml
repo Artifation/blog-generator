@@ -103,3 +103,6 @@ features:
     enabled: false
     alert_on_poor: true
     psi_api_key_secret_ref: PSI_API_KEY
+  repurposer:
+    enabled: false
+    formats: []   # ["linkedin", "newsletter", "xthread"] om aan te zetten

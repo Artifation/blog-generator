@@ -42,6 +42,13 @@ const CwvMonitoringFeatureSchema = z.object({
   psi_api_key_secret_ref: z.string().default("PSI_API_KEY"),
 });
 
+const RepurposerFeatureSchema = z.object({
+  enabled: z.boolean().default(false),
+  formats: z
+    .array(z.enum(["linkedin", "newsletter", "xthread"]))
+    .default([]),
+});
+
 const FeaturesSchema = z
   .object({
     internal_linker: InternalLinkerFeatureSchema.default(() =>
@@ -58,6 +65,9 @@ const FeaturesSchema = z
     cwv_monitoring: CwvMonitoringFeatureSchema.optional().default(() =>
       CwvMonitoringFeatureSchema.parse({})
     ),
+    repurposer: RepurposerFeatureSchema.optional().default(() =>
+      RepurposerFeatureSchema.parse({})
+    ),
   })
   .default(() => ({
     internal_linker: InternalLinkerFeatureSchema.parse({}),
@@ -66,6 +76,7 @@ const FeaturesSchema = z
     ai_crawlers: {},
     anchor_tracker: AnchorTrackerFeatureSchema.parse({}),
     cwv_monitoring: CwvMonitoringFeatureSchema.parse({}),
+    repurposer: RepurposerFeatureSchema.parse({}),
   }));
 
 export const TenantConfigSchema = z

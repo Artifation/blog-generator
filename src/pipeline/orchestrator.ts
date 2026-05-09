@@ -33,6 +33,8 @@ import { Success } from "@/email/templates/Success";
 import { Reject } from "@/email/templates/Reject";
 import { CapReached } from "@/email/templates/CapReached";
 import { ErrorMail } from "@/email/templates/Error";
+import { Repurposed } from "@/email/templates/Repurposed";
+import { runRepurposerLinkedIn, runRepurposerNewsletter, runRepurposerXThread } from "@/agents/repurposer";
 import { buildAllSchemaJsonLd } from "./schemaGenerator.ts";
 import type { TenantConfig } from "@/config/tenant";
 
@@ -442,6 +444,51 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { tenant_slug: opts.tenantSlug, baseDir, now }
     );
+
+    // Repurpose stage — inline na success-email + editorial log.
+    // Failure is non-fatal: warning gelogd, publish blijft success.
+    if (tenant.features.repurposer?.enabled && (tenant.features.repurposer.formats ?? []).length > 0) {
+      try {
+        const blog = {
+          title: outline.parsed.outline.h1_suggestion,
+          tldr: outline.parsed.outline.tldr_one_liner,
+          url: post.link,
+          target_keyword: next.target_keyword,
+          pillar: next.pillar,
+        };
+        const formats = tenant.features.repurposer.formats ?? [];
+        const [linkedInResult, newsletterResult, xthreadResult] = await Promise.all([
+          formats.includes("linkedin")
+            ? runRepurposerLinkedIn({ blog, brand_voice: tenant.brand.voice }, { provider: providers.get("anthropic"), sleepImpl: sleep })
+            : null,
+          formats.includes("newsletter")
+            ? runRepurposerNewsletter({ blog, brand_voice: tenant.brand.voice }, { provider: providers.get("anthropic"), sleepImpl: sleep })
+            : null,
+          formats.includes("xthread")
+            ? runRepurposerXThread({ blog, brand_voice: tenant.brand.voice }, { provider: providers.get("anthropic"), sleepImpl: sleep })
+            : null,
+        ]);
+        const repurposedHtml = await render(
+          React.createElement(Repurposed, {
+            blogTitle: blog.title,
+            blogUrl: blog.url,
+            linkedin: linkedInResult?.parsed ?? { hook_first_200: "", full_text: "", cta: "" },
+            newsletter: newsletterResult?.parsed ?? { subject_line: "", preheader: "", body_html: "", cta_url: blog.url },
+            xthread: xthreadResult?.parsed ?? { tweets: [], blog_link_tweet_index: 0 },
+          })
+        );
+        await sendEmail({
+          apiKey: requireEnv(env, "RESEND_API_KEY"),
+          from: tenant.email.from,
+          to: tenant.email.to,
+          replyTo: tenant.email.reply_to,
+          subject: `[${tenant.brand.name}] Repurposed: ${blog.title}`,
+          html: repurposedHtml,
+        });
+      } catch (err) {
+        console.log(JSON.stringify({ stage: "repurposer", warning: (err as Error).message }));
+      }
+    }
 
     topics = markTopicStatus(topics, next.id, "published", now, {
       wp_post_id: post.id,
