@@ -106,3 +106,6 @@ features:
   repurposer:
     enabled: false
     formats: []   # ["linkedin", "newsletter", "xthread"] om aan te zetten
+  search_console:
+    enabled: false
+    property_url: "sc-domain:artifation.nl"  # vereist GSC_SERVICE_ACCOUNT_JSON secret

@@ -36,6 +36,7 @@ import { ErrorMail } from "@/email/templates/Error";
 import { Repurposed } from "@/email/templates/Repurposed";
 import { runRepurposerLinkedIn, runRepurposerNewsletter, runRepurposerXThread } from "@/agents/repurposer";
 import { buildAllSchemaJsonLd } from "./schemaGenerator.ts";
+import { detectCannibalizationViaGsc } from "./cannibalizationGsc.ts";
 import type { TenantConfig } from "@/config/tenant";
 
 export interface OrchestratorOpts {
@@ -77,6 +78,26 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       });
       await saveTopics(topics, opts.tenantSlug, baseDir);
       return;
+    }
+
+    if (tenant.features.search_console?.enabled) {
+      try {
+        const gscCheck = await detectCannibalizationViaGsc({
+          gscOpts: { serviceAccountJson: requireEnv(env, "GSC_SERVICE_ACCOUNT_JSON") },
+          propertyUrl: tenant.features.search_console.property_url,
+          targetKeyword: next.target_keyword,
+          now,
+        });
+        if (gscCheck.isCannibalized) {
+          console.log(JSON.stringify({ stage: "gsc-cannibalization", competing: gscCheck.competingPages.length }));
+          topics = markTopicStatus(topics, next.id, "cannibalization_skipped", now, { reject_reason: gscCheck.reason });
+          await saveTopics(topics, opts.tenantSlug, baseDir);
+          return;
+        }
+      } catch (err) {
+        console.log(JSON.stringify({ stage: "gsc-cannibalization", warning: (err as Error).message }));
+        // niet-fataal: pipeline gaat door met enkel tekst-only resultaat
+      }
     }
 
     const providers = createProviderRegistry(env);

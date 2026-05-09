@@ -49,6 +49,7 @@ const TENANT: TenantConfig = {
     anchor_tracker: { enabled: false, max_exact_match_per_url: 3, cache_ttl_hours: 24 },
     cwv_monitoring: { enabled: false, alert_on_poor: true, psi_api_key_secret_ref: "PSI_API_KEY" },
     repurposer: { enabled: false, formats: [] },
+    search_console: { enabled: false, property_url: "" },
   },
 } as TenantConfig;
 

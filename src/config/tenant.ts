@@ -49,6 +49,11 @@ const RepurposerFeatureSchema = z.object({
     .default([]),
 });
 
+const SearchConsoleFeatureSchema = z.object({
+  enabled: z.boolean().default(false),
+  property_url: z.string().min(1).default(""),
+});
+
 const FeaturesSchema = z
   .object({
     internal_linker: InternalLinkerFeatureSchema.default(() =>
@@ -68,6 +73,9 @@ const FeaturesSchema = z
     repurposer: RepurposerFeatureSchema.optional().default(() =>
       RepurposerFeatureSchema.parse({})
     ),
+    search_console: SearchConsoleFeatureSchema.optional().default(() =>
+      SearchConsoleFeatureSchema.parse({})
+    ),
   })
   .default(() => ({
     internal_linker: InternalLinkerFeatureSchema.parse({}),
@@ -77,6 +85,7 @@ const FeaturesSchema = z
     anchor_tracker: AnchorTrackerFeatureSchema.parse({}),
     cwv_monitoring: CwvMonitoringFeatureSchema.parse({}),
     repurposer: RepurposerFeatureSchema.parse({}),
+    search_console: SearchConsoleFeatureSchema.parse({}),
   }));
 
 export const TenantConfigSchema = z
