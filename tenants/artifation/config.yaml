@@ -85,3 +85,13 @@ features:
   indexnow:
     enabled: false
     key_secret_ref: INDEXNOW_KEY
+  # AI-crawler strategie: blokkeer training-crawlers, sta retrieval/search toe.
+  # Belangrijk: ClaudeBot (training) is NIET hetzelfde als Anthropic's search-crawler.
+  ai_crawlers:
+    GPTBot: block
+    OAI-SearchBot: allow
+    ClaudeBot: block
+    PerplexityBot: allow
+    Google-Extended: block
+    Applebot-Extended: block
+    Meta-ExternalAgent: block

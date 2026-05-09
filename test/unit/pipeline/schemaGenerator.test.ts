@@ -45,6 +45,7 @@ const TENANT: TenantConfig = {
     internal_linker: { enabled: false, max_links_per_run: 10, lookback_posts: 50, exclude_post_ids: [] },
     ai_detection: { enabled: false, provider: "gptzero" as const, threshold_max_ai_pct: 80 },
     indexnow: { enabled: false, key_secret_ref: "INDEXNOW_KEY" },
+    ai_crawlers: {},
   },
 } as TenantConfig;
 

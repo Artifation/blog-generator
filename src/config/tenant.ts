@@ -24,6 +24,12 @@ const IndexNowFeatureSchema = z.object({
   key_secret_ref: z.string().default("INDEXNOW_KEY"),
 });
 
+/**
+ * Per-crawler policy for the AI-crawler robots.txt generator.
+ * Keys are crawler User-agent names; values are "allow" or "block".
+ */
+const AiCrawlersSchema = z.record(z.string(), z.enum(["allow", "block"])).default({});
+
 const FeaturesSchema = z
   .object({
     internal_linker: InternalLinkerFeatureSchema.default(() =>
@@ -33,11 +39,13 @@ const FeaturesSchema = z
       AiDetectionFeatureSchema.parse({})
     ),
     indexnow: IndexNowFeatureSchema.default(() => IndexNowFeatureSchema.parse({})),
+    ai_crawlers: AiCrawlersSchema,
   })
   .default(() => ({
     internal_linker: InternalLinkerFeatureSchema.parse({}),
     ai_detection: AiDetectionFeatureSchema.parse({}),
     indexnow: IndexNowFeatureSchema.parse({}),
+    ai_crawlers: {},
   }));
 
 export const TenantConfigSchema = z
