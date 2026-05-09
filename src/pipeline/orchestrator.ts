@@ -7,6 +7,7 @@ import { detectCannibalization } from "./cannibalization.ts";
 import { fetchSitemapEntries } from "./sitemap.ts";
 import { computeDeterministicRubricSignals } from "./rubric.ts";
 import { checkCitations, enrichSignalsWithCitationCheck } from "./citationCheck.ts";
+import { detectAiContent } from "./aiDetection.ts";
 import { computeRunCost, type UsageEntry } from "./costTracker.ts";
 import { countPublishedThisIsoWeek, markTopicStatus } from "./state.ts";
 import { createProviderRegistry } from "@/llm/client";
@@ -174,6 +175,24 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       timeoutMs: 5000,
     });
     signals = enrichSignalsWithCitationCheck(signals, citationResult);
+
+    currentStage = "aiDetection";
+    if (tenant.features.ai_detection.enabled) {
+      try {
+        const aiApiKey = env.GPTZERO_API_KEY ?? env.ORIGINALITY_API_KEY ?? "";
+        const aiResult = await detectAiContent({
+          text: seo.parsed.edited_html.replace(/<[^>]+>/g, " "),
+          apiKey: aiApiKey,
+          provider: tenant.features.ai_detection.provider,
+          fetchImpl: opts.fetchImpl,
+        });
+        signals = { ...signals, ai_score_pct: aiResult.ai_score_pct };
+      } catch (err) {
+        console.warn(
+          JSON.stringify({ stage: "aiDetection", warning: "AI detection failed, skipping", error: (err as Error).message })
+        );
+      }
+    }
 
     currentStage = "qualityJudge";
     const judge = await runQualityJudge(

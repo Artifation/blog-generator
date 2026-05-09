@@ -12,13 +12,25 @@ const InternalLinkerFeatureSchema = z.object({
   exclude_post_ids: z.array(z.number().int()).default([]),
 });
 
+const AiDetectionFeatureSchema = z.object({
+  enabled: z.boolean().default(false),
+  provider: z.enum(["gptzero", "originality"]).default("gptzero"),
+  threshold_max_ai_pct: z.number().min(0).max(100).default(80),
+});
+
 const FeaturesSchema = z
   .object({
     internal_linker: InternalLinkerFeatureSchema.default(() =>
       InternalLinkerFeatureSchema.parse({})
     ),
+    ai_detection: AiDetectionFeatureSchema.default(() =>
+      AiDetectionFeatureSchema.parse({})
+    ),
   })
-  .default(() => ({ internal_linker: InternalLinkerFeatureSchema.parse({}) }));
+  .default(() => ({
+    internal_linker: InternalLinkerFeatureSchema.parse({}),
+    ai_detection: AiDetectionFeatureSchema.parse({}),
+  }));
 
 export const TenantConfigSchema = z
   .object({

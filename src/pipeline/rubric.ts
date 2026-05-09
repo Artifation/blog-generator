@@ -25,6 +25,7 @@ export interface RubricSignals {
   dead_external_link_count: number;
   external_link_check_total: number;
   flesch_nl_score: number;
+  ai_score_pct: number | undefined;
 }
 
 export function computeDeterministicRubricSignals(input: RubricSignalsInput): RubricSignals {
@@ -82,6 +83,7 @@ export function computeDeterministicRubricSignals(input: RubricSignalsInput): Ru
     dead_external_link_count: 0,
     external_link_check_total: 0,
     flesch_nl_score: computeFleschNL(text),
+    ai_score_pct: undefined,
   };
 }
 

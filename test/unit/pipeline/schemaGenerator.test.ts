@@ -43,6 +43,7 @@ const TENANT: TenantConfig = {
   max_posts_per_week_published: 4,
   features: {
     internal_linker: { enabled: false, max_links_per_run: 10, lookback_posts: 50, exclude_post_ids: [] },
+    ai_detection: { enabled: false, provider: "gptzero" as const, threshold_max_ai_pct: 80 },
   },
 } as TenantConfig;
 

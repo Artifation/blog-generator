@@ -78,3 +78,7 @@ features:
     max_links_per_run: 10
     lookback_posts: 50
     exclude_post_ids: []
+  ai_detection:
+    enabled: false
+    provider: gptzero
+    threshold_max_ai_pct: 80
