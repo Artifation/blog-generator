@@ -24,4 +24,11 @@ describe("resolveAgentModel", () => {
     expect(m.model).toBe("claude-sonnet-4-6");
     expect(m.maxTokens).toBe(2000);
   });
+
+  it("resolves topicSuggester to gemini-2.5-pro with 4k maxTokens", () => {
+    const m = resolveAgentModel("topicSuggester");
+    expect(m.provider).toBe("gemini");
+    expect(m.model).toBe("gemini-2.5-pro");
+    expect(m.maxTokens).toBe(4000);
+  });
 });
