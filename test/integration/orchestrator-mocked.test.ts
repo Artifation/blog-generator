@@ -45,6 +45,15 @@ vi.mock("@/image", () => ({
   })),
 }));
 
+vi.mock("@/image/optimize", () => ({
+  optimizeForWeb: vi.fn(async () => ({
+    avifBytes: Buffer.from("avif-mock"),
+    contentType: "image/avif",
+    width: 1024,
+    height: 1024,
+  })),
+}));
+
 vi.mock("@/pipeline/sitemap", () => ({
   fetchSitemapEntries: vi.fn(async () => [
     { url: "https://artifation.nl/ai-scan/", slug: "ai-scan" },

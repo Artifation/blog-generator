@@ -17,6 +17,7 @@ import { runFactChecker } from "@/agents/factChecker";
 import { runQualityJudge } from "@/agents/qualityJudge";
 import { runImagePrompter } from "@/agents/imagePrompter";
 import { generateBlogImage } from "@/image";
+import { optimizeForWeb } from "@/image/optimize";
 import { createWordpressClient } from "@/wordpress/client";
 import { uploadMedia } from "@/wordpress/media";
 import { createDraftPost, buildEditUrl } from "@/wordpress/posts";
@@ -272,10 +273,11 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       user: requireEnv(env, tenant.wordpress.user_secret_ref),
       appPassword: requireEnv(env, tenant.wordpress.app_password_secret_ref),
     });
+    const optimized = await optimizeForWeb({ pngBytes: image.bytes });
     const media = await uploadMedia(wp, {
-      bytes: image.bytes,
-      contentType: image.contentType,
-      filename: `${seo.parsed.slug}.png`,
+      bytes: optimized.avifBytes,
+      contentType: optimized.contentType,           // "image/avif"
+      filename: `${seo.parsed.slug}.avif`,
       altText: ip.parsed.alt_text_nl,
     });
 
