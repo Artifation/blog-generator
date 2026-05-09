@@ -17,4 +17,11 @@ describe("resolveAgentModel", () => {
     expect(m.provider).toBe("anthropic");
     expect(m.model).toBe("claude-sonnet-4-6");
   });
+
+  it("resolves repurposer to anthropic sonnet with 2k maxTokens", () => {
+    const m = resolveAgentModel("repurposer");
+    expect(m.provider).toBe("anthropic");
+    expect(m.model).toBe("claude-sonnet-4-6");
+    expect(m.maxTokens).toBe(2000);
+  });
 });
