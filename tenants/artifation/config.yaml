@@ -56,7 +56,7 @@ wordpress:
   app_password_secret_ref: WP_APP_PASSWORD
 
 email:
-  from: "blog-bot@artifation.nl"
+  from: "blog-bot@mail.artifation.nl"
   to: "algemeen@artifation.nl"
   reply_to: "algemeen@artifation.nl"
 
