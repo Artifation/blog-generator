@@ -56,7 +56,11 @@ wordpress:
   app_password_secret_ref: WP_APP_PASSWORD
 
 email:
-  from: "blog-bot@mail.artifation.nl"
+  # TIJDELIJK: Resend's default sender (gratis tier, geen domain-verificatie vereist).
+  # Werkt alleen omdat `to` jouw eigen verified Resend-account-email is.
+  # SWITCH TERUG NAAR "blog-bot@mail.artifation.nl" zodra DNS-publicatie werkt
+  # (Hostinger support-ticket: zone-publicatie naar ns1.dns-parking.com werkt niet).
+  from: "onboarding@resend.dev"
   to: "algemeen@artifation.nl"
   reply_to: "algemeen@artifation.nl"
 
