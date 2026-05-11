@@ -12,9 +12,11 @@ export async function setRankMathMeta(
   postId: number,
   meta: RankMathMeta
 ): Promise<void> {
-  await client.postJson(`/wp-json/rank-math-api/v1/updateMeta`, {
-    objectID: postId,
-    objectType: "post",
-    meta,
+  await client.postJson(`/wp-json/rank-math-api/v1/update-meta`, {
+    post_id: postId,
+    rank_math_title: meta.rank_math_title,
+    rank_math_description: meta.rank_math_description,
+    rank_math_focus_keyword: meta.rank_math_focus_keyword,
+    ...(meta.rank_math_canonical_url ? { rank_math_canonical_url: meta.rank_math_canonical_url } : {}),
   });
 }

@@ -53,7 +53,7 @@ Moet de echte naam + KvK printen.
 1. WP admin → Plugins → Add New
 2. Upload zip vanaf `https://github.com/Devora-AS/rank-math-api-manager`
 3. Activate
-4. Verify endpoint bestaat: `curl -i -u "agent-blog:<app-password>" https://artifation.nl/wp-json/rank-math-api/v1/updateMeta` (verwacht 405 Method Not Allowed bij GET — bewijst dat de route bestaat)
+4. Verify endpoint bestaat: `curl -i -u "agent-blog:<app-password>" https://artifation.nl/wp-json/rank-math-api/v1/update-meta` (verwacht 405 Method Not Allowed bij GET — bewijst dat de route bestaat)
 
 ### 2.4 (Optioneel) WP versie check
 
