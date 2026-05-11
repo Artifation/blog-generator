@@ -10,7 +10,7 @@ Zie [`docs/superpowers/specs/2026-05-08-seo-blog-generator-design.md`](docs/supe
 ### 1. WordPress voorbereiden
 1. Maak een dedicated WordPress-user `agent-blog` met rol **Editor**.
 2. Genereer een **Application Password** voor die user (Users → Profile → Application Passwords).
-3. Installeer de **Rank Math API Manager** plugin (`https://github.com/Devora-AS/rank-math-api-manager`) op artifation.nl. Activeer.
+3. Installeer en activeer **Yoast SEO** (v20+) op artifation.nl. Deactiveer eventuele andere SEO-plugins (Rank Math, SureRank) — slechts één tegelijk actief.
 
 ### 2. Domein-DNS voor email
 1. Verifieer `artifation.nl` op resend.com.

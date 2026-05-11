@@ -19,7 +19,6 @@ vi.mock("@/wordpress/client", () => ({
       postJson: vi.fn(async (p: string, body: unknown) => {
         state.wpCalls.push({ method: "POST", path: p, body });
         if (p === "/wp-json/wp/v2/posts") return { id: 99, link: "https://artifation.nl/?p=99" };
-        if (p.includes("rank-math-api")) return { ok: true };
         return { id: 99 };
       }),
       postBinary: vi.fn(async (p: string) => {
@@ -309,9 +308,12 @@ describe("orchestrator integration — happy path (GO)", () => {
     expect(content).toMatch(/"@type"\s*:\s*"Person"/);
     expect(content).toMatch(/"@type"\s*:\s*"Organization"/);
 
-    // Verifieer: rank math meta gezet
-    const metaCall = state.wpCalls.find((c) => c.path.includes("rank-math-api"));
-    expect(metaCall).toBeDefined();
+    // Verifieer: Yoast SEO meta zit in de create-post body (meta field)
+    const postBody = postCall!.body as { meta?: Record<string, string> };
+    expect(postBody.meta).toBeDefined();
+    expect(postBody.meta?._yoast_wpseo_title).toBeTruthy();
+    expect(postBody.meta?._yoast_wpseo_metadesc).toBeTruthy();
+    expect(postBody.meta?._yoast_wpseo_focuskw).toBeTruthy();
 
     // Verifieer: media upload
     expect(state.wpCalls.some((c) => c.method === "POST_BIN")).toBe(true);

@@ -23,7 +23,7 @@ import { optimizeForWeb } from "@/image/optimize";
 import { createWordpressClient } from "@/wordpress/client";
 import { uploadMedia } from "@/wordpress/media";
 import { createDraftPost, buildEditUrl } from "@/wordpress/posts";
-import { setRankMathMeta } from "@/wordpress/rankMath";
+import { buildYoastMeta } from "@/wordpress/yoastSeo";
 import { pingIndexNow } from "./indexNow.ts";
 import { buildAnchorHistory, loadCachedAnchorHistory, saveCachedAnchorHistory } from "./anchorTracker.ts";
 import type { AnchorHistoryEntry } from "./anchorTracker.ts";
@@ -395,12 +395,12 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       featuredMediaId: media.id,
       categories: [],
       tags: [],
-    });
-    await setRankMathMeta(wp, post.id, {
-      rank_math_title: seo.parsed.meta_title,
-      rank_math_description: seo.parsed.meta_description,
-      rank_math_focus_keyword: next.target_keyword,
-      rank_math_canonical_url: `${tenant.wordpress.base_url}/${seo.parsed.slug}/`,
+      meta: buildYoastMeta({
+        title: seo.parsed.meta_title,
+        description: seo.parsed.meta_description,
+        focusKeyword: next.target_keyword,
+        canonicalUrl: `${tenant.wordpress.base_url}/${seo.parsed.slug}/`,
+      }),
     });
 
     // IndexNow ping — notifies Bing, Yandex, Naver, Seznam, Yep (not Google).

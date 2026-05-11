@@ -48,12 +48,17 @@ Moet de echte naam + KvK printen.
 3. **Kopieer de gegenereerde string** (zonder spaties, formaat `xxxx xxxx xxxx xxxx xxxx xxxx`)
 4. Bewaar in password-manager — wordt niet meer getoond
 
-### 2.3 Rank Math API Manager plugin
+### 2.3 Yoast SEO plugin
 
-1. WP admin → Plugins → Add New
-2. Upload zip vanaf `https://github.com/Devora-AS/rank-math-api-manager`
-3. Activate
-4. Verify endpoint bestaat: `curl -i -u "agent-blog:<app-password>" https://artifation.nl/wp-json/rank-math-api/v1/update-meta` (verwacht 405 Method Not Allowed bij GET — bewijst dat de route bestaat)
+Pipeline gebruikt Yoast's ingebouwde REST API voor SEO-meta. Yoast 20+
+registreert `_yoast_wpseo_title`, `_yoast_wpseo_metadesc`, `_yoast_wpseo_focuskw`
+en `_yoast_wpseo_canonical` met `show_in_rest=true` — geen aparte plugin nodig.
+
+1. WP admin → Plugins → installeer + **Activeer Yoast SEO** (versie 20 of hoger)
+2. **Deactiveer** andere SEO-plugins (Rank Math, SureRank) om conflicterende
+   `<head>` output te voorkomen — slechts één SEO-plugin tegelijk actief
+3. Verify: pipeline schrijft Yoast meta direct in de WP `POST /wp/v2/posts`
+   body. Geen aparte REST-endpoint check nodig.
 
 ### 2.4 (Optioneel) WP versie check
 

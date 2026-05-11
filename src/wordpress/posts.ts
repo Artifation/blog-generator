@@ -8,6 +8,7 @@ export interface CreatePostInput {
   featuredMediaId: number;
   categories: number[];
   tags: number[];
+  meta?: Record<string, string>;  // arbitrary post meta — Yoast SEO velden e.d.
 }
 
 export interface CreatePostResult {
@@ -19,7 +20,7 @@ export async function createDraftPost(
   client: WordpressClient,
   input: CreatePostInput
 ): Promise<CreatePostResult> {
-  return client.postJson<CreatePostResult>("/wp-json/wp/v2/posts", {
+  const body: Record<string, unknown> = {
     status: "draft",
     title: input.title,
     content: input.content,
@@ -28,7 +29,11 @@ export async function createDraftPost(
     featured_media: input.featuredMediaId,
     categories: input.categories,
     tags: input.tags,
-  });
+  };
+  if (input.meta && Object.keys(input.meta).length > 0) {
+    body.meta = input.meta;
+  }
+  return client.postJson<CreatePostResult>("/wp-json/wp/v2/posts", body);
 }
 
 export function buildEditUrl(baseUrl: string, postId: number): string {
