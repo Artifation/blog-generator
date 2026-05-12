@@ -57,6 +57,7 @@
   intended_word_count: 1800
   status: published
   priority: 84
+  last_attempted: '2026-05-12T13:42:09.293Z'
   wp_post_id: 2842
   wp_post_url: https://artifation.nl/?p=2842
   key_entities:
@@ -72,14 +73,16 @@
     - SurferSEO
     - AVG (Algemene verordening gegevensbescherming)
     - Europese AI-verordening (AI Act)
-  last_attempted: '2026-05-12T13:42:09.293Z'
 - id: ai-in-inkoop
   title: 'AI in inkoop: leveranciersanalyse & contractcheck'
   pillar: ai-per-afdeling
   target_keyword: AI in inkoop MKB
   intended_word_count: 1800
-  status: queued
+  status: rejected
   priority: 82
+  reject_reason: score < threshold
+  retry_after: '2026-05-19T13:56:03.320Z'
+  last_attempted: '2026-05-12T13:56:03.320Z'
 - id: ai-in-customer-service
   title: 'AI in customer service: chatbots & e-mail triage'
   pillar: ai-per-afdeling
