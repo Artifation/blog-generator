@@ -213,8 +213,27 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       outputTokens: fc.raw.outputTokens,
     });
 
+    // Pre-build schema JSON-LD before Quality Judge zodat de seo_schema rubric-signal
+    // het kan zien. We hebben de finale image-URL nog niet (image-gen komt later),
+    // dus gebruiken we een placeholder URL die later vervangen wordt vóór WP-publish.
+    const preJudgeSchemaJsonLd = buildAllSchemaJsonLd({
+      tenant,
+      topic: { pillar: next.pillar, target_keyword: next.target_keyword },
+      post: {
+        headline: outline.parsed.outline.h1_suggestion,
+        description: outline.parsed.outline.tldr_one_liner,
+        slug: seo.parsed.slug,
+        url: `${tenant.wordpress.base_url}/${seo.parsed.slug}/`,
+        datePublished: now.toISOString(),
+        imageUrl: `${tenant.wordpress.base_url}/wp-content/uploads/${seo.parsed.slug}-placeholder.avif`,
+        imageAlt: outline.parsed.outline.h1_suggestion,
+      },
+      keyEntities: research.parsed.key_entities,
+    });
+    const htmlForJudge = `${seo.parsed.edited_html}\n${preJudgeSchemaJsonLd}`;
+
     let signals = computeDeterministicRubricSignals({
-      html: seo.parsed.edited_html,
+      html: htmlForJudge,
       banList: tenant.brand.ban_list,
       targetKeyword: next.target_keyword,
       internalUrls: outline.parsed.outline.internal_links_to_inject.map((l) => l.url),
@@ -253,7 +272,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
     currentStage = "qualityJudge";
     const judge = await runQualityJudge(
       {
-        edited_html: seo.parsed.edited_html,
+        edited_html: htmlForJudge,
         target_keyword: next.target_keyword,
         deterministic_signals: signals,
         fact_check_verdict: fc.parsed.verdict,
