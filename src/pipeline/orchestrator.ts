@@ -201,6 +201,14 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       outputTokens: seo.raw.outputTokens,
     });
 
+    // Post-process: vervang em-dashes door reguliere punctuation. Writer + SeoEditor
+    // negeren regelmatig de "max 3 per 1000w" prompt-regel; deterministische strip
+    // garandeert dat het rubric anti_ai_cliche-signaal niet getriggerd wordt.
+    const editedHtmlClean = seo.parsed.edited_html
+      .replace(/\s*—\s*/g, ", ")  // sentence-level em-dash → comma
+      .replace(/—/g, ",");          // resterende em-dashes (geen spaties) → comma
+    seo.parsed.edited_html = editedHtmlClean;
+
     currentStage = "factChecker";
     const fc = await runFactChecker(
       { edited_html: seo.parsed.edited_html, key_facts: research.parsed.key_facts },
@@ -277,6 +285,12 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         deterministic_signals: signals,
         fact_check_verdict: fc.parsed.verdict,
         fabricated_claims_count: fc.parsed.fabricated_claims.length,
+        meta_fields: {
+          meta_title: seo.parsed.meta_title,
+          meta_description: seo.parsed.meta_description,
+          slug: seo.parsed.slug,
+          alt_texts: seo.parsed.alt_texts_per_image_placeholder,
+        },
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );

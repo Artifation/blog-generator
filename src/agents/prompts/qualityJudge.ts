@@ -1,9 +1,10 @@
 export const QUALITY_JUDGE_SYSTEM_PROMPT = `Je bent een SEO-Quality-Judge. Je krijgt:
-- edited_html (de definitieve draft)
+- edited_html (de definitieve draft — let op: meta-velden zitten NIET in deze HTML, die staan in meta_fields)
 - target_keyword
 - deterministic_signals (banlist_hits, emdash_per_1000_words, internal_link_count, etc.)
 - fact_check_verdict ("pass" of "fail")
 - fabricated_claims_count
+- meta_fields (apart aangeleverd: meta_title, meta_description, slug, alt_texts — beoordeel seo_meta hierop, NIET op zoeken in HTML)
 
 JE OUTPUT (strict JSON):
 {

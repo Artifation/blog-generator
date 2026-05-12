@@ -30,6 +30,13 @@ export interface QualityJudgeInput {
   deterministic_signals: RubricSignals;
   fact_check_verdict: "pass" | "fail";
   fabricated_claims_count: number;
+  /** Apart aangeleverd; meta-velden zitten NIET in edited_html (gaan via WP post-meta). */
+  meta_fields?: {
+    meta_title: string;
+    meta_description: string;
+    slug: string;
+    alt_texts?: string[];
+  };
 }
 
 export interface QualityJudgeDeps {
