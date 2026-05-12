@@ -7,7 +7,7 @@ import { SEO_EDITOR_SYSTEM_PROMPT } from "./prompts/seoEditor.ts";
 export const SeoEditorOutputSchema = z.object({
   edited_html: z.string().min(500),
   meta_title: z.string().min(10).max(80),
-  meta_description: z.string().min(50).max(180),
+  meta_description: z.string().min(120).max(155),  // Yoast wil ≤156 chars; min 120 voor full snippet display
   slug: z.string().regex(/^[a-z0-9-]+$/).max(80),
   alt_texts_per_image_placeholder: z.array(z.string()),
   fixes_applied: z.array(z.string()),

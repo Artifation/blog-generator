@@ -6,7 +6,7 @@ const out = JSON.stringify({
   edited_html: "<div class='tldr'>...</div>" + "x".repeat(2000),
   meta_title: "AI in HR voor MKB | Artifation",
   meta_description:
-    "Hoe AI MKB-HR helpt van vacature tot exit. Praktische stappen, tools en valkuilen. Plan een AI Scan vandaag.",
+    "Hoe AI MKB-HR helpt van vacature tot exit met praktische stappen, tools en valkuilen. Plan vandaag een AI Scan voor jouw team.",
   slug: "ai-in-hr-mkb-stappenplan",
   alt_texts_per_image_placeholder: ["AI in HR header"],
   fixes_applied: ["replaced 'leverage' x2"],
