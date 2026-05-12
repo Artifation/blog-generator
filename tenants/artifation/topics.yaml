@@ -25,15 +25,31 @@
   intended_word_count: 1800
   status: cannibalization_skipped
   priority: 88
-  reject_reason: '>50% keyword-token overlap with title: impact ai compliance risicomanagement finance'
   last_attempted: '2026-05-12T09:35:44.693Z'
+  reject_reason: '>50% keyword-token overlap with title: impact ai compliance risicomanagement finance'
 - id: ai-in-sales
   title: 'AI in sales: lead scoring & follow-up automatisering'
   pillar: ai-per-afdeling
   target_keyword: AI voor sales MKB
   intended_word_count: 1800
-  status: queued
+  status: published
   priority: 86
+  wp_post_id: 2839
+  wp_post_url: https://artifation.nl/?p=2839
+  key_entities:
+    - Predictive Lead Scoring
+    - Sales Automation
+    - CRM (Customer Relationship Management)
+    - Follow-up automatisering
+    - Sales Funnel
+    - Machine Learning
+    - Natural Language Processing (NLP)
+    - HubSpot Sales Hub
+    - Salesforce Einstein
+    - AVG / GDPR
+    - Data-analyse
+    - Klantprofielen
+  last_attempted: '2026-05-12T09:41:57.694Z'
 - id: ai-in-marketing
   title: 'AI in marketing: contentproductie & SEO voor MKB'
   pillar: ai-per-afdeling
