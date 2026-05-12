@@ -174,6 +174,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         brand_voice: tenant.brand.voice,
         ban_list: tenant.brand.ban_list,
         contrarian_hint: outline.parsed.contrarian_opinion_hint,
+        key_facts: research.parsed.key_facts,
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );

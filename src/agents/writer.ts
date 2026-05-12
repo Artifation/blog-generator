@@ -17,6 +17,9 @@ export interface WriterInput {
   brand_voice: string;
   ban_list: string[];
   contrarian_hint: string;
+  /** Researcher's verifieerbare feiten met source_url. Writer mag SPECIFIEKE
+   * statistieken/percentages/jaartallen ALLEEN uit deze lijst halen. */
+  key_facts: { claim: string; source_url: string }[];
 }
 
 export interface WriterDeps {
@@ -46,7 +49,7 @@ export async function runWriter(input: WriterInput, deps: WriterDeps): Promise<W
     const userPrompt =
       i === 0
         ? JSON.stringify(
-            { outline: input.outline, contrarian_hint: input.contrarian_hint },
+            { outline: input.outline, contrarian_hint: input.contrarian_hint, key_facts: input.key_facts },
             null,
             2
           )
@@ -54,10 +57,11 @@ export async function runWriter(input: WriterInput, deps: WriterDeps): Promise<W
             {
               outline: input.outline,
               contrarian_hint: input.contrarian_hint,
+              key_facts: input.key_facts,
               previous_draft: last?.draft_html,
               previous_critique: last?.self_critique,
               instruction:
-                "Verbeter de vorige draft op basis van de critique. Behoud structuur, fix de issues.",
+                "Verbeter de vorige draft op basis van de critique. Behoud structuur, fix de issues. Gebruik alleen statistieken uit key_facts.",
             },
             null,
             2

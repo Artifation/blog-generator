@@ -27,7 +27,7 @@ describe("runWriter", () => {
       })),
     };
     const r = await runWriter(
-      { outline: {} as any, brand_voice: "x", ban_list: [], contrarian_hint: "" },
+      { outline: {} as any, brand_voice: "x", ban_list: [], contrarian_hint: "", key_facts: [] },
       { provider, sleepImpl: () => Promise.resolve() }
     );
     expect(r.iterations).toBe(1);
@@ -48,7 +48,7 @@ describe("runWriter", () => {
       })),
     };
     const r = await runWriter(
-      { outline: {} as any, brand_voice: "x", ban_list: [], contrarian_hint: "" },
+      { outline: {} as any, brand_voice: "x", ban_list: [], contrarian_hint: "", key_facts: [] },
       { provider, sleepImpl: () => Promise.resolve() }
     );
     expect(r.iterations).toBe(3);
@@ -67,7 +67,7 @@ describe("runWriter", () => {
       })),
     };
     const r = await runWriter(
-      { outline: {} as any, brand_voice: "x", ban_list: [], contrarian_hint: "" },
+      { outline: {} as any, brand_voice: "x", ban_list: [], contrarian_hint: "", key_facts: [] },
       { provider, sleepImpl: () => Promise.resolve() }
     );
     expect(r.iterations).toBe(3);
