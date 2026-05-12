@@ -15,16 +15,18 @@
   intended_word_count: 1800
   status: rejected
   priority: 90
-  reject_reason: fact_check failed (verdict=fail, 1 fabricated claim)
-  retry_after: '2026-05-19T09:15:38.382Z'
   last_attempted: '2026-05-12T09:15:38.382Z'
+  retry_after: '2026-05-19T09:15:38.382Z'
+  reject_reason: fact_check failed (verdict=fail, 1 fabricated claim)
 - id: ai-in-finance
   title: 'AI in finance: facturatie, debiteuren, forecasting'
   pillar: ai-per-afdeling
   target_keyword: AI voor finance MKB
   intended_word_count: 1800
-  status: queued
+  status: cannibalization_skipped
   priority: 88
+  reject_reason: '>50% keyword-token overlap with title: impact ai compliance risicomanagement finance'
+  last_attempted: '2026-05-12T09:35:44.693Z'
 - id: ai-in-sales
   title: 'AI in sales: lead scoring & follow-up automatisering'
   pillar: ai-per-afdeling
