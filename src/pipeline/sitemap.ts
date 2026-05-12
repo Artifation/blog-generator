@@ -7,12 +7,19 @@ export interface FetchOpts {
   fetch?: typeof fetch;
 }
 
+// Realistische browser-UA om Hostinger/Cloudflare WAFs te omzeilen die Node's
+// default `undici/x.y.z` User-Agent als bot herkennen en met 403 blokkeren.
+const FETCH_HEADERS: Record<string, string> = {
+  "User-Agent": "Mozilla/5.0 (compatible; ArtifationBlogBot/1.0; +https://artifation.nl)",
+  Accept: "application/xml, text/xml, */*",
+};
+
 export async function fetchSitemapEntries(
   rootUrl: string,
   opts: FetchOpts = {}
 ): Promise<SitemapEntry[]> {
   const f = opts.fetch ?? globalThis.fetch;
-  const indexRes = await f(rootUrl);
+  const indexRes = await f(rootUrl, { headers: FETCH_HEADERS });
   if (!indexRes.ok) throw new Error(`sitemap fetch failed: ${indexRes.status}`);
   const indexXml = await indexRes.text();
 
@@ -27,7 +34,7 @@ export async function fetchSitemapEntries(
   const targets = postSitemaps.length > 0 ? postSitemaps : allLocs;
   const entries: SitemapEntry[] = [];
   for (const sm of targets) {
-    const r = await f(sm);
+    const r = await f(sm, { headers: FETCH_HEADERS });
     if (!r.ok) continue;
     const xml = await r.text();
     for (const url of matchAll(xml, /<loc>([^<]+)<\/loc>/g)) {
