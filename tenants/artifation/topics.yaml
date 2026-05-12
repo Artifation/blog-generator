@@ -80,16 +80,18 @@
   intended_word_count: 1800
   status: rejected
   priority: 82
-  reject_reason: score < threshold
-  retry_after: '2026-05-19T13:56:03.320Z'
   last_attempted: '2026-05-12T13:56:03.320Z'
+  retry_after: '2026-05-19T13:56:03.320Z'
+  reject_reason: score < threshold
 - id: ai-in-customer-service
   title: 'AI in customer service: chatbots & e-mail triage'
   pillar: ai-per-afdeling
   target_keyword: AI klantenservice MKB
   intended_word_count: 1800
-  status: queued
+  status: cannibalization_skipped
   priority: 80
+  reject_reason: '>50% keyword-token overlap with title: ai klantenservice ecommerce framework roi 2'
+  last_attempted: '2026-05-12T15:22:58.877Z'
 - id: ai-in-operations
   title: 'AI in operations: voorraad & planning'
   pillar: ai-per-afdeling
