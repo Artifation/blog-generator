@@ -22,7 +22,7 @@ import { generateBlogImage } from "@/image";
 import { optimizeForWeb } from "@/image/optimize";
 import { createWordpressClient } from "@/wordpress/client";
 import { uploadMedia } from "@/wordpress/media";
-import { createDraftPost, buildEditUrl } from "@/wordpress/posts";
+import { createDraftPost, buildEditUrl, listRecentPosts } from "@/wordpress/posts";
 import { buildYoastMeta } from "@/wordpress/yoastSeo";
 import { pingIndexNow } from "./indexNow.ts";
 import { buildAnchorHistory, loadCachedAnchorHistory, saveCachedAnchorHistory } from "./anchorTracker.ts";
@@ -66,9 +66,16 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
 
   try {
     currentStage = "sitemap";
-    // Yoast SEO genereert sitemap-index op /sitemap_index.xml (niet /sitemap.xml).
-    // /sitemap.xml zelf geeft 403 bij sommige WP configs.
-    const sitemap = await fetchSitemapEntries(`${tenant.wordpress.base_url}/sitemap_index.xml`);
+    // Hostinger's WAF blokkeert GitHub Actions IP range op /sitemap*.xml endpoints
+    // ondanks browser-UA. Switch naar WP REST API (authenticated via App Password)
+    // — geeft dezelfde data (URL + slug per published post) zonder WAF-issue.
+    const wpForSitemap = createWordpressClient({
+      baseUrl: tenant.wordpress.base_url,
+      user: requireEnv(env, tenant.wordpress.user_secret_ref),
+      appPassword: requireEnv(env, tenant.wordpress.app_password_secret_ref),
+    });
+    const recentPosts = await listRecentPosts(wpForSitemap, 100);
+    const sitemap = recentPosts.map((p) => ({ url: p.link, slug: p.slug }));
     const cann = detectCannibalization({
       targetKeyword: next.target_keyword,
       existingSlugs: sitemap.map((e) => e.slug),
