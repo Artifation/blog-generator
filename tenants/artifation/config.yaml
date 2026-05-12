@@ -61,8 +61,8 @@ email:
   # SWITCH TERUG NAAR "blog-bot@mail.artifation.nl" zodra DNS-publicatie werkt
   # (Hostinger support-ticket: zone-publicatie naar ns1.dns-parking.com werkt niet).
   from: "onboarding@resend.dev"
-  to: "algemeen@artifation.nl"
-  reply_to: "algemeen@artifation.nl"
+  to: "julian@artifation.nl"
+  reply_to: "julian@artifation.nl"
 
 pillars:
   - id: ai-per-afdeling
