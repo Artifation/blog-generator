@@ -5,9 +5,9 @@
   intended_word_count: 3000
   status: rejected
   priority: 100
-  reject_reason: fact_check_failed
-  retry_after: '2026-05-19T08:46:57.500Z'
   last_attempted: '2026-05-12T08:46:57.500Z'
+  retry_after: '2026-05-19T08:46:57.500Z'
+  reject_reason: fact_check_failed
 - id: ai-in-hr
   title: 'AI in HR: van vacature tot exitgesprek'
   pillar: ai-per-afdeling
@@ -62,8 +62,11 @@
   pillar: ai-act
   target_keyword: AI Act MKB
   intended_word_count: 3000
-  status: queued
+  status: rejected
   priority: 95
+  reject_reason: score < threshold
+  retry_after: '2026-05-19T09:02:34.762Z'
+  last_attempted: '2026-05-12T09:02:34.762Z'
 - id: ai-register-opzetten
   title: AI-register opzetten in 1 dag — stappenplan voor MKB
   pillar: ai-act
