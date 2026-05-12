@@ -66,7 +66,9 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
 
   try {
     currentStage = "sitemap";
-    const sitemap = await fetchSitemapEntries(`${tenant.wordpress.base_url}/sitemap.xml`);
+    // Yoast SEO genereert sitemap-index op /sitemap_index.xml (niet /sitemap.xml).
+    // /sitemap.xml zelf geeft 403 bij sommige WP configs.
+    const sitemap = await fetchSitemapEntries(`${tenant.wordpress.base_url}/sitemap_index.xml`);
     const cann = detectCannibalization({
       targetKeyword: next.target_keyword,
       existingSlugs: sitemap.map((e) => e.slug),
