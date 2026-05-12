@@ -34,6 +34,7 @@
   intended_word_count: 1800
   status: published
   priority: 86
+  last_attempted: '2026-05-12T09:41:57.694Z'
   wp_post_id: 2839
   wp_post_url: https://artifation.nl/?p=2839
   key_entities:
@@ -49,14 +50,29 @@
     - AVG / GDPR
     - Data-analyse
     - Klantprofielen
-  last_attempted: '2026-05-12T09:41:57.694Z'
 - id: ai-in-marketing
   title: 'AI in marketing: contentproductie & SEO voor MKB'
   pillar: ai-per-afdeling
   target_keyword: AI marketing MKB
   intended_word_count: 1800
-  status: queued
+  status: published
   priority: 84
+  wp_post_id: 2842
+  wp_post_url: https://artifation.nl/?p=2842
+  key_entities:
+    - Generatieve AI
+    - Marketingautomatisering
+    - Personalisatie
+    - SEO (Zoekmachineoptimalisatie)
+    - Contentcreatie
+    - Data-analyse
+    - Customer Journey
+    - ChatGPT
+    - Jasper.ai
+    - SurferSEO
+    - AVG (Algemene verordening gegevensbescherming)
+    - Europese AI-verordening (AI Act)
+  last_attempted: '2026-05-12T13:42:09.293Z'
 - id: ai-in-inkoop
   title: 'AI in inkoop: leveranciersanalyse & contractcheck'
   pillar: ai-per-afdeling
