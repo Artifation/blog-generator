@@ -90,15 +90,18 @@
   intended_word_count: 1800
   status: cannibalization_skipped
   priority: 80
-  reject_reason: '>50% keyword-token overlap with title: ai klantenservice ecommerce framework roi 2'
   last_attempted: '2026-05-12T15:22:58.877Z'
+  reject_reason: '>50% keyword-token overlap with title: ai klantenservice ecommerce framework roi 2'
 - id: ai-in-operations
   title: 'AI in operations: voorraad & planning'
   pillar: ai-per-afdeling
   target_keyword: AI in operations MKB
   intended_word_count: 1800
-  status: queued
+  status: rejected
   priority: 78
+  reject_reason: score < threshold
+  retry_after: '2026-05-19T20:39:30.955Z'
+  last_attempted: '2026-05-12T20:39:30.955Z'
 - id: ai-act-pillar
   title: 'EU AI Act voor MKB: complete gids 2026 (zonder juridische bullshit)'
   pillar: ai-act
