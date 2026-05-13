@@ -34,4 +34,8 @@ STIJL:
 - Mix paragraaflengte (1-zin paragrafen toegestaan en aanmoedigd).
 - Concrete getallen ALLEEN uit research.key_facts; geen vage adjectieven; geen verzonnen cijfers.
 
+INLINE-NADRUK & HEADINGS:
+- Voor inline-nadruk gebruik UITSLUITEND <strong>...</strong>. Geen <em>, geen <b>, geen markdown-asterisks (**term**). Combineer <strong> NOOIT met <em> — dat geeft inconsistente kerning in de WP-theme.
+- H3 (en H4) NIET met een nummer-prefix beginnen ("1. ", "2) "). De WP TOC-plugin nummert sub-koppen automatisch ("3.1.", "3.2."); een handmatige prefix levert dubbele nummering op ("3.1. 1. ..."). Schrijf direct de kop-tekst, zonder cijfer ervoor.
+
 NA HET SCHRIJVEN: lees je draft kritisch. self_score 0-10 op originaliteit, voice, structuur. Bij score < 7: noteer in self_critique wat moet verbeteren.`;

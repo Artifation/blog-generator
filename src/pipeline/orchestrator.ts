@@ -5,6 +5,7 @@ import { loadTopics, saveTopics } from "@/config/topics";
 import { selectNextTopic } from "./topicSelector.ts";
 import { detectCannibalization } from "./cannibalization.ts";
 import { fetchSitemapEntries } from "./sitemap.ts";
+import { postProcessDraftHtml } from "./htmlPostProcess.ts";
 import { computeDeterministicRubricSignals } from "./rubric.ts";
 import { checkCitations, enrichSignalsWithCitationCheck } from "./citationCheck.ts";
 import { detectAiContent } from "./aiDetection.ts";
@@ -211,13 +212,9 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       outputTokens: seo.raw.outputTokens,
     });
 
-    // Post-process: vervang em-dashes door reguliere punctuation. Writer + SeoEditor
-    // negeren regelmatig de "max 3 per 1000w" prompt-regel; deterministische strip
-    // garandeert dat het rubric anti_ai_cliche-signaal niet getriggerd wordt.
-    const editedHtmlClean = seo.parsed.edited_html
-      .replace(/\s*—\s*/g, ", ")  // sentence-level em-dash → comma
-      .replace(/—/g, ",");          // resterende em-dashes (geen spaties) → comma
-    seo.parsed.edited_html = editedHtmlClean;
+    // Post-process: em-dashes, H3-nummering, bold-italic combos, markdown-asterisks.
+    // Zie src/pipeline/htmlPostProcess.ts voor regels en redenen.
+    seo.parsed.edited_html = postProcessDraftHtml(seo.parsed.edited_html);
 
     currentStage = "factChecker";
     const fc = await runFactChecker(
