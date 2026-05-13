@@ -99,9 +99,9 @@
   intended_word_count: 1800
   status: rejected
   priority: 78
-  reject_reason: score < threshold
-  retry_after: '2026-05-19T20:39:30.955Z'
   last_attempted: '2026-05-12T20:39:30.955Z'
+  retry_after: '2026-05-19T20:39:30.955Z'
+  reject_reason: score < threshold
 - id: ai-act-pillar
   title: 'EU AI Act voor MKB: complete gids 2026 (zonder juridische bullshit)'
   pillar: ai-act
@@ -117,8 +117,11 @@
   pillar: ai-act
   target_keyword: AI register MKB
   intended_word_count: 1500
-  status: queued
+  status: rejected
   priority: 75
+  reject_reason: fact_check failed (1 fabricated claim)
+  retry_after: '2026-05-20T06:49:15.491Z'
+  last_attempted: '2026-05-13T06:49:15.491Z'
 - id: ai-policy-template
   title: Hoe schrijf je een AI-policy voor je MKB? (gratis template)
   pillar: ai-act
