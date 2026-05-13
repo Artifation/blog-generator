@@ -139,17 +139,32 @@
   intended_word_count: 1500
   status: rejected
   priority: 71
-  reject_reason: score < threshold
-  retry_after: '2026-05-20T08:55:47.472Z'
   last_attempted: '2026-05-13T08:55:47.472Z'
+  retry_after: '2026-05-20T08:55:47.472Z'
+  reject_reason: score < threshold
 - id: ai-tools-avg-proof
   title: Welke AI-tools zijn AVG-proof? Lijst voor MKB
   pillar: ai-act
   target_keyword: AI tools AVG MKB
   intended_word_count: 1800
-  status: queued
+  status: published
   priority: 69
   intent: commercial
+  wp_post_id: 2844
+  wp_post_url: https://artifation.nl/?p=2844
+  key_entities:
+    - AVG (Algemene Verordening Gegevensbescherming)
+    - Autoriteit Persoonsgegevens (AP)
+    - AI Act (AI-verordening)
+    - Data Protection Impact Assessment (DPIA)
+    - Verwerkersovereenkomst (DPA)
+    - Doorgifte van persoonsgegevens buiten de EER
+    - EU-US Data Privacy Framework
+    - Privacy by Design & Default
+    - Midden- en Kleinbedrijf (MKB)
+    - Transparantieplicht
+    - Dataminimalisatie
+  last_attempted: '2026-05-13T09:09:54.345Z'
 - id: ai-act-boetes
   title: 'AI Act-boetes voor MKB: wat staat er op het spel?'
   pillar: ai-act
