@@ -43,7 +43,10 @@ export function computeDeterministicRubricSignals(input: RubricSignalsInput): Ru
 
   const emdashCount = (input.html.match(/—/g) || []).length;
 
-  const allLinks = [...input.html.matchAll(/<a\s+[^>]*href="([^"]+)"/gi)].map((m) => m[1]!);
+  // Writer levert soms single-quoted attrs (zie dc3bc5c). Accepteer beide quote-styles.
+  const allLinks = [...input.html.matchAll(/<a\s+[^>]*href=(?:"([^"]+)"|'([^']+)')/gi)].map(
+    (m) => (m[1] ?? m[2])!
+  );
   const internalLinkCount = allLinks.filter((u) =>
     input.internalUrls.some((iu) => u.startsWith(iu) || u === iu)
   ).length;

@@ -23,10 +23,20 @@ export async function checkCitations(input: CitationCheckInput): Promise<Citatio
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
+        // Browser-UA: EU/gov-sites (ec.europa.eu, autoriteitpersoonsgegevens.nl, kvk.nl)
+        // weigeren default undici-UA en geven 403/406. Zelfde fix-familie als
+        // WordpressClient (commit 65fcbd3) en sitemap-fetcher (commit 4150be2).
+        // GET ipv HEAD: veel gov-sites returnen 405 op HEAD; GET is universeel
+        // ondersteund en de body wordt niet gelezen (we kijken alleen status).
         const res = await fetchFn(url, {
-          method: "HEAD",
+          method: "GET",
           signal: controller.signal,
           redirect: "follow",
+          headers: {
+            "User-Agent":
+              "Mozilla/5.0 (compatible; ArtifationBlogBot/1.0; +https://artifation.nl)",
+            Accept: "text/html, */*",
+          },
         });
         if (res.status >= 400) {
           dead.push({ url, reason: `status:${res.status}` });

@@ -32,6 +32,17 @@ describe("computeDeterministicRubricSignals", () => {
     expect(r.internal_link_count).toBe(2);
   });
 
+  it("counts internal links with single-quoted href (writer-output)", () => {
+    const r = computeDeterministicRubricSignals({
+      html: "<a href='https://artifation.nl/a'>x</a><a href='https://artifation.nl/b'>y</a><a href='https://example.com'>ext</a>",
+      banList: [],
+      targetKeyword: "x",
+      internalUrls: ["https://artifation.nl/a", "https://artifation.nl/b"],
+    });
+    expect(r.internal_link_count).toBe(2);
+    expect(r.external_link_count).toBe(1);
+  });
+
   it("computes word count + keyword density", () => {
     const r = computeDeterministicRubricSignals({
       html: "<p>" + "AI ".repeat(10) + "word ".repeat(990) + "</p>",
