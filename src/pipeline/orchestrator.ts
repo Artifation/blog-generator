@@ -438,6 +438,12 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         title: outline.parsed.outline.h1_suggestion,
         tldr: outline.parsed.outline.tldr_one_liner,
         brand_style: "blue corporate editorial",
+        pillar: next.pillar,
+        target_keyword: next.target_keyword,
+        // Top-5 entities geven imagePrompter concreet houvast voor topic-specifieke imagery
+        // (bv. "MKB", "Autoriteit Persoonsgegevens", "AI Act" → kantoor + dossiermap-scène,
+        // niet generieke abstract netwerken).
+        key_entities: research.parsed.key_entities.slice(0, 5),
       },
       { provider: providers.get("groq"), sleepImpl: sleep }
     );

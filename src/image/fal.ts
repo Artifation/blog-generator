@@ -20,7 +20,10 @@ export const BRAND_STYLE_PREFIX =
   "Editorial corporate photography, professional Dutch B2B business environment, modern office or industrial setting, blue and dark navy color palette with subtle accents, soft natural window light, shallow depth of field, clean minimalist composition, premium stock photography quality, photorealistic";
 
 export const BRAND_NEGATIVE_TERMS =
-  "text, words, letters, watermarks, logos, brand names, signatures, cartoon, illustration, painting, sketch, deformed faces, distorted hands, oversaturation, neon colors, cluttered background, amateur snapshot, low resolution, blurry";
+  "text, words, letters, watermarks, logos, brand names, signatures, cartoon, illustration, painting, sketch, vector art, " +
+  "glowing molecular network, abstract connected nodes, dot-and-line network, glowing brain with circuits, " +
+  "puzzle pieces with AI text, robotic handshake, holographic UI floating in air, generic AI cliché imagery, " +
+  "deformed faces, distorted hands, oversaturation, neon colors, cluttered background, amateur snapshot, low resolution, blurry";
 
 export function composeBrandedPrompt(subjectPrompt: string, extraNegatives: string): string {
   const negatives = [BRAND_NEGATIVE_TERMS, extraNegatives].filter(Boolean).join(", ");

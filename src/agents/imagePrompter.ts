@@ -15,6 +15,10 @@ export interface ImagePrompterInput {
   title: string;
   tldr: string;
   brand_style: string;
+  /** Topic-context voor topic-relevante imagery ipv generieke AI-abstracts. */
+  pillar?: string;
+  target_keyword?: string;
+  key_entities?: string[];
 }
 
 export interface ImagePrompterDeps {
