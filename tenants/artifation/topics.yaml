@@ -172,6 +172,7 @@
   intended_word_count: 1500
   status: published
   priority: 67
+  last_attempted: '2026-05-13T10:40:56.751Z'
   wp_post_id: 2847
   wp_post_url: https://artifation.nl/?p=2847
   key_entities:
@@ -186,15 +187,17 @@
     - Conformiteitsbeoordeling
     - AI regulatory sandboxes
     - Rijksinspectie Digitale Infrastructuur (RDI)
-  last_attempted: '2026-05-13T10:40:56.751Z'
 - id: ai-voor-accountants
   title: 'AI voor accountants: 8 use cases die nu al productiviteit verdubbelen'
   pillar: sector-extensie
   target_keyword: AI voor accountants Nederland
   intended_word_count: 1800
-  status: queued
+  status: rejected
   priority: 60
   intent: commercial
+  reject_reason: fact_check failed (verdict=fail, 2 fabricated claims)
+  retry_after: '2026-05-20T11:59:41.262Z'
+  last_attempted: '2026-05-13T11:59:41.262Z'
 - id: ai-voor-advocaten
   title: 'AI voor advocaten en notarissen: kansen, risico''s en AI Act-grenzen'
   pillar: sector-extensie
