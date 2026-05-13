@@ -60,5 +60,35 @@ function extractJson(text: string): unknown {
     start === -1 ? startArr : startArr === -1 ? start : Math.min(start, startArr);
   if (begin === -1) throw new Error("No JSON found in response");
   const slice = candidate.slice(begin);
-  return JSON.parse(slice);
+  try {
+    return JSON.parse(slice);
+  } catch (originalErr) {
+    // Fallback: probeer common LLM-fouten te repareren voordat we opgeven
+    try {
+      const repaired = repairJson(slice);
+      return JSON.parse(repaired);
+    } catch {
+      throw originalErr;
+    }
+  }
+}
+
+/**
+ * Repareer veelvoorkomende LLM-JSON fouten:
+ * - Smart quotes (curly) → straight quotes
+ * - Trailing commas vóór ] of }
+ * - Onverpakte double-quotes in HTML-attributen binnen string-values
+ *   (vervang `="..."` patroon binnen JSON-string door `='...'`)
+ */
+function repairJson(s: string): string {
+  let r = s;
+  // Smart quotes → straight
+  r = r.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+  // Trailing comma vóór ] of }
+  r = r.replace(/,(\s*[}\]])/g, "$1");
+  // HTML attribute quotes binnen string-values: vervang `="` door `='` en `"` daarna door `'`
+  // Risico: vals-positief op echte JSON-quotes. We doen het alleen voor HTML-achtige patronen.
+  // Pattern: `(letter|=)"` binnen een al-open string. Conservatief: replace patroon `\sclass="..."` etc.
+  r = r.replace(/(\s(?:class|id|href|src|alt|rel|target|style)=)"([^"]*?)"/g, "$1'$2'");
+  return r;
 }

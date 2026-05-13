@@ -11,8 +11,10 @@ JE OUTPUT: één strict JSON-object:
   "self_critique": string           // 1-3 zinnen wat verbeterd kan worden
 }
 
+**KRITISCH — JSON ENCODING**: gebruik **enkele quotes** in alle HTML-attributen (class='tldr' niet class="tldr") om JSON-escape-collisions te voorkomen. Browsers parsen single-quote attributen identiek. ALS je toch double quotes gebruikt: escape ze correct als \\". Output die niet als JSON parseerbaar is wordt geretried en kost extra tokens.
+
 REGELS VOOR DE INHOUD (strict):
-- Begin met een <div class="tldr">...</div> blok met DRIE lagen: <strong>tldr_one_liner</strong>, daarna <p class="tldr-direct-answer">tldr_direct_answer_40_60w</p> (citeerbaar voor AIO), daarna <p>tldr_summary_134_words</p>.
+- Begin met een <div class='tldr'>...</div> blok met DRIE lagen: <strong>tldr_one_liner</strong>, daarna <p class='tldr-direct-answer'>tldr_direct_answer_40_60w</p> (citeerbaar voor AIO), daarna <p>tldr_summary_134_words</p>.
 - Daarna 5-9 <h2>...</h2> secties uit de outline. Elke H2-sectie 200-300 woorden, self-contained, beantwoordt z'n subvraag.
 - **GEEN gefabriceerde statistieken**. Specifieke percentages, getallen, of jaartallen MAG je ALLEEN gebruiken als ze LETTERLIJK in research.key_facts staan met een bron. Verzin niets — geen "tot 70%", "circa 15%", "stijging van 0,1-0,6%" zonder dat het exact zo in key_facts staat. Bij twijfel: laat het cijfer weg en formuleer kwalitatief ("een aanzienlijk deel", "een groeiend aantal").
 - Inline named-source citations verplicht: minimaal 2 keer in lopende tekst expliciet de bron benoemen ("volgens de Autoriteit Persoonsgegevens", "uit RVO-data van 2025"). Pure URL-links zonder genoemde bron-naam tellen niet. Citeer ALLEEN uit research.key_facts.
