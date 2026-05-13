@@ -129,16 +129,19 @@
   intended_word_count: 1500
   status: rejected
   priority: 73
-  reject_reason: score < threshold
-  retry_after: '2026-05-20T08:20:20.731Z'
   last_attempted: '2026-05-13T08:20:20.731Z'
+  retry_after: '2026-05-20T08:20:20.731Z'
+  reject_reason: score < threshold
 - id: ai-geletterdheid-team
   title: 'AI-geletterdheid: training voor je team verplicht volgens AI Act'
   pillar: ai-act
   target_keyword: AI geletterdheid MKB
   intended_word_count: 1500
-  status: queued
+  status: rejected
   priority: 71
+  reject_reason: score < threshold
+  retry_after: '2026-05-20T08:55:47.472Z'
+  last_attempted: '2026-05-13T08:55:47.472Z'
 - id: ai-tools-avg-proof
   title: Welke AI-tools zijn AVG-proof? Lijst voor MKB
   pillar: ai-act
