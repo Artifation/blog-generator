@@ -194,18 +194,21 @@
   intended_word_count: 1800
   status: rejected
   priority: 60
-  intent: commercial
-  reject_reason: fact_check failed (verdict=fail, 2 fabricated claims)
-  retry_after: '2026-05-20T11:59:41.262Z'
   last_attempted: '2026-05-13T11:59:41.262Z'
+  retry_after: '2026-05-20T11:59:41.262Z'
+  reject_reason: fact_check failed (verdict=fail, 2 fabricated claims)
+  intent: commercial
 - id: ai-voor-advocaten
   title: 'AI voor advocaten en notarissen: kansen, risico''s en AI Act-grenzen'
   pillar: sector-extensie
   target_keyword: AI voor advocaten Nederland
   intended_word_count: 1800
-  status: queued
+  status: rejected
   priority: 58
   intent: commercial
+  reject_reason: score < threshold
+  retry_after: '2026-05-20T12:35:45.056Z'
+  last_attempted: '2026-05-13T12:35:45.056Z'
 - id: ai-voor-horeca
   title: 'AI voor horeca: van reserveringen tot voorraadbeheer'
   pillar: sector-extensie
