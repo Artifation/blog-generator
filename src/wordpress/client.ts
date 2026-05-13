@@ -12,6 +12,14 @@ export interface WordpressClient {
   patchJson<T>(path: string, body: unknown): Promise<T>;
 }
 
+// Realistische browser-UA om Hostinger/LiteSpeed WAFs te omzeilen die Node's
+// default `undici/x.y.z` UA als bot herkennen en met 403 + reCAPTCHA blokkeren.
+// Zelfde aanpak als pipeline/sitemap.ts.
+const DEFAULT_HEADERS: Record<string, string> = {
+  "User-Agent": "Mozilla/5.0 (compatible; ArtifationBlogBot/1.0; +https://artifation.nl)",
+  Accept: "application/json, */*",
+};
+
 export function createWordpressClient(opts: WordpressClientOpts): WordpressClient {
   const f = opts.fetchImpl ?? fetch;
   const auth = `Basic ${Buffer.from(`${opts.user}:${opts.appPassword}`).toString("base64")}`;
@@ -19,7 +27,7 @@ export function createWordpressClient(opts: WordpressClientOpts): WordpressClien
   async function call<T>(path: string, init: RequestInit): Promise<T> {
     const res = await f(`${opts.baseUrl}${path}`, {
       ...init,
-      headers: { Authorization: auth, ...(init.headers ?? {}) },
+      headers: { ...DEFAULT_HEADERS, Authorization: auth, ...(init.headers ?? {}) },
     });
     if (!res.ok) {
       const body = await res.text().catch(() => "");

@@ -15,7 +15,21 @@ const state = vi.hoisted(() => ({
 vi.mock("@/wordpress/client", () => ({
   createWordpressClient: () =>
     ({
-      get: vi.fn(),
+      get: vi.fn(async (p: string) => {
+        if (p.startsWith("/wp-json/wp/v2/posts?")) {
+          return [
+            {
+              id: 1,
+              link: "https://artifation.nl/ai-scan/",
+              slug: "ai-scan",
+              title: { rendered: "AI scan" },
+              content: { rendered: "<p>x</p>" },
+              date: "2026-01-01T00:00:00",
+            },
+          ];
+        }
+        return [];
+      }),
       postJson: vi.fn(async (p: string, body: unknown) => {
         state.wpCalls.push({ method: "POST", path: p, body });
         if (p === "/wp-json/wp/v2/posts") return { id: 99, link: "https://artifation.nl/?p=99" };
