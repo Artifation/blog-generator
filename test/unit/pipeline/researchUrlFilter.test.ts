@@ -19,18 +19,21 @@ function makeResearch(): ResearchOutput {
   };
 }
 
-function makeFetch(deadUrls: string[]): typeof fetch {
+function makeFetch(statusByUrl: Record<string, number>): typeof fetch {
   return vi.fn(async (url: string | URL | Request) => {
     const u = url.toString();
-    const status = deadUrls.includes(u) ? 404 : 200;
+    const status = statusByUrl[u] ?? 200;
     return new Response(null, { status }) as Response;
   }) as unknown as typeof fetch;
 }
 
 describe("filterDeadResearchUrls", () => {
-  it("drops dead URLs from external_authority_sources and key_facts", async () => {
+  it("drops 404 URLs from external_authority_sources and key_facts", async () => {
     const research = makeResearch();
-    const fetchImpl = makeFetch(["https://dead.test/b", "https://dead.test/c"]);
+    const fetchImpl = makeFetch({
+      "https://dead.test/b": 404,
+      "https://dead.test/c": 410,
+    });
 
     const r = await filterDeadResearchUrls(research, fetchImpl);
 
@@ -41,9 +44,24 @@ describe("filterDeadResearchUrls", () => {
     expect(r.filtered.key_facts[0]!.source_url).toBe("https://alive.test/a");
   });
 
+  it("KEEPS 403/429/5xx URLs (likely WAF-blocked, not really dead)", async () => {
+    const research = makeResearch();
+    const fetchImpl = makeFetch({
+      "https://dead.test/b": 403, // WAF block
+      "https://dead.test/c": 503, // server hiccup
+    });
+
+    const r = await filterDeadResearchUrls(research, fetchImpl);
+
+    expect(r.dropped).toBe(0);
+    expect(r.filtered.external_authority_sources).toHaveLength(2);
+    expect(r.filtered.key_facts).toHaveLength(2);
+    expect(r.unverifiedCount).toBe(2);
+  });
+
   it("preserves research when all URLs alive", async () => {
     const research = makeResearch();
-    const fetchImpl = makeFetch([]);
+    const fetchImpl = makeFetch({});
 
     const r = await filterDeadResearchUrls(research, fetchImpl);
 
@@ -52,9 +70,9 @@ describe("filterDeadResearchUrls", () => {
     expect(r.filtered.key_facts).toHaveLength(2);
   });
 
-  it("returns deadUrls array for logging", async () => {
+  it("returns deadUrls array for logging when 404 found", async () => {
     const research = makeResearch();
-    const fetchImpl = makeFetch(["https://dead.test/b"]);
+    const fetchImpl = makeFetch({ "https://dead.test/b": 404 });
 
     const r = await filterDeadResearchUrls(research, fetchImpl);
 
