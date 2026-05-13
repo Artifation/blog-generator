@@ -38,11 +38,17 @@ import { Repurposed } from "@/email/templates/Repurposed";
 import { runRepurposerLinkedIn, runRepurposerNewsletter, runRepurposerXThread } from "@/agents/repurposer";
 import { buildAllSchemaJsonLd } from "./schemaGenerator.ts";
 import { detectCannibalizationViaGsc } from "./cannibalizationGsc.ts";
+import { logStage, persistRunSummary, type RunSummary } from "./runLogger.ts";
+import { filterDeadResearchUrls } from "./researchUrlFilter.ts";
+import type { RubricSignals } from "./rubric.ts";
 import type { TenantConfig } from "@/config/tenant";
 
 export interface OrchestratorOpts {
   tenantSlug: string;
   baseDir?: string;
+  /** Waar runLogger run-summaries en score-history naartoe schrijft. Default "data";
+   * tests overschrijven met een tmp-dir om de echte data/ niet te vervuilen. */
+  dataDir?: string;
   env?: NodeJS.ProcessEnv;
   now?: Date;
   fetchImpl?: typeof fetch;
@@ -52,6 +58,9 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
   const env = opts.env ?? process.env;
   const baseDir = opts.baseDir ?? "tenants";
   const now = opts.now ?? new Date();
+  const dataDir = opts.dataDir ?? "data";
+  const runId = env.GITHUB_RUN_ID ?? `local-${now.toISOString().replace(/[:.]/g, "-")}`;
+  const startedAt = now.toISOString();
 
   const tenant = await loadTenant(opts.tenantSlug, baseDir);
   let topics = await loadTopics(opts.tenantSlug, baseDir);
@@ -130,6 +139,24 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       outputTokens: research.raw.outputTokens,
     });
 
+    // URL self-verification: dode external/key_fact-URLs eruit voor ze Strategist/Writer
+    // bereiken. Voorkomt dat dead_external_link_count later seo_meta drukt.
+    currentStage = "urlVerify";
+    try {
+      const urlFilter = await filterDeadResearchUrls(research.parsed, opts.fetchImpl);
+      research.parsed = urlFilter.filtered;
+      logStage({
+        stage: "url-verify",
+        total: urlFilter.total,
+        alive: urlFilter.alive,
+        dropped: urlFilter.dropped,
+        deadUrls: urlFilter.deadUrls,
+      });
+    } catch (err) {
+      // Niet-fataal: ga door met ongefilterde research, citationCheck pakt het later alsnog.
+      logStage({ stage: "url-verify", warning: (err as Error).message });
+    }
+
     // Build anchor history before Strategist to inform anchor diversity
     let anchorHistory: AnchorHistoryEntry[] = [];
     if (tenant.features.anchor_tracker?.enabled) {
@@ -185,6 +212,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         ban_list: tenant.brand.ban_list,
         contrarian_hint: outline.parsed.contrarian_opinion_hint,
         key_facts: research.parsed.key_facts,
+        originality_anchor: research.parsed.originality_anchor,
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );
@@ -308,6 +336,25 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       outputTokens: judge.raw.outputTokens,
     });
 
+    // Volledige judge-uitkomst in GH Actions log — geen email nodig om scores te zien.
+    logStage({
+      stage: "judge",
+      topicId: next.id,
+      verdict: judge.parsed.verdict,
+      weighted_total: judge.parsed.weighted_total,
+      scores: judge.parsed.scores,
+      hard_fails: judge.parsed.hard_fails,
+      signals: {
+        internal_link_count: signals.internal_link_count,
+        external_link_count: signals.external_link_count,
+        dead_external_link_count: signals.dead_external_link_count,
+        word_count: signals.word_count,
+        flesch_nl_score: signals.flesch_nl_score,
+        keyword_density_pct: signals.keyword_density_pct,
+        banlist_hits: signals.banlist_hits,
+      },
+    });
+
     if (judge.parsed.verdict === "NO-GO") {
       const html = await render(
         React.createElement(Reject, {
@@ -339,6 +386,14 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         retry_after: new Date(now.getTime() + 7 * 86400_000).toISOString(),
       });
       await saveTopics(topics, opts.tenantSlug, baseDir);
+      await persistRunSummary(
+        buildSummary({
+          runId, tenantSlug: opts.tenantSlug, topic: next, startedAt, now,
+          verdict: "rejected", judge: judge.parsed, signals,
+          reason: judge.parsed.hard_fails.join("; ") || "score < threshold",
+        }),
+        dataDir
+      );
       return;
     }
 
@@ -367,6 +422,13 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         retry_after: nextMondayIso(now),
       });
       await saveTopics(topics, opts.tenantSlug, baseDir);
+      await persistRunSummary(
+        buildSummary({
+          runId, tenantSlug: opts.tenantSlug, topic: next, startedAt, now,
+          verdict: "cap_deferred", judge: judge.parsed, signals,
+        }),
+        dataDir
+      );
       return;
     }
 
@@ -559,19 +621,64 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
     await saveTopics(topics, opts.tenantSlug, baseDir);
 
     const cost = computeRunCost(usage);
-    console.log(
-      JSON.stringify({
-        stage: "complete",
-        topicId: next.id,
-        postId: post.id,
-        costUsd: cost.totalUsd,
-        score: judge.parsed.weighted_total,
-      })
+    logStage({
+      stage: "complete",
+      topicId: next.id,
+      postId: post.id,
+      costUsd: cost.totalUsd,
+      score: judge.parsed.weighted_total,
+    });
+    await persistRunSummary(
+      buildSummary({
+        runId, tenantSlug: opts.tenantSlug, topic: next, startedAt, now,
+        verdict: "published", judge: judge.parsed, signals,
+        wpPostId: post.id, costUsd: cost.totalUsd,
+      }),
+      dataDir
     );
   } catch (err) {
     await sendErrorEmail(env, tenant, now, currentStage, (err as Error).message);
     throw err;
   }
+}
+
+interface BuildSummaryInput {
+  runId: string;
+  tenantSlug: string;
+  topic: { id: string; title: string };
+  startedAt: string;
+  now: Date;
+  verdict: RunSummary["verdict"];
+  judge?: {
+    scores: Record<string, number>;
+    weighted_total: number;
+    hard_fails: string[];
+  };
+  signals?: RubricSignals;
+  reason?: string;
+  wpPostId?: number;
+  costUsd?: number;
+}
+
+function buildSummary(input: BuildSummaryInput): RunSummary {
+  const finishedAt = input.now.toISOString();
+  return {
+    runId: input.runId,
+    tenantSlug: input.tenantSlug,
+    topicId: input.topic.id,
+    topicTitle: input.topic.title,
+    startedAt: input.startedAt,
+    finishedAt,
+    durationMs: input.now.getTime() - new Date(input.startedAt).getTime(),
+    verdict: input.verdict,
+    judgeScores: input.judge?.scores ?? null,
+    weightedTotal: input.judge?.weighted_total ?? null,
+    signals: input.signals ?? null,
+    hardFails: input.judge?.hard_fails ?? [],
+    reason: input.reason,
+    wpPostId: input.wpPostId,
+    costUsd: input.costUsd,
+  };
 }
 
 async function sendErrorEmail(

@@ -4,6 +4,23 @@ import type { LLMProvider } from "@/llm/types";
 import { resolveAgentModel } from "@/llm/client";
 import { RESEARCHER_SYSTEM_PROMPT } from "./prompts/researcher.ts";
 
+export const OriginalityAnchorSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("real_case"),
+    source_url: z.string().url(),
+    summary: z.string().min(60).max(500),
+    what_makes_it_relevant: z.string().min(30).max(400),
+  }),
+  z.object({
+    type: z.literal("hypothetical_scenario"),
+    industry: z.string().min(3),
+    region: z.string().min(2),
+    situation: z.string().min(60).max(500),
+    outcome: z.string().min(30).max(400),
+  }),
+]);
+export type OriginalityAnchor = z.infer<typeof OriginalityAnchorSchema>;
+
 export const ResearchOutputSchema = z.object({
   fan_out_subqueries: z.array(z.string()).min(3),
   key_entities: z.array(z.string()).min(3),
@@ -15,6 +32,7 @@ export const ResearchOutputSchema = z.object({
     .min(0),
   key_facts: z.array(z.object({ claim: z.string(), source_url: z.string().url() })).min(0),
   competitor_serp_summary: z.string(),
+  originality_anchor: OriginalityAnchorSchema.optional(),
 });
 export type ResearchOutput = z.infer<typeof ResearchOutputSchema>;
 

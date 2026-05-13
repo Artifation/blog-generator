@@ -305,6 +305,7 @@ describe("orchestrator integration — happy path (GO)", () => {
     await runPipeline({
       tenantSlug: "artifation",
       baseDir: dir,
+      dataDir: `${dir}/data`,
       env: RUN_ENV,
       now: new Date("2026-05-08T04:15:00Z"),
     });
@@ -367,6 +368,7 @@ describe("orchestrator integration — reject path (NO-GO)", () => {
     await runPipeline({
       tenantSlug: "artifation",
       baseDir: dir,
+      dataDir: `${dir}/data`,
       env: RUN_ENV,
       now: new Date("2026-05-08T04:15:00Z"),
     });
@@ -452,6 +454,7 @@ describe("orchestrator integration — cap reached", () => {
     await runPipeline({
       tenantSlug: "artifation",
       baseDir: dir,
+      dataDir: `${dir}/data`,
       env: RUN_ENV,
       now: new Date("2026-05-08T04:15:00Z"),
     });

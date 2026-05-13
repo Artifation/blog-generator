@@ -3,6 +3,7 @@ import { runAgent } from "@/llm/runAgent";
 import { resolveAgentModel } from "@/llm/client";
 import type { LLMProvider } from "@/llm/types";
 import type { StrategistOutput } from "./strategist.ts";
+import type { OriginalityAnchor } from "./researcher.ts";
 import { WRITER_SYSTEM_PROMPT } from "./prompts/writer.ts";
 
 export const WriterOutputSchema = z.object({
@@ -20,6 +21,8 @@ export interface WriterInput {
   /** Researcher's verifieerbare feiten met source_url. Writer mag SPECIFIEKE
    * statistieken/percentages/jaartallen ALLEEN uit deze lijst halen. */
   key_facts: { claim: string; source_url: string }[];
+  /** Concrete NL-MKB case (real of hypothetisch) — Writer moet 'm 1x inline citeren. */
+  originality_anchor?: OriginalityAnchor;
 }
 
 export interface WriterDeps {
@@ -49,7 +52,12 @@ export async function runWriter(input: WriterInput, deps: WriterDeps): Promise<W
     const userPrompt =
       i === 0
         ? JSON.stringify(
-            { outline: input.outline, contrarian_hint: input.contrarian_hint, key_facts: input.key_facts },
+            {
+              outline: input.outline,
+              contrarian_hint: input.contrarian_hint,
+              key_facts: input.key_facts,
+              originality_anchor: input.originality_anchor,
+            },
             null,
             2
           )
@@ -58,10 +66,11 @@ export async function runWriter(input: WriterInput, deps: WriterDeps): Promise<W
               outline: input.outline,
               contrarian_hint: input.contrarian_hint,
               key_facts: input.key_facts,
+              originality_anchor: input.originality_anchor,
               previous_draft: last?.draft_html,
               previous_critique: last?.self_critique,
               instruction:
-                "Verbeter de vorige draft op basis van de critique. Behoud structuur, fix de issues. Gebruik alleen statistieken uit key_facts.",
+                "Verbeter de vorige draft op basis van de critique. Behoud structuur, fix de issues. Gebruik alleen statistieken uit key_facts. Behoud de originality_anchor-citatie of voeg toe als die ontbreekt.",
             },
             null,
             2

@@ -21,6 +21,10 @@ REGELS VOOR DE INHOUD (strict):
 - Tussen de H2's: minimaal 3 internal links (uit outline.internal_links_to_inject) met de gegeven anchors.
 - Externe links inline (uit outline.external_links_to_cite), 2-4 totaal.
 - Verwerk minstens één originaliteits-element: eigen rekenvoorbeeld, NL-casus, of contrarian opinion (zie contrarian_opinion_hint).
+- ORIGINALITY ANCHOR (verplicht inline, drijft originality-score): je krijgt input.originality_anchor. Verwerk deze ÉÉN keer expliciet in een H2-sectie:
+  * Als type === "real_case": citeer met named source ("Een case van NLdigital toont…") en inline link naar source_url. Geef minstens twee concrete details uit summary.
+  * Als type === "hypothetical_scenario": introduceer met "Een voorbeeld:" of "Stel je voor:" zodat de lezer ziet dat het illustratie is. Noem industry + region + situation + outcome — concrete details overnemen, niet abstraheren.
+  * NOOIT samenvatten in algemene termen ("er zijn bedrijven die…"). Maak het tastbaar.
 - Sluit af met een conclusie-paragraaf met EXACT ÉÉN duidelijke CTA naar /ai-scan/ of /contact/. Geen "tot slot" of "in conclusion".
 - Optioneel: eindig met FAQ-block uit outline.faq_block, gewikkeld in <div class="faq">.
 
