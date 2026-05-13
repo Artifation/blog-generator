@@ -119,16 +119,19 @@
   intended_word_count: 1500
   status: rejected
   priority: 75
-  reject_reason: fact_check failed (1 fabricated claim)
-  retry_after: '2026-05-20T06:49:15.491Z'
   last_attempted: '2026-05-13T06:49:15.491Z'
+  retry_after: '2026-05-20T06:49:15.491Z'
+  reject_reason: fact_check failed (1 fabricated claim)
 - id: ai-policy-template
   title: Hoe schrijf je een AI-policy voor je MKB? (gratis template)
   pillar: ai-act
   target_keyword: AI policy MKB
   intended_word_count: 1500
-  status: queued
+  status: rejected
   priority: 73
+  reject_reason: score < threshold
+  retry_after: '2026-05-20T08:20:20.731Z'
+  last_attempted: '2026-05-13T08:20:20.731Z'
 - id: ai-geletterdheid-team
   title: 'AI-geletterdheid: training voor je team verplicht volgens AI Act'
   pillar: ai-act
