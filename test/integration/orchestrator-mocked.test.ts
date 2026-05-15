@@ -244,7 +244,7 @@ email:
 pillars:
   - { id: ai-per-afdeling, weight: 1.0 }
 quality_threshold: 8.0
-max_posts_per_week_published: 4
+max_posts_per_week_published: 2
 `;
 
 const TOPICS_YAML_QUEUED = `
@@ -393,19 +393,12 @@ describe("orchestrator integration — reject path (NO-GO)", () => {
 describe("orchestrator integration — cap reached", () => {
   beforeEach(() => {
     resetState();
-    state.llmResponses.push(
-      RESEARCHER_RESPONSE,
-      STRATEGIST_RESPONSE,
-      WRITER_RESPONSE,
-      SEO_EDITOR_RESPONSE,
-      FACT_CHECKER_RESPONSE,
-      QUALITY_JUDGE_GO
-      // no imagePrompter — cap hit blocks publishing
-    );
+    // Geen LLM-responses nodig: cap-check vóór de eerste agent betekent dat
+    // er geen enkele LLM-call gedaan wordt wanneer cap al bereikt is.
   });
 
-  it("sends cap email, marks topic cap_deferred, and does NOT post to WP", async () => {
-    // 4 reeds gepubliceerd in dezelfde ISO-week (= cap), plus 1 queued
+  it("marks topic cap_deferred WITHOUT running any LLM agents or sending email", async () => {
+    // Cap=2 in config. 2 reeds gepubliceerd in dezelfde ISO-week + 1 queued.
     // ISO-week 19 in 2026: maandag 2026-05-04 .. zondag 2026-05-10
     const lastAttempted = '"2026-05-05T04:15:00.000Z"';
     const topicsYaml = `
@@ -421,22 +414,6 @@ describe("orchestrator integration — cap reached", () => {
   title: Vorig 2
   pillar: ai-per-afdeling
   target_keyword: vorig twee
-  intended_word_count: 1500
-  status: published
-  priority: 1
-  last_attempted: ${lastAttempted}
-- id: prev-3
-  title: Vorig 3
-  pillar: ai-per-afdeling
-  target_keyword: vorig drie
-  intended_word_count: 1500
-  status: published
-  priority: 1
-  last_attempted: ${lastAttempted}
-- id: prev-4
-  title: Vorig 4
-  pillar: ai-per-afdeling
-  target_keyword: vorig vier
   intended_word_count: 1500
   status: published
   priority: 1
@@ -459,13 +436,14 @@ describe("orchestrator integration — cap reached", () => {
       now: new Date("2026-05-08T04:15:00Z"),
     });
 
-    // Geen WP-post of media-upload
-    expect(state.wpCalls.find((c) => c.path === "/wp-json/wp/v2/posts")).toBeUndefined();
-    expect(state.wpCalls.some((c) => c.method === "POST_BIN")).toBe(false);
+    // Geen WP-call, geen media-upload
+    expect(state.wpCalls).toHaveLength(0);
 
-    // Cap email verstuurd
-    expect(state.emailCalls).toHaveLength(1);
-    expect(state.emailCalls[0]!.subject).toMatch(/Cap bereikt/);
+    // Geen email — early cap stuurt geen mail om dagelijkse spam te voorkomen
+    expect(state.emailCalls).toHaveLength(0);
+
+    // Geen LLM-calls geconsumeerd
+    expect(state.llmIndex).toBe(0);
 
     // Topic gemarkeerd als cap_deferred
     const topicsAfter = await readFile(

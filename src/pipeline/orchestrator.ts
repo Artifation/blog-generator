@@ -32,7 +32,6 @@ import { appendEditorialLogEntry } from "./editorialLog.ts";
 import { sendEmail } from "@/email/resend";
 import { Success } from "@/email/templates/Success";
 import { Reject } from "@/email/templates/Reject";
-import { CapReached } from "@/email/templates/CapReached";
 import { ErrorMail } from "@/email/templates/Error";
 import { Repurposed } from "@/email/templates/Repurposed";
 import { runRepurposerLinkedIn, runRepurposerNewsletter, runRepurposerXThread } from "@/agents/repurposer";
@@ -68,6 +67,34 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
   const next = selectNextTopic(topics, now);
   if (!next) {
     await sendErrorEmail(env, tenant, now, "topic-selector", "Topic queue is leeg.");
+    return;
+  }
+
+  // VROEGE CAP-CHECK — vóór elke dure LLM-call. Voorkomt ~€0.15 verspild aan
+  // researcher/strategist/writer/seoEditor/judge wanneer cap toch al bereikt is.
+  // De topic wordt cap_deferred gemarkeerd zodat de selector hem volgende week
+  // pakt, maar er gaat geen content gemaakt worden vandaag.
+  const publishedThisWeekEarly = countPublishedThisIsoWeek(topics, now);
+  if (publishedThisWeekEarly >= tenant.max_posts_per_week_published) {
+    logStage({
+      stage: "cap-check-early",
+      action: "skip",
+      topicId: next.id,
+      publishedThisWeek: publishedThisWeekEarly,
+      cap: tenant.max_posts_per_week_published,
+    });
+    topics = markTopicStatus(topics, next.id, "cap_deferred", now, {
+      retry_after: nextMondayIso(now),
+    });
+    await saveTopics(topics, opts.tenantSlug, baseDir);
+    await persistRunSummary(
+      buildSummary({
+        runId, tenantSlug: opts.tenantSlug, topic: next, startedAt, now,
+        verdict: "cap_deferred",
+        reason: `cap reached early (${publishedThisWeekEarly}/${tenant.max_posts_per_week_published})`,
+      }),
+      dataDir
+    );
     return;
   }
 
@@ -397,40 +424,9 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       return;
     }
 
-    const publishedThisWeek = countPublishedThisIsoWeek(topics, now);
-    if (publishedThisWeek >= tenant.max_posts_per_week_published) {
-      const html = await render(
-        React.createElement(CapReached, {
-          title: outline.parsed.outline.h1_suggestion,
-          weightedTotal: judge.parsed.weighted_total,
-          weeklyCap: tenant.max_posts_per_week_published,
-          publishedThisWeek,
-        })
-      );
-      await sendEmail({
-        apiKey: requireEnv(env, "RESEND_API_KEY"),
-        from: tenant.email.from,
-        to: tenant.email.to,
-        replyTo: tenant.email.reply_to,
-        subject: `[${tenant.brand.name}] Cap bereikt — draft bewaard: ${outline.parsed.outline.h1_suggestion}`,
-        html,
-        attachments: [
-          { filename: "draft.html", content: Buffer.from(seo.parsed.edited_html, "utf-8") },
-        ],
-      });
-      topics = markTopicStatus(topics, next.id, "cap_deferred", now, {
-        retry_after: nextMondayIso(now),
-      });
-      await saveTopics(topics, opts.tenantSlug, baseDir);
-      await persistRunSummary(
-        buildSummary({
-          runId, tenantSlug: opts.tenantSlug, topic: next, startedAt, now,
-          verdict: "cap_deferred", judge: judge.parsed, signals,
-        }),
-        dataDir
-      );
-      return;
-    }
+    // Cap-check vond plaats vóór de pipeline-start (vóór researcher) zodat
+    // we geen LLM-credits opmaken op runs die toch niet publiceren. Hier
+    // hoeft niets meer gecheckt — als we hier zijn, was cap bij run-start nog vrij.
 
     currentStage = "imagePrompter";
     const ip = await runImagePrompter(
