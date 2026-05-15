@@ -216,13 +216,15 @@
   intended_word_count: 1500
   status: rejected
   priority: 56
-  reject_reason: fact_check = 0 (verdict=fail)
-  retry_after: '2026-05-21T07:23:57.792Z'
   last_attempted: '2026-05-14T07:23:57.792Z'
+  retry_after: '2026-05-21T07:23:57.792Z'
+  reject_reason: fact_check = 0 (verdict=fail)
 - id: ai-voor-transport
   title: 'AI voor transport en logistiek: route, capaciteit, en compliance'
   pillar: sector-extensie
   target_keyword: AI voor transport en logistiek
   intended_word_count: 1500
-  status: queued
+  status: cap_deferred
   priority: 54
+  retry_after: '2026-05-18T04:15:00.000Z'
+  last_attempted: '2026-05-15T07:33:57.221Z'
