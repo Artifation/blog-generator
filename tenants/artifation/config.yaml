@@ -73,7 +73,7 @@ pillars:
     weight: 0.2
 
 quality_threshold: 8.0
-max_posts_per_week_published: 3
+max_posts_per_week_published: 2
 
 features:
   internal_linker:
