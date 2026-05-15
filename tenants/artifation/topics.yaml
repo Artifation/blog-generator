@@ -203,11 +203,8 @@
   pillar: sector-extensie
   target_keyword: AI voor advocaten Nederland
   intended_word_count: 1800
-  status: rejected
+  status: queued
   priority: 58
-  last_attempted: '2026-05-13T12:35:45.056Z'
-  retry_after: '2026-05-20T12:35:45.056Z'
-  reject_reason: score < threshold
   intent: commercial
 - id: ai-voor-horeca
   title: 'AI voor horeca: van reserveringen tot voorraadbeheer'
