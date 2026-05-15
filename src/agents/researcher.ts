@@ -50,7 +50,7 @@ export interface ResearcherDeps {
 
 export async function runResearcher(input: ResearcherInput, deps: ResearcherDeps) {
   const model = resolveAgentModel("researcher");
-  return runAgent(
+  const result = await runAgent(
     {
       provider: deps.provider,
       systemPrompt: RESEARCHER_SYSTEM_PROMPT,
@@ -58,7 +58,41 @@ export async function runResearcher(input: ResearcherInput, deps: ResearcherDeps
       model: model.model,
       maxTokens: model.maxTokens,
       schema: ResearchOutputSchema,
+      useSearch: true,  // Gemini grounding → URIs uit live SERP, niet uit parametric memory
     },
     deps.sleepImpl
   );
+
+  // Filter externe URLs tegen Gemini's grounding-metadata. Wat niet in de
+  // grounded set zit is ofwel hallucinatie ofwel parametric-memory — beide
+  // onbetrouwbaar. Interne site-URLs hoeven niet gegrond te zijn (komen uit
+  // sitemap, niet uit Gemini's search).
+  const grounded = result.raw.groundedUrls;
+  if (grounded && grounded.length > 0) {
+    const groundedSet = new Set(grounded);
+    const isGrounded = (url: string): boolean =>
+      groundedSet.has(url) || [...groundedSet].some((g) => sameHostAndPath(g, url));
+    result.parsed.external_authority_sources = result.parsed.external_authority_sources.filter(
+      (s) => isGrounded(s.url)
+    );
+    result.parsed.key_facts = result.parsed.key_facts.filter((f) => isGrounded(f.source_url));
+  }
+
+  return result;
+}
+
+// Twee URIs gelden als equivalent als host + path-prefix overeenkomen. Vangt
+// trailing-slash / query-string / fragment verschillen op tussen wat de LLM
+// citeert en wat in groundingChunks staat (Google voegt soms ?utm_source toe).
+function sameHostAndPath(a: string, b: string): boolean {
+  try {
+    const ua = new URL(a);
+    const ub = new URL(b);
+    if (ua.host !== ub.host) return false;
+    const pa = ua.pathname.replace(/\/$/, "");
+    const pb = ub.pathname.replace(/\/$/, "");
+    return pa === pb || pa.startsWith(pb) || pb.startsWith(pa);
+  } catch {
+    return false;
+  }
 }

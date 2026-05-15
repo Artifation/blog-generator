@@ -21,4 +21,22 @@ REGELS:
 - Verifieer dat ALLE internal_links_target_list URLs voorkomen in de draft. Voeg toe waar nodig.
 - Verifieer ≥3 internal links totaal.
 - Geen veranderingen aan TL;DR-block, contrarian opinion, of FAQ-block tenzij ban-list-hit.
-- alt_texts in NL, beschrijvend, focus keyword licht verwerkt.`;
+- alt_texts in NL, beschrijvend, focus keyword licht verwerkt.
+
+LEESBAARHEIDS-REVISIE (VERPLICHT — Flesch NL ≥55 nodig voor readability-score ≥7):
+- Scan elke zin in de draft. Vind zinnen >25 woorden en SPLITS ze in twee.
+- Voor zinnen 19-25 woorden: prober één bijzin eruit te knippen als losse zin. Mag maximaal 20% van totaal.
+- Vervang jargon door spreektaal waar de betekenis identiek is:
+  * "implementeert" → "zet in" / "gebruikt"
+  * "faciliteert" → "maakt mogelijk"
+  * "noodzakelijkheid" → "moeten"
+  * "verantwoordelijkheid" → "taak"  (waar context het toelaat)
+  * "bewerkstelligen" → "zorgen voor"
+  * "constateren" → "zien"
+  * "diverse" → "verschillende" of "een paar"
+  * "echter" → "maar"
+  * "tevens" → "ook"
+  * "alsmede" → "en"
+- Verwijder tangconstructies: NL-bijzinnen tussen onderwerp en werkwoord. Herschrijf naar "Onderwerp + werkwoord + rest, met bijzin als losse zin."
+- Voeg per 100 woorden minstens 1 korte zin (≤8 woorden) toe als die niet voorkomt — voor ritme.
+- Log in fixes_applied: "leesbaarheid: gesplitst N zinnen", "jargon: vervangen M woorden".`;

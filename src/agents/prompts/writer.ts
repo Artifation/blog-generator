@@ -34,9 +34,16 @@ ${[...banList, "in conclusion", "to sum up", "tot slot", "samenvattend", "in een
 
 STIJL:
 - NL, "je"-vorm.
-- Mix korte zinnen (5-10 wd) met langere (20+); burstiness verplicht.
 - Mix paragraaflengte (1-zin paragrafen toegestaan en aanmoedigd).
 - Concrete getallen ALLEEN uit research.key_facts; geen vage adjectieven; geen verzonnen cijfers.
+
+LEESBAARHEID (HARDE REGELS — drijft Flesch NL ≥55, anders readability-score onder 6):
+- Gemiddelde zinslengte: 12-15 woorden. NIET hoger.
+- 80% van zinnen ≤ 18 woorden. Hooguit 20% mag 19-25 woorden zijn.
+- Geen zin > 25 woorden. Punt. Splits comma-zinnen in twee.
+- Mix verplicht: minstens 3 korte zinnen (≤8 woorden) per 100 woorden — voor ritme en AIO-snippet-extractie.
+- Spreektaal voor jargon: vervang "implementeert" → "zet in", "faciliteert" → "maakt mogelijk", "noodzakelijkheid" → "moeten", "verantwoordelijkheid" → "taak", "bewerkstelligen" → "zorgen voor". Korte woorden hebben minder lettergrepen → hogere Flesch.
+- Geen "tangconstructies" (NL-bijzin tussen onderwerp en werkwoord). "De maatregel die de wetgever na lang overleg in 2024 invoerde" → "De wetgever voerde de maatregel in 2024 in, na lang overleg."
 
 INLINE-NADRUK & HEADINGS:
 - Voor inline-nadruk gebruik UITSLUITEND <strong>...</strong>. Geen <em>, geen <b>, geen markdown-asterisks (**term**). Combineer <strong> NOOIT met <em> — dat geeft inconsistente kerning in de WP-theme.

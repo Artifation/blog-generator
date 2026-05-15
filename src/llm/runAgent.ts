@@ -10,6 +10,8 @@ export interface RunAgentInput<T extends z.ZodTypeAny> {
   temperature?: number;
   schema: T;
   maxAttempts?: number;
+  /** Geef door aan provider — voor Gemini activeert dit Google-Search grounding. */
+  useSearch?: boolean;
 }
 
 export interface RunAgentResult<T extends z.ZodTypeAny> {
@@ -35,6 +37,7 @@ export async function runAgent<T extends z.ZodTypeAny>(
         model: input.model,
         maxTokens: input.maxTokens,
         temperature: input.temperature,
+        useSearch: input.useSearch,
       });
 
       const json = extractJson(raw.text);
