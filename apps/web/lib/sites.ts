@@ -122,6 +122,7 @@ export interface CreateSiteInput {
   author: { name: string; bio?: string; linkedin?: string; photoUrl?: string };
   apiKeys?: Record<string, string>;
   pillars: Array<{ slug?: string; name: string; weight: number }>;
+  features?: Record<string, unknown>;
 }
 
 export async function createSite(input: CreateSiteInput): Promise<SiteWithPillars> {
@@ -198,6 +199,7 @@ export async function updateSite(id: string, input: UpdateSiteInput): Promise<Si
   if (input.wordpressConfig !== undefined) patch.wordpressConfig = input.wordpressConfig;
   if (input.author !== undefined) patch.author = input.author;
   if (input.apiKeys !== undefined) patch.apiKeys = input.apiKeys;
+  if (input.features !== undefined) patch.features = input.features;
 
   await db.update(sites).set(patch).where(eq(sites.id, id));
 

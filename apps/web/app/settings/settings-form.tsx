@@ -26,6 +26,18 @@ interface SiteData {
   author: { name?: string; bio?: string; linkedin?: string; photoUrl?: string };
   apiKeys: Record<string, string | undefined>;
   pillars: Pillar[];
+  features: Record<string, unknown>;
+}
+
+interface SearchConsoleFeature {
+  enabled?: boolean;
+  property_url?: string;
+}
+
+function readSearchConsole(features: Record<string, unknown>): SearchConsoleFeature {
+  const sc = features.search_console;
+  if (!sc || typeof sc !== "object") return {};
+  return sc as SearchConsoleFeature;
 }
 
 export function SettingsForm({
@@ -61,6 +73,7 @@ export function SettingsForm({
       author: { name: state.author.name ?? "", bio: state.author.bio, linkedin: state.author.linkedin, photoUrl: state.author.photoUrl },
       apiKeys: state.apiKeys as Record<string, string>,
       pillars: state.pillars,
+      features: state.features,
     });
     setSaving(false);
     if (r.ok) {
@@ -232,6 +245,40 @@ export function SettingsForm({
         </Section>
 
         {teamSection}
+
+        <Section
+          title="Google Search Console"
+          description="Schakel in om 'Suggest topics' te voeden met striking-distance queries, content-gaps en stijgende queries uit GSC. Vereist ook GSC_SERVICE_ACCOUNT_JSON in je env."
+        >
+          {(() => {
+            const sc = readSearchConsole(state.features);
+            const setSc = (patch: Partial<SearchConsoleFeature>) =>
+              up("features", { ...state.features, search_console: { ...sc, ...patch } });
+            return (
+              <>
+                <div className="row" style={{ gap: 12, alignItems: "center" }}>
+                  <label className="row" style={{ gap: 8, alignItems: "center", cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      checked={sc.enabled ?? false}
+                      onChange={(e) => setSc({ enabled: e.target.checked })}
+                    />
+                    <span>Search Console gebruiken</span>
+                  </label>
+                </div>
+                <Field label="Property URL (precies zoals in GSC, bv. 'sc-domain:artifation.nl' of 'https://artifation.nl/')">
+                  <input
+                    className="input mono"
+                    value={sc.property_url ?? ""}
+                    onChange={(e) => setSc({ property_url: e.target.value })}
+                    placeholder="sc-domain:jouwsite.nl"
+                    disabled={!(sc.enabled ?? false)}
+                  />
+                </Field>
+              </>
+            );
+          })()}
+        </Section>
 
         <Section title="API-keys" description="Lokaal opgeslagen in SQLite. Geldt voor de volgende pipeline-run.">
           <ApiKey label="Anthropic" value={state.apiKeys.anthropic ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, anthropic: v })} />

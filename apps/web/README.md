@@ -42,6 +42,37 @@ import you can edit them per-site under Settings → API keys.
   - **WordPress** — same REST API path as the legacy pipeline.
   - **Markdown export** — `.md` files in `data/exports/{site-slug}/`.
 
+## GSC-powered topic suggestions (optional)
+
+The **Suggest topics** button can use Google Search Console to surface real
+opportunity queries from your own traffic — striking-distance queries
+(position 8-20), content gaps (queries you rank for without a topic), and
+rising queries (trending impressions). Setup:
+
+1. **Create a service account** in Google Cloud, grant it `webmasters.readonly`
+   scope, and download the JSON key.
+2. **Add the service account email** as a user (Restricted permission is
+   enough) to your GSC property at
+   `https://search.google.com/search-console`.
+3. **Export the env var** before starting the dev server:
+   ```bash
+   export GSC_SERVICE_ACCOUNT_JSON="$(cat path/to/service-account.json)"
+   npm run dev
+   ```
+4. **Enable per site** under Settings → Google Search Console:
+   - Tick "Search Console gebruiken"
+   - Paste the property URL (exactly as it appears in GSC, e.g.
+     `sc-domain:artifation.nl` or `https://artifation.nl/`)
+5. Click **Suggest topics** on the Topics page. Proposals get a badge
+   indicating which signal triggered them (📈 striking distance, 🎯 content
+   gap, ⬆ rising query).
+
+Snapshots live at `data/gsc-snapshots/<site-slug>.json`. The first run only
+emits striking-distance + content-gap signals; the second run onwards also
+emits rising-query signals (because it now has a previous window to diff
+against). Without GSC configured, **Suggest topics** falls back to a pure-LLM
+manual seed.
+
 ## What's next
 
 See [`docs/superpowers/specs/2026-05-16-general-blog-tool-design.md`](../../docs/superpowers/specs/2026-05-16-general-blog-tool-design.md)

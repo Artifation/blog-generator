@@ -49,6 +49,7 @@ export default async function SettingsPage() {
           author: site.author,
           apiKeys: site.apiKeys,
           pillars: site.pillars.map((p) => ({ slug: p.slug, name: p.name, weight: p.weight })),
+          features: site.features ?? {},
         }}
         teamSection={<TeamSection members={members} />}
       />
