@@ -1,8 +1,16 @@
 "use server";
 
+import path from "node:path";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { requireSite } from "~/lib/auth";
 import { createProviderRegistry } from "@/llm/client";
 import { runTopicSuggester } from "@/agents/topicSuggester";
+import { querySearchConsole, type GscRow, type GscClientOpts } from "@/integrations/searchConsole";
+import {
+  findStrikingDistance,
+  findRisingQueries,
+  findUnmappedQueries,
+} from "@/integrations/keywordOpportunities";
 import { listTopicsForSite, createTopic } from "~/lib/topics";
 import { revalidatePath } from "next/cache";
 
@@ -15,6 +23,140 @@ export interface TopicProposalView {
   intent: "informational" | "commercial" | "transactional";
   priority: number;
   rationale: string;
+  source:
+    | "competitor_sitemap"
+    | "gsc_rising_query"
+    | "gsc_striking_distance"
+    | "gsc_unmapped_query"
+    | "manual";
+}
+
+interface SearchConsoleFeature {
+  enabled?: boolean;
+  property_url?: string;
+}
+
+function readSearchConsoleFeature(features: Record<string, unknown>): SearchConsoleFeature | null {
+  const sc = features.search_console;
+  if (!sc || typeof sc !== "object") return null;
+  return sc as SearchConsoleFeature;
+}
+
+function gscSnapshotPath(siteSlug: string): string {
+  // Webapp cwd = apps/web; snapshots live at repo-root/data/gsc-snapshots
+  return path.resolve(process.cwd(), "../../data/gsc-snapshots", `${siteSlug}.json`);
+}
+
+async function loadGscSnapshot(filePath: string): Promise<GscRow[]> {
+  try {
+    return JSON.parse(await readFile(filePath, "utf-8")) as GscRow[];
+  } catch {
+    return [];
+  }
+}
+
+async function saveGscSnapshot(filePath: string, rows: GscRow[]): Promise<void> {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, JSON.stringify(rows, null, 2), "utf-8");
+}
+
+function dateYmd(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+interface DiscoveredCandidate {
+  source:
+    | "competitor_sitemap"
+    | "gsc_rising_query"
+    | "gsc_striking_distance"
+    | "gsc_unmapped_query"
+    | "manual";
+  query?: string;
+  title?: string;
+  rationale?: string;
+}
+
+/**
+ * Try to discover GSC-based opportunities for this site. Silent fallback when:
+ *   - search_console feature is disabled or missing property_url
+ *   - GSC_SERVICE_ACCOUNT_JSON env is missing
+ *   - the GSC call fails
+ * Returns an empty list in any of those cases so the caller can fall back to
+ * a manual seed.
+ */
+async function discoverGscOpportunities(
+  siteSlug: string,
+  features: Record<string, unknown>,
+  existingTopics: { title: string; targetKeyword: string }[],
+  env: NodeJS.ProcessEnv
+): Promise<DiscoveredCandidate[]> {
+  const sc = readSearchConsoleFeature(features);
+  if (!sc?.enabled || !sc.property_url) return [];
+  const serviceAccountJson = env.GSC_SERVICE_ACCOUNT_JSON;
+  if (!serviceAccountJson) return [];
+
+  try {
+    const gscOpts: GscClientOpts = { serviceAccountJson };
+    const now = new Date();
+    const endDate = dateYmd(new Date(now.getTime() - 86_400_000));
+    const startDate = dateYmd(new Date(now.getTime() - 30 * 86_400_000));
+
+    const result = await querySearchConsole(gscOpts, {
+      propertyUrl: sc.property_url,
+      startDate,
+      endDate,
+      dimensions: ["query"],
+      rowLimit: 1000,
+    });
+
+    const snapPath = gscSnapshotPath(siteSlug);
+    const previous = await loadGscSnapshot(snapPath);
+
+    const minImpressions = 50;
+    const out: DiscoveredCandidate[] = [];
+
+    for (const o of findStrikingDistance(result.rows, { minImpressions })) {
+      out.push({
+        source: "gsc_striking_distance",
+        query: o.query,
+        rationale: `Positie ${o.position.toFixed(1)} bij ${o.impressions} impressies — kans om page 1 te halen.`,
+      });
+    }
+
+    for (const o of findUnmappedQueries(
+      result.rows,
+      existingTopics.map((t) => ({ target_keyword: t.targetKeyword, title: t.title })),
+      { minImpressions }
+    )) {
+      out.push({
+        source: "gsc_unmapped_query",
+        query: o.query,
+        rationale: `${o.impressions} impressies (positie ${o.position.toFixed(1)}) en geen bestaand topic dekt dit — content-gap.`,
+      });
+    }
+
+    if (previous.length > 0) {
+      for (const o of findRisingQueries(result.rows, previous, {
+        minGrowth: 50,
+        minGrowthPct: 50,
+      })) {
+        out.push({
+          source: "gsc_rising_query",
+          query: o.query,
+          rationale: `Impressies +${o.growth} (${Number.isFinite(o.growthPct) ? o.growthPct.toFixed(0) + "%" : "nieuw"}) — stijgende interesse.`,
+        });
+      }
+    }
+
+    // Persist current snapshot so the next run can compute rising queries.
+    await saveGscSnapshot(snapPath, result.rows).catch(() => {
+      // snapshot persistence is best-effort; don't fail the action
+    });
+
+    return out;
+  } catch {
+    return [];
+  }
 }
 
 export async function suggestTopicsAction(
@@ -37,6 +179,33 @@ export async function suggestTopicsAction(
 
   const existing = await listTopicsForSite(site.id);
 
+  // Try GSC opportunity discovery; falls back silently to an empty list when
+  // GSC isn't configured for this site (or env credential is missing).
+  const gscCandidates = await discoverGscOpportunities(
+    site.slug,
+    site.features ?? {},
+    existing.map((t) => ({ title: t.title, targetKeyword: t.targetKeyword })),
+    env
+  );
+
+  const candidates: DiscoveredCandidate[] = [...gscCandidates];
+
+  // Always include a manual seed so the LLM has freedom to propose creative
+  // topics even when GSC found something. Without this the suggester is
+  // anchored entirely to existing search behavior, which misses net-new angles.
+  candidates.push({
+    source: "manual",
+    rationale: `Genereer ${count} nieuwe topic-voorstellen voor deze site, geïnspireerd op de brand voice en pillars. Variëer op intent en specificiteit. Voor ${site.name} — voice: ${site.brandVoice.slice(0, 400)}`,
+  });
+
+  // Lookup: proposal_source assigned by suggester → rationale text from our
+  // discovery (so the UI can show "kans om page 1 te halen" instead of the
+  // generic LLM-written rationale).
+  const rationaleByQuery = new Map<string, string>();
+  for (const c of gscCandidates) {
+    if (c.query && c.rationale) rationaleByQuery.set(c.query.toLowerCase(), c.rationale);
+  }
+
   try {
     const res = await runTopicSuggester(
       {
@@ -47,28 +216,29 @@ export async function suggestTopicsAction(
           pillar: t.pillarSlug,
           status: t.status,
         })),
-        candidates: [
-          {
-            source: "manual",
-            rationale: `Genereer ${count} nieuwe topic-voorstellen voor deze site, geïnspireerd op de brand voice en pillars. Variëren op intent en specificiteit. Voor ${site.name} — voice: ${site.brandVoice.slice(0, 400)}`,
-          },
-        ],
+        candidates,
         pillars: site.pillars.map((p) => ({ id: p.slug, weight: p.weight })),
         max_n: count,
       },
       { provider: providers.get("gemini") }
     );
 
-    const proposals: TopicProposalView[] = res.parsed.proposals.map((p) => ({
-      id: p.id,
-      title: p.title,
-      pillarSlug: p.pillar,
-      targetKeyword: p.target_keyword,
-      intendedWordCount: p.intended_word_count,
-      intent: p.intent,
-      priority: p.priority,
-      rationale: p.proposal_rationale,
-    }));
+    const proposals: TopicProposalView[] = res.parsed.proposals.map((p) => {
+      const discoveredRationale = rationaleByQuery.get(p.target_keyword.toLowerCase());
+      return {
+        id: p.id,
+        title: p.title,
+        pillarSlug: p.pillar,
+        targetKeyword: p.target_keyword,
+        intendedWordCount: p.intended_word_count,
+        intent: p.intent,
+        priority: p.priority,
+        rationale: discoveredRationale
+          ? `${discoveredRationale} — ${p.proposal_rationale}`
+          : p.proposal_rationale,
+        source: p.proposal_source,
+      };
+    });
 
     return { ok: true, proposals };
   } catch (err) {
@@ -95,6 +265,8 @@ export async function acceptTopicProposalsAction(
         intent: p.intent,
         intendedWordCount: p.intendedWordCount,
         priority: p.priority,
+        proposalSource: p.source,
+        proposalRationale: p.rationale,
       });
       created++;
     } catch {

@@ -11,6 +11,22 @@ import { suggestTopicsAction, acceptTopicProposalsAction, type TopicProposalView
 
 type Pillar = { slug: string; name: string };
 
+function sourceBadge(source: TopicProposalView["source"]): React.ReactNode {
+  switch (source) {
+    case "gsc_striking_distance":
+      return <span className="badge b-green" title="GSC: positie 8-20, kans op page 1">📈 striking distance</span>;
+    case "gsc_unmapped_query":
+      return <span className="badge b-green" title="GSC: query waar geen topic over gaat — content gap">🎯 content gap</span>;
+    case "gsc_rising_query":
+      return <span className="badge b-green" title="GSC: impressies stijgen tussen windows">⬆ stijgende query</span>;
+    case "competitor_sitemap":
+      return <span className="badge b-gray" title="Nieuw artikel bij concurrent">👀 competitor</span>;
+    case "manual":
+    default:
+      return null;
+  }
+}
+
 interface TopicRow {
   id: string;
   title: string;
@@ -513,6 +529,7 @@ function SuggestionsModal({
                     <span className="badge b-gray">{p.intent}</span>
                     <span className="badge b-gray">{p.intendedWordCount}w</span>
                     <span className="badge b-blue">P{p.priority}</span>
+                    {sourceBadge(p.source)}
                   </div>
                   <div className="mono muted" style={{ fontSize: 11, marginBottom: 4 }}>
                     target: {p.targetKeyword}

@@ -134,7 +134,13 @@ export const topics = sqliteTable(
     keyEntities: text("key_entities", { mode: "json" }).$type<string[]>().default(sql`'[]'`),
     proposedAt: text("proposed_at"),
     proposalSource: text("proposal_source", {
-      enum: ["competitor_sitemap", "gsc_rising_query", "manual"],
+      enum: [
+        "competitor_sitemap",
+        "gsc_rising_query",
+        "gsc_striking_distance",
+        "gsc_unmapped_query",
+        "manual",
+      ],
     }),
     proposalRationale: text("proposal_rationale"),
     createdAt: text("created_at").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),

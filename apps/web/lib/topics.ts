@@ -31,6 +31,13 @@ export interface CreateTopicInput {
   intent?: "informational" | "commercial" | "transactional";
   intendedWordCount?: number;
   priority?: number;
+  proposalSource?:
+    | "competitor_sitemap"
+    | "gsc_rising_query"
+    | "gsc_striking_distance"
+    | "gsc_unmapped_query"
+    | "manual";
+  proposalRationale?: string;
 }
 
 export async function createTopic(input: CreateTopicInput): Promise<Topic> {
@@ -46,6 +53,9 @@ export async function createTopic(input: CreateTopicInput): Promise<Topic> {
     intent: input.intent ?? "informational",
     intendedWordCount: input.intendedWordCount ?? 1500,
     priority: input.priority ?? 0,
+    proposalSource: input.proposalSource,
+    proposalRationale: input.proposalRationale,
+    proposedAt: input.proposalSource ? new Date().toISOString() : undefined,
   });
   return (await getTopic(id))!;
 }
