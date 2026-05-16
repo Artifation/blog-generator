@@ -21,7 +21,12 @@ import type { Topic } from "@/config/topics";
 import { fetchCompetitorSitemaps, diffNewEntries } from "@/integrations/competitorSitemaps";
 import type { SitemapEntry } from "@/integrations/competitorSitemaps";
 import { querySearchConsole } from "@/integrations/searchConsole";
-import type { GscClientOpts } from "@/integrations/searchConsole";
+import type { GscClientOpts, GscRow } from "@/integrations/searchConsole";
+import {
+  findStrikingDistance,
+  findRisingQueries,
+  findUnmappedQueries,
+} from "@/integrations/keywordOpportunities";
 import { runTopicSuggester } from "@/agents/topicSuggester";
 import type { TopicProposal } from "@/agents/topicSuggester";
 import { createProviderRegistry } from "@/llm/client";
@@ -53,6 +58,10 @@ function snapshotPath(baseDir: string, tenantSlug: string): string {
   return path.join(baseDir, "..", "data", "competitor-snapshots", `${tenantSlug}.json`);
 }
 
+function gscSnapshotPath(baseDir: string, tenantSlug: string): string {
+  return path.join(baseDir, "..", "data", "gsc-snapshots", `${tenantSlug}.json`);
+}
+
 async function loadSnapshot(filePath: string): Promise<SitemapEntry[]> {
   try {
     const raw = await readFile(filePath, "utf-8");
@@ -65,6 +74,20 @@ async function loadSnapshot(filePath: string): Promise<SitemapEntry[]> {
 async function saveSnapshot(filePath: string, entries: SitemapEntry[]): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
   await writeFile(filePath, JSON.stringify(entries, null, 2), "utf-8");
+}
+
+async function loadGscSnapshot(filePath: string): Promise<GscRow[]> {
+  try {
+    const raw = await readFile(filePath, "utf-8");
+    return JSON.parse(raw) as GscRow[];
+  } catch {
+    return [];
+  }
+}
+
+async function saveGscSnapshot(filePath: string, rows: GscRow[]): Promise<void> {
+  await mkdir(path.dirname(filePath), { recursive: true });
+  await writeFile(filePath, JSON.stringify(rows, null, 2), "utf-8");
 }
 
 export async function runTopicSuggesterJob(opts: TopicSuggesterJobOpts): Promise<void> {
@@ -151,8 +174,12 @@ export async function runTopicSuggesterJob(opts: TopicSuggesterJobOpts): Promise
     }
   }
 
-  // 4. Query GSC for rising queries (impressions >50, position >10)
+  // 4. GSC opportunity discovery — striking-distance + unmapped + rising
+  // (rising requires a previous-window snapshot; first run only emits striking
+  // + unmapped, second run onwards also emits rising).
   const searchConsoleCfg = tenant.features.search_console;
+  let currentGscRows: GscRow[] | null = null;
+
   if (searchConsoleCfg?.enabled && searchConsoleCfg.property_url) {
     try {
       const gscOpts: GscClientOpts = {
@@ -167,27 +194,58 @@ export async function runTopicSuggesterJob(opts: TopicSuggesterJobOpts): Promise
         startDate,
         endDate,
         dimensions: ["query"],
-        rowLimit: 100,
+        rowLimit: 1000,
       });
+      currentGscRows = result.rows;
 
-      const risingQueries = result.rows.filter(
-        (r) => r.impressions > 50 && r.position > 10
-      );
+      const previousGscRows = await loadGscSnapshot(gscSnapshotPath(baseDir, opts.tenantSlug));
 
-      for (const row of risingQueries) {
-        const query = row.keys[0] ?? "";
-        if (!query) continue;
+      const minImpressions = 50;
+
+      const striking = findStrikingDistance(result.rows, { minImpressions });
+      for (const o of striking) {
         candidates.push({
-          source: "gsc_rising_query",
-          query,
-          rationale: `${row.impressions} impressies maar positie ${row.position.toFixed(1)} — kans om ranking te verbeteren.`,
+          source: "gsc_striking_distance",
+          query: o.query,
+          rationale: `Positie ${o.position.toFixed(1)} bij ${o.impressions} impressies — kans om page 1 te halen.`,
         });
+      }
+
+      const unmapped = findUnmappedQueries(
+        result.rows,
+        existingTopics.map((t) => ({ target_keyword: t.target_keyword, title: t.title })),
+        { minImpressions }
+      );
+      for (const o of unmapped) {
+        candidates.push({
+          source: "gsc_unmapped_query",
+          query: o.query,
+          rationale: `${o.impressions} impressies (positie ${o.position.toFixed(1)}) en geen bestaand topic dekt dit — content-gap.`,
+        });
+      }
+
+      let risingCount = 0;
+      if (previousGscRows.length > 0) {
+        const rising = findRisingQueries(result.rows, previousGscRows, {
+          minGrowth: 50,
+          minGrowthPct: 50,
+        });
+        for (const o of rising) {
+          candidates.push({
+            source: "gsc_rising_query",
+            query: o.query,
+            rationale: `Impressies +${o.growth} (${Number.isFinite(o.growthPct) ? o.growthPct.toFixed(0) + "%" : "nieuw"}) — stijgende interesse.`,
+          });
+        }
+        risingCount = rising.length;
       }
 
       console.log(
         JSON.stringify({
           stage: "topic-suggester-gsc",
-          risingQueries: risingQueries.length,
+          striking: striking.length,
+          unmapped: unmapped.length,
+          rising: risingCount,
         })
       );
     } catch (err) {
@@ -200,13 +258,21 @@ export async function runTopicSuggesterJob(opts: TopicSuggesterJobOpts): Promise
     }
   }
 
-  if (candidates.length === 0) {
-    console.log(JSON.stringify({ stage: "topic-suggester-complete", reason: "no candidates" }));
-    // Still save topics (expired ones may have changed) + snapshot
-    await saveTopics(topics, opts.tenantSlug, baseDir);
+  // Persist competitor + GSC snapshots at every exit point so the next run has
+  // a baseline for diff/rising detection. Topics are written by the caller.
+  const persistSnapshots = async (): Promise<void> => {
     if (currentSnapshot.length > 0) {
       await saveSnapshot(snapshotPath(baseDir, opts.tenantSlug), currentSnapshot);
     }
+    if (currentGscRows !== null && currentGscRows.length > 0) {
+      await saveGscSnapshot(gscSnapshotPath(baseDir, opts.tenantSlug), currentGscRows);
+    }
+  };
+
+  if (candidates.length === 0) {
+    console.log(JSON.stringify({ stage: "topic-suggester-complete", reason: "no candidates" }));
+    await saveTopics(topics, opts.tenantSlug, baseDir);
+    await persistSnapshots();
     return;
   }
 
@@ -235,20 +301,15 @@ export async function runTopicSuggesterJob(opts: TopicSuggesterJobOpts): Promise
         warning: (err as Error).message,
       })
     );
-    // Save expire changes + snapshot even on agent failure
     await saveTopics(topics, opts.tenantSlug, baseDir);
-    if (currentSnapshot.length > 0) {
-      await saveSnapshot(snapshotPath(baseDir, opts.tenantSlug), currentSnapshot);
-    }
+    await persistSnapshots();
     return;
   }
 
   if (proposals.length === 0) {
     console.log(JSON.stringify({ stage: "topic-suggester-complete", proposals: 0 }));
     await saveTopics(topics, opts.tenantSlug, baseDir);
-    if (currentSnapshot.length > 0) {
-      await saveSnapshot(snapshotPath(baseDir, opts.tenantSlug), currentSnapshot);
-    }
+    await persistSnapshots();
     return;
   }
 
@@ -298,12 +359,9 @@ export async function runTopicSuggesterJob(opts: TopicSuggesterJobOpts): Promise
     );
   }
 
-  // 8. Save topics.yaml + competitor snapshot
+  // 8. Save topics.yaml + competitor snapshot + GSC snapshot
   await saveTopics(updatedTopics, opts.tenantSlug, baseDir);
-
-  if (currentSnapshot.length > 0) {
-    await saveSnapshot(snapshotPath(baseDir, opts.tenantSlug), currentSnapshot);
-  }
+  await persistSnapshots();
 
   console.log(
     JSON.stringify({

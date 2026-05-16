@@ -12,7 +12,13 @@ export const TopicProposalSchema = z.object({
   intended_word_count: z.number().int().min(500).max(5000),
   intent: z.enum(["informational", "commercial", "transactional"]),
   priority: z.number().int().min(1).max(10),
-  proposal_source: z.enum(["competitor_sitemap", "gsc_rising_query", "manual"]),
+  proposal_source: z.enum([
+    "competitor_sitemap",
+    "gsc_rising_query",
+    "gsc_striking_distance",
+    "gsc_unmapped_query",
+    "manual",
+  ]),
   proposal_rationale: z.string().min(10),
 });
 

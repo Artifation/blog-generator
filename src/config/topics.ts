@@ -35,7 +35,15 @@ export const TopicSchema = z.object({
   intended_word_count_target: z.number().int().optional(),
   /** Populated when topic is created by topic-suggester */
   proposed_at: z.string().datetime().optional(),
-  proposal_source: z.enum(["competitor_sitemap", "gsc_rising_query", "manual"]).optional(),
+  proposal_source: z
+    .enum([
+      "competitor_sitemap",
+      "gsc_rising_query",
+      "gsc_striking_distance",
+      "gsc_unmapped_query",
+      "manual",
+    ])
+    .optional(),
   proposal_rationale: z.string().optional(),
 });
 export type Topic = z.infer<typeof TopicSchema>;
