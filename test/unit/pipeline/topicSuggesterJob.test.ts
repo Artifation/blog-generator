@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from "vitest";
-import { mkdtemp, mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -186,7 +186,7 @@ async function fixtureDir(configYaml: string, topicsYaml = makeTopicsYaml()): Pr
   return dir;
 }
 
-function resetMocks() {
+async function resetMocks() {
   emailCalls.length = 0;
   fetchCompetitorSitemapsMock.mockReset();
   diffNewEntriesMock.mockReset();
@@ -196,6 +196,17 @@ function resetMocks() {
   // Default: empty results
   fetchCompetitorSitemapsMock.mockResolvedValue([]);
   diffNewEntriesMock.mockReturnValue([]);
+
+  // The job writes snapshots to <tmpdir>/data/{competitor,gsc}-snapshots/<slug>.json
+  // (computed as `path.join(baseDir, "..", ...)`). Different test fixtures share
+  // this path because they all mkdtemp under the same tmpdir parent, so we
+  // must clear it between tests to keep them isolated.
+  await rm(path.join(tmpdir(), "data", "gsc-snapshots", "artifation.json"), {
+    force: true,
+  });
+  await rm(path.join(tmpdir(), "data", "competitor-snapshots", "artifation.json"), {
+    force: true,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -287,62 +298,126 @@ describe("runTopicSuggesterJob", () => {
     expect(emailCalls).toHaveLength(0);
   });
 
-  it("GSC rising queries are included as candidates when search_console enabled", async () => {
+  it("GSC striking-distance queries (position 8-20, ≥50 impr) surface as gsc_striking_distance candidates", async () => {
     const dir = await fixtureDir(TENANT_WITH_GSC_YAML);
-
-    // No competitor entries
     diffNewEntriesMock.mockReturnValue([]);
 
-    // GSC returns a rising query
     querySearchConsoleMock.mockResolvedValue({
       rows: [
-        {
-          keys: ["eu ai act mkb"],
-          clicks: 5,
-          impressions: 80,
-          ctr: 0.063,
-          position: 14.5,
-        },
+        // In striking-distance range — should surface
+        { keys: ["eu ai act mkb"], clicks: 5, impressions: 200, ctr: 0.025, position: 14.5 },
       ],
-      totals: { clicks: 5, impressions: 80, ctr: 0.063, position: 14.5 },
+      totals: { clicks: 5, impressions: 200, ctr: 0.025, position: 14.5 },
     });
 
-    runTopicSuggesterMock.mockResolvedValue({
-      parsed: { proposals: [MOCK_PROPOSAL] },
-    });
+    runTopicSuggesterMock.mockResolvedValue({ parsed: { proposals: [MOCK_PROPOSAL] } });
 
     await runTopicSuggesterJob({ tenantSlug: "artifation", baseDir: dir, env: ENV, now: NOW });
 
-    // Agent was called with the GSC rising query as a candidate
     expect(runTopicSuggesterMock).toHaveBeenCalledOnce();
     const callArg = (runTopicSuggesterMock as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
       candidates: { source: string; query?: string }[];
     };
-    const gscCandidate = callArg.candidates.find((c) => c.source === "gsc_rising_query");
-    expect(gscCandidate).toBeDefined();
-    expect(gscCandidate!.query).toBe("eu ai act mkb");
+    const c = callArg.candidates.find((x) => x.source === "gsc_striking_distance");
+    expect(c).toBeDefined();
+    expect(c!.query).toBe("eu ai act mkb");
   });
 
-  it("GSC queries with impressions ≤50 or position ≤10 are NOT rising candidates", async () => {
+  it("GSC queries with no matching topic surface as gsc_unmapped_query candidates", async () => {
     const dir = await fixtureDir(TENANT_WITH_GSC_YAML);
-
     diffNewEntriesMock.mockReturnValue([]);
 
     querySearchConsoleMock.mockResolvedValue({
       rows: [
-        // Too few impressions
-        { keys: ["query-low-impressions"], clicks: 1, impressions: 30, ctr: 0.03, position: 15 },
-        // Good position — already ranking well
-        { keys: ["query-good-position"], clicks: 50, impressions: 200, ctr: 0.25, position: 3 },
+        // Top-of-page-1 (position 3) — not striking, but no topic covers it → unmapped
+        { keys: ["copilot studio mkb"], clicks: 12, impressions: 300, ctr: 0.04, position: 3.0 },
       ],
-      totals: { clicks: 51, impressions: 230, ctr: 0.22, position: 9 },
+      totals: { clicks: 12, impressions: 300, ctr: 0.04, position: 3.0 },
+    });
+
+    runTopicSuggesterMock.mockResolvedValue({ parsed: { proposals: [MOCK_PROPOSAL] } });
+
+    await runTopicSuggesterJob({ tenantSlug: "artifation", baseDir: dir, env: ENV, now: NOW });
+
+    expect(runTopicSuggesterMock).toHaveBeenCalledOnce();
+    const callArg = (runTopicSuggesterMock as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+      candidates: { source: string; query?: string }[];
+    };
+    const c = callArg.candidates.find((x) => x.source === "gsc_unmapped_query");
+    expect(c).toBeDefined();
+    expect(c!.query).toBe("copilot studio mkb");
+  });
+
+  it("GSC rising queries surface only when previous-window snapshot is available", async () => {
+    const dir = await fixtureDir(TENANT_WITH_GSC_YAML);
+    diffNewEntriesMock.mockReturnValue([]);
+
+    // Seed a previous GSC snapshot manually at the path the job reads from.
+    const gscSnapDir = path.join(tmpdir(), "data", "gsc-snapshots");
+    await mkdir(gscSnapDir, { recursive: true });
+    await writeFile(
+      path.join(gscSnapDir, "artifation.json"),
+      JSON.stringify([
+        { keys: ["llm uitleg"], clicks: 0, impressions: 40, ctr: 0, position: 18 },
+      ])
+    );
+
+    // Current window: same query, big impression growth
+    querySearchConsoleMock.mockResolvedValue({
+      rows: [
+        { keys: ["llm uitleg"], clicks: 2, impressions: 300, ctr: 0.007, position: 12 },
+      ],
+      totals: { clicks: 2, impressions: 300, ctr: 0.007, position: 12 },
+    });
+
+    runTopicSuggesterMock.mockResolvedValue({ parsed: { proposals: [MOCK_PROPOSAL] } });
+
+    await runTopicSuggesterJob({ tenantSlug: "artifation", baseDir: dir, env: ENV, now: NOW });
+
+    expect(runTopicSuggesterMock).toHaveBeenCalledOnce();
+    const callArg = (runTopicSuggesterMock as ReturnType<typeof vi.fn>).mock.calls[0]![0] as {
+      candidates: { source: string; query?: string }[];
+    };
+    expect(callArg.candidates.some((c) => c.source === "gsc_rising_query")).toBe(true);
+  });
+
+  it("GSC below-threshold queries are filtered out (no agent call when no other sources)", async () => {
+    const dir = await fixtureDir(TENANT_WITH_GSC_YAML);
+    diffNewEntriesMock.mockReturnValue([]);
+
+    querySearchConsoleMock.mockResolvedValue({
+      rows: [
+        // 30 impressions < 50 threshold, not striking, not unmapped, no prev → not rising
+        { keys: ["tiny query"], clicks: 1, impressions: 30, ctr: 0.03, position: 15 },
+      ],
+      totals: { clicks: 1, impressions: 30, ctr: 0.03, position: 15 },
     });
 
     await runTopicSuggesterJob({ tenantSlug: "artifation", baseDir: dir, env: ENV, now: NOW });
 
-    // No valid candidates → agent not called
     expect(runTopicSuggesterMock).not.toHaveBeenCalled();
     expect(emailCalls).toHaveLength(0);
+  });
+
+  it("persists current GSC snapshot so the next run can compute rising queries", async () => {
+    const dir = await fixtureDir(TENANT_WITH_GSC_YAML);
+    diffNewEntriesMock.mockReturnValue([]);
+
+    querySearchConsoleMock.mockResolvedValue({
+      rows: [
+        { keys: ["snapshot me"], clicks: 0, impressions: 100, ctr: 0, position: 12 },
+      ],
+      totals: { clicks: 0, impressions: 100, ctr: 0, position: 12 },
+    });
+
+    runTopicSuggesterMock.mockResolvedValue({ parsed: { proposals: [MOCK_PROPOSAL] } });
+
+    await runTopicSuggesterJob({ tenantSlug: "artifation", baseDir: dir, env: ENV, now: NOW });
+
+    const saved = JSON.parse(
+      await readFile(path.join(tmpdir(), "data", "gsc-snapshots", "artifation.json"), "utf-8")
+    ) as { keys: string[]; impressions: number }[];
+    expect(saved.some((r) => r.keys[0] === "snapshot me" && r.impressions === 100)).toBe(true);
   });
 
   it("competitor sitemap failure → skips source, continues (no throw)", async () => {
