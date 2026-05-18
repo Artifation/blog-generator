@@ -16,12 +16,12 @@ export async function scrapeWebsiteAction(domainOrUrl: string): Promise<ScrapeRe
     return { ok: false, error: "Voer eerst een domein in." };
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY;
+  const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return {
       ok: false,
       error:
-        "Auto-invullen is uitgeschakeld omdat de server geen ANTHROPIC_API_KEY heeft. Vraag je beheerder om die in te stellen.",
+        "Auto-invullen is uitgeschakeld omdat de server geen GEMINI_API_KEY heeft. Vraag je beheerder om die in te stellen.",
     };
   }
 

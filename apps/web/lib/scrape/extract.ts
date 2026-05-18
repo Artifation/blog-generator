@@ -1,15 +1,19 @@
 /**
- * Send scraped website content to Claude and extract:
+ * Send scraped website content to Gemini 2.5 Pro and extract:
  *   - brand voice (1–2 paragraphs)
  *   - suggested content pillars (3, with weights)
  *   - company short description
  *   - suggested ban list additions
  *
- * Requires ANTHROPIC_API_KEY in env. During onboarding the user hasn't
+ * Uses Gemini 2.5 Pro for quality/price balance: ~2× cheaper than Sonnet
+ * with comparable brand-voice nuance, 1M context (no truncation needed for
+ * large homepages), and strong multilingual handling.
+ *
+ * Requires GEMINI_API_KEY in env. During onboarding the user hasn't
  * configured their own keys yet, so the SaaS-host's key is used.
  */
 
-import { createAnthropicProvider } from "@/llm/anthropic";
+import { createGeminiProvider } from "@/llm/gemini";
 import { z } from "zod";
 import type { ScrapedSite } from "./website";
 
@@ -54,7 +58,7 @@ export async function extractFromScrape(
   scraped: ScrapedSite,
   apiKey: string
 ): Promise<Extraction> {
-  const provider = createAnthropicProvider(apiKey);
+  const provider = createGeminiProvider(apiKey);
 
   const userPrompt = [
     `URL: ${scraped.finalUrl}`,
@@ -71,10 +75,10 @@ export async function extractFromScrape(
     .join("\n");
 
   const res = await provider.call({
-    model: "claude-sonnet-4-6",
+    model: "gemini-2.5-pro",
     systemPrompt: SYSTEM_PROMPT,
     userPrompt,
-    maxTokens: 1500,
+    maxTokens: 2000,
     temperature: 0.4,
   });
 
