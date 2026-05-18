@@ -164,7 +164,8 @@ async function discoverGscOpportunities(
 }
 
 export async function suggestTopicsAction(
-  count = 5
+  count = 5,
+  customPrompt?: string
 ): Promise<{ ok: true; proposals: TopicProposalView[] } | { ok: false; error: string }> {
   const site = await requireSite();
   const key = site.apiKeys?.gemini ?? site.apiKeys?.anthropic;
@@ -198,9 +199,14 @@ export async function suggestTopicsAction(
   // Always include a manual seed so the LLM has freedom to propose creative
   // topics even when GSC found something. Without this the suggester is
   // anchored entirely to existing search behavior, which misses net-new angles.
+  // When the user provided a customPrompt, surface it prominently — it
+  // overrides the default "any topic" framing.
+  const userPrompt = customPrompt?.trim();
   candidates.push({
     source: "manual",
-    rationale: `Genereer ${count} nieuwe topic-voorstellen voor deze site, geïnspireerd op de brand voice en pillars. Variëer op intent en specificiteit. Voor ${site.name} — voice: ${site.brandVoice.slice(0, 400)}`,
+    rationale: userPrompt
+      ? `GEBRUIKER-INSTRUCTIE (volg dit strikt): ${userPrompt}\n\nGenereer ${count} nieuwe topic-voorstellen voor ${site.name} op basis van deze instructie. Houd brand voice (${site.brandVoice.slice(0, 200)}) en pillars in acht.`
+      : `Genereer ${count} nieuwe topic-voorstellen voor deze site, geïnspireerd op de brand voice en pillars. Variëer op intent en specificiteit. Voor ${site.name} — voice: ${site.brandVoice.slice(0, 400)}`,
   });
 
   // Lookup: proposal_source assigned by suggester → rationale text from our
