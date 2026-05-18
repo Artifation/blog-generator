@@ -111,6 +111,7 @@ export async function runForSite(
         target_keyword: topic.targetKeyword,
         intent: topic.intent,
         intended_word_count_target: topic.intendedWordCount,
+        custom_instructions: topic.customInstructions ?? undefined,
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );
@@ -127,6 +128,7 @@ export async function runForSite(
         contrarian_hint: outline.parsed.contrarian_opinion_hint,
         key_facts: research.parsed.key_facts,
         originality_anchor: research.parsed.originality_anchor,
+        custom_instructions: topic.customInstructions ?? undefined,
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );

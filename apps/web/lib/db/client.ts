@@ -163,6 +163,7 @@ export async function ensureSchema(): Promise<void> {
     // Idempotent ADD COLUMN migrations for tables that pre-existed.
     // libsql ignores "duplicate column" errors when we wrap each in a try.
     await safeAddColumn(db, "published_posts", "repurposed TEXT");
+    await safeAddColumn(db, "topics", "custom_instructions TEXT");
 
     // Users table for multi-user/team support
     await db.run(`CREATE TABLE IF NOT EXISTS users (

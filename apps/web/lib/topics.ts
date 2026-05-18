@@ -38,6 +38,7 @@ export interface CreateTopicInput {
     | "gsc_unmapped_query"
     | "manual";
   proposalRationale?: string;
+  customInstructions?: string | null;
 }
 
 export async function createTopic(input: CreateTopicInput): Promise<Topic> {
@@ -56,6 +57,7 @@ export async function createTopic(input: CreateTopicInput): Promise<Topic> {
     proposalSource: input.proposalSource,
     proposalRationale: input.proposalRationale,
     proposedAt: input.proposalSource ? new Date().toISOString() : undefined,
+    customInstructions: input.customInstructions ?? null,
   });
   return (await getTopic(id))!;
 }
@@ -75,6 +77,9 @@ export async function updateTopic(
   if (input.priority !== undefined) patch.priority = input.priority;
   if (input.status !== undefined) patch.status = input.status;
   if (input.rejectReason !== undefined) patch.rejectReason = input.rejectReason ?? null;
+  if (input.customInstructions !== undefined) {
+    patch.customInstructions = input.customInstructions ?? null;
+  }
   await db.update(topics).set(patch).where(eq(topics.id, id));
   return (await getTopic(id))!;
 }
