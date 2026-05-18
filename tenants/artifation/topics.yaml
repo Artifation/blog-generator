@@ -227,3 +227,123 @@
   priority: 54
   last_attempted: '2026-05-15T07:33:57.221Z'
   retry_after: '2026-05-18T04:15:00.000Z'
+- id: ai-in-administratie
+  title: 'AI in administratie: van facturen tot rapportages automatiseren'
+  pillar: ai-per-afdeling
+  target_keyword: AI in administratie MKB
+  intended_word_count: 1500
+  status: queued
+  priority: 75
+  intent: commercial
+- id: ai-in-it-support
+  title: 'AI voor IT-support en helpdesk: tickets sneller oplossen'
+  pillar: ai-per-afdeling
+  target_keyword: AI voor IT-support MKB
+  intended_word_count: 1500
+  status: queued
+  priority: 70
+  intent: commercial
+- id: ai-in-recruitment
+  title: 'AI in recruitment: van CV-scan tot pre-screening'
+  pillar: ai-per-afdeling
+  target_keyword: AI in recruitment MKB
+  intended_word_count: 1500
+  status: queued
+  priority: 72
+  intent: commercial
+- id: ai-in-projectmanagement
+  title: 'AI in projectmanagement: planning, risico en voortgang'
+  pillar: ai-per-afdeling
+  target_keyword: AI projectmanagement MKB
+  intended_word_count: 1500
+  status: queued
+  priority: 64
+  intent: commercial
+- id: ai-in-productontwikkeling
+  title: 'AI bij productontwikkeling: van idee tot validatie'
+  pillar: ai-per-afdeling
+  target_keyword: AI productontwikkeling MKB
+  intended_word_count: 1500
+  status: queued
+  priority: 60
+  intent: commercial
+- id: ai-act-high-risk
+  title: 'High-risk AI-systemen onder de AI Act: wat valt eronder?'
+  pillar: ai-act
+  target_keyword: AI Act high-risk systemen
+  intended_word_count: 1500
+  status: queued
+  priority: 78
+  intent: informational
+- id: ai-act-transparantieplicht
+  title: 'Transparantieplicht AI Act: wat MKB moet vertellen aan klanten'
+  pillar: ai-act
+  target_keyword: AI Act transparantieplicht
+  intended_word_count: 1500
+  status: queued
+  priority: 74
+  intent: informational
+- id: ai-act-conformity-assessment
+  title: 'Conformity assessment AI Act: stappenplan voor MKB'
+  pillar: ai-act
+  target_keyword: AI Act conformity assessment MKB
+  intended_word_count: 1500
+  status: queued
+  priority: 66
+  intent: informational
+- id: ai-act-verboden-praktijken
+  title: 'Verboden AI-praktijken onder de AI Act die je MKB moet kennen'
+  pillar: ai-act
+  target_keyword: verboden AI-praktijken AI Act
+  intended_word_count: 1500
+  status: queued
+  priority: 68
+  intent: informational
+- id: ai-act-vs-avg
+  title: 'AI Act vs AVG: overlap, verschillen en MKB-compliance'
+  pillar: ai-act
+  target_keyword: AI Act vs AVG MKB
+  intended_word_count: 1800
+  status: queued
+  priority: 76
+  intent: informational
+- id: ai-voor-bouw
+  title: 'AI in de bouw: planning, calculatie en kwaliteitscontrole'
+  pillar: sector-extensie
+  target_keyword: AI voor bouw MKB
+  intended_word_count: 1800
+  status: queued
+  priority: 62
+  intent: commercial
+- id: ai-voor-retail
+  title: 'AI voor retail MKB: voorraad, prijzen en personalisatie'
+  pillar: sector-extensie
+  target_keyword: AI voor retail MKB
+  intended_word_count: 1800
+  status: queued
+  priority: 65
+  intent: commercial
+- id: ai-voor-productie
+  title: 'AI in maakindustrie: kwaliteitscontrole en predictive maintenance'
+  pillar: sector-extensie
+  target_keyword: AI maakindustrie predictive maintenance
+  intended_word_count: 1800
+  status: queued
+  priority: 63
+  intent: commercial
+- id: ai-voor-makelaars
+  title: 'AI voor makelaars: waardering, marketing en leadgeneratie'
+  pillar: sector-extensie
+  target_keyword: AI voor makelaars Nederland
+  intended_word_count: 1500
+  status: queued
+  priority: 55
+  intent: commercial
+- id: ai-voor-zorg
+  title: 'AI voor zorginstellingen: administratie, triage en compliance'
+  pillar: sector-extensie
+  target_keyword: AI voor zorg MKB
+  intended_word_count: 1800
+  status: queued
+  priority: 67
+  intent: commercial
