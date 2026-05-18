@@ -88,11 +88,15 @@ async function discoverGscOpportunities(
   siteSlug: string,
   features: Record<string, unknown>,
   existingTopics: { title: string; targetKeyword: string }[],
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
+  siteGscJson?: string
 ): Promise<DiscoveredCandidate[]> {
   const sc = readSearchConsoleFeature(features);
   if (!sc?.enabled || !sc.property_url) return [];
-  const serviceAccountJson = env.GSC_SERVICE_ACCOUNT_JSON;
+  // Prefer per-site credential (stored in apiKeys.gscServiceAccountJson) so
+  // each site can have its own GSC service account. Fall back to the global
+  // env var for backwards compat with single-user local setups.
+  const serviceAccountJson = siteGscJson?.trim() || env.GSC_SERVICE_ACCOUNT_JSON;
   if (!serviceAccountJson) return [];
 
   try {
@@ -180,12 +184,13 @@ export async function suggestTopicsAction(
   const existing = await listTopicsForSite(site.id);
 
   // Try GSC opportunity discovery; falls back silently to an empty list when
-  // GSC isn't configured for this site (or env credential is missing).
+  // GSC isn't configured for this site (or no credential is present).
   const gscCandidates = await discoverGscOpportunities(
     site.slug,
     site.features ?? {},
     existing.map((t) => ({ title: t.title, targetKeyword: t.targetKeyword })),
-    env
+    env,
+    site.apiKeys?.gscServiceAccountJson
   );
 
   const candidates: DiscoveredCandidate[] = [...gscCandidates];
