@@ -61,11 +61,17 @@ export function TopicsKanban({
   const [generating, setGenerating] = React.useState<string | null>(null);
   const [suggestions, setSuggestions] = React.useState<TopicProposalView[] | null>(null);
   const [suggesting, setSuggesting] = React.useState(false);
+  const [suggestDialogOpen, setSuggestDialogOpen] = React.useState(false);
 
-  async function suggest() {
+  async function suggestWithPrompt(customPrompt: string) {
+    setSuggestDialogOpen(false);
     setSuggesting(true);
-    const tid = toast.loading("AI denkt 5 topics uit op basis van je voice + pillars…");
-    const res = await suggestTopicsAction(5);
+    const tid = toast.loading(
+      customPrompt
+        ? "AI denkt 5 topics uit op basis van je instructie…"
+        : "AI denkt 5 topics uit op basis van je voice + pillars…"
+    );
+    const res = await suggestTopicsAction(5, customPrompt || undefined);
     toast.dismiss(tid);
     setSuggesting(false);
     if (!res.ok) {
@@ -114,7 +120,12 @@ export function TopicsKanban({
           </div>
         </div>
         <div className="ph-actions">
-          <button type="button" className="btn btn-secondary" onClick={suggest} disabled={suggesting}>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            onClick={() => setSuggestDialogOpen(true)}
+            disabled={suggesting}
+          >
             {suggesting ? (
               <>
                 <RefreshCw size={13} className="spin" /> AI denkt…
@@ -240,6 +251,13 @@ export function TopicsKanban({
         />
       )}
 
+      {suggestDialogOpen && (
+        <SuggestPromptDialog
+          onClose={() => setSuggestDialogOpen(false)}
+          onSubmit={(prompt) => suggestWithPrompt(prompt)}
+        />
+      )}
+
       {suggestions && (
         <SuggestionsModal
           siteSlug={siteSlug}
@@ -253,6 +271,99 @@ export function TopicsKanban({
           }}
         />
       )}
+    </div>
+  );
+}
+
+function SuggestPromptDialog({
+  onClose,
+  onSubmit,
+}: {
+  onClose: () => void;
+  onSubmit: (prompt: string) => void;
+}) {
+  const [prompt, setPrompt] = React.useState("");
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(11,27,59,0.4)",
+        backdropFilter: "blur(2px)",
+        display: "grid",
+        placeItems: "center",
+        zIndex: 50,
+      }}
+    >
+      <div
+        className="card"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "min(92vw, 560px)", boxShadow: "var(--shadow-lg)" }}
+      >
+        <div className="card-header">
+          <div>
+            <h3>AI-suggesties genereren</h3>
+            <div className="muted" style={{ fontSize: 12, marginTop: 2 }}>
+              Optioneel: geef een specifieke instructie mee. Leeg laten = brede voorstellen
+              op basis van je voice + pillars.
+            </div>
+          </div>
+          <button type="button" className="icon-btn card-action" onClick={onClose} aria-label="Sluit">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="card-body col" style={{ gap: 12 }}>
+          <div className="field">
+            <label>Specifieke instructie (optioneel)</label>
+            <textarea
+              className="textarea"
+              rows={5}
+              value={prompt}
+              onChange={(e) => setPrompt(e.target.value)}
+              placeholder="Bijv: bedenk 5 topics rond AI-implementatie voor advocatenkantoren, focus Q3 — of: vergelijkingen tussen ChatGPT en Claude voor specifieke MKB-use-cases — of: leg uit met casussen, geen generieke 'wat is X'."
+              autoFocus
+            />
+            <div className="hint" style={{ fontSize: 11 }}>
+              De AI volgt deze strikt boven op je brand voice en pillars.
+            </div>
+          </div>
+        </div>
+        <div
+          style={{
+            padding: "14px 20px",
+            borderTop: "1px solid var(--border)",
+            display: "flex",
+            gap: 8,
+            justifyContent: "space-between",
+            alignItems: "center",
+            background: "var(--surface-2)",
+          }}
+        >
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => onSubmit("")}
+            title="Genereer breed (zonder specifieke instructie)"
+          >
+            Brede voorstellen
+          </button>
+          <div className="row" style={{ gap: 8 }}>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>
+              Annuleer
+            </button>
+            <button
+              type="button"
+              className="btn btn-primary"
+              onClick={() => onSubmit(prompt.trim())}
+              disabled={!prompt.trim()}
+            >
+              <Wand2 size={13} /> Genereer met instructie
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
