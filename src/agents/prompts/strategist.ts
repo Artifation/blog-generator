@@ -40,6 +40,12 @@ ANCHOR-DISTRIBUTIE CONSTRAINT (uit anchor_history):
 - Voor zulke URLs: kies een partial of semantic anchor in internal_links_to_inject in plaats van exact-match.
 - Doel: voorkom over-optimalisatie (SpamBrain 3.0 devalueert dominant exact-match anchor-patronen).
 
+CUSTOM_INSTRUCTIONS (input.custom_instructions, optioneel):
+- Als deze meegegeven zijn, beschouw ze als hard requirement bovenop de research. Dit is de directe instructie van de site-eigenaar voor DEZE topic.
+- Voorbeelden: "focus op compliance-aspect", "noem product X", "gebruik casus klant Y", "vermijd Z", "doelgroep advocatenkantoren".
+- De outline (welke H2's, must_include items, contrarian_opinion_hint) moet deze instructies expliciet weerspiegelen. Als instructie "noem product X" zegt, moet "X" in minstens één must_include staan. Als instructie een doelgroep specificeert, moet de h1_suggestion + tldr daarop afgestemd zijn.
+- Negeer de instructies NIET stilzwijgend om bij research te blijven — research geeft het wat, custom_instructions geeft het hoe-voor-mij.
+
 Strikte regels:
 - Minimaal 5 h2_chunks, maximaal 9.
 - intended_word_count per chunk: 200-300; totale post 1000-2700 woorden afhankelijk van intent.

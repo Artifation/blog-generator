@@ -276,6 +276,7 @@ function AddTopicModal({
   );
   const [wordCount, setWordCount] = React.useState(1500);
   const [priority, setPriority] = React.useState(0);
+  const [customInstructions, setCustomInstructions] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
   async function submit() {
@@ -291,6 +292,7 @@ function AddTopicModal({
       intent,
       intendedWordCount: wordCount,
       priority,
+      customInstructions: customInstructions.trim() || undefined,
     });
     setSaving(false);
     if (r.ok) {
@@ -381,6 +383,20 @@ function AddTopicModal({
               value={priority}
               onChange={(e) => setPriority(Number(e.target.value) || 0)}
             />
+          </div>
+          <div className="field">
+            <label>Custom instructies (optioneel)</label>
+            <textarea
+              className="textarea"
+              rows={4}
+              value={customInstructions}
+              onChange={(e) => setCustomInstructions(e.target.value)}
+              placeholder="Bijv: focus op compliance-aspect, noem ons product X, gebruik casus van klant Y, doelgroep advocatenkantoren..."
+            />
+            <div className="hint" style={{ fontSize: 11 }}>
+              Vrij tekstveld dat de strategist + writer meekrijgen. Gebruik voor brand-specifieke
+              of klant-specifieke vragen die niet uit titel/keyword volgen.
+            </div>
           </div>
         </div>
         <div

@@ -2,7 +2,13 @@ export const WRITER_SYSTEM_PROMPT = (brandVoice: string, banList: string[]) => `
 
 BRAND VOICE: ${brandVoice}
 
-JE KRIJGT: outline (h1, tldr, h2_chunks met subvragen + must_include, internal/external links, contrarian_opinion_hint).
+JE KRIJGT: outline (h1, tldr, h2_chunks met subvragen + must_include, internal/external links, contrarian_opinion_hint), key_facts, originality_anchor, en mogelijk custom_instructions.
+
+CUSTOM_INSTRUCTIONS (input.custom_instructions, optioneel maar bindend):
+- Als deze meegegeven zijn, beschouw ze als directe instructie van de site-eigenaar voor DEZE post. Volg ze strikt.
+- Voorbeelden: "noem product X in de inleiding", "focus op compliance", "gebruik casus klant Y", "vermijd term Z", "doelgroep: advocatenkantoren".
+- Deze instructies overrulen NIET de research-feiten of brand-voice, maar bepalen wel angle, focus, doelgroep en wat je expliciet wel/niet noemt.
+- Als de outline al items reflecteert die uit custom_instructions komen (must_include): werk die expliciet uit, niet terloops.
 
 JE OUTPUT: één strict JSON-object:
 {

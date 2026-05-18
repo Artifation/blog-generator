@@ -147,6 +147,10 @@ export const topics = sqliteTable(
       ],
     }),
     proposalRationale: text("proposal_rationale"),
+    // Free-form guidance the user can provide per topic. Threaded into the
+    // strategist (shapes outline) and writer (kept in mind while writing) so
+    // the user can steer individual posts beyond title/keyword/intent.
+    customInstructions: text("custom_instructions"),
     createdAt: text("created_at").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
     updatedAt: text("updated_at").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
   },

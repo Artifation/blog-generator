@@ -45,6 +45,10 @@ export interface StrategistInput {
   intent?: "informational" | "commercial" | "transactional";
   intended_word_count_target?: number;
   anchor_history?: AnchorHistoryEntry[];
+  /** User-supplied per-topic guidance (e.g. "focus op compliance", "noem
+   * product X", "gebruik casus klant Y"). The strategist must let this shape
+   * the outline (sections, angles, what to emphasize) on top of the research. */
+  custom_instructions?: string;
 }
 
 export interface StrategistDeps {

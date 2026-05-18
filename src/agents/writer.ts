@@ -23,6 +23,10 @@ export interface WriterInput {
   key_facts: { claim: string; source_url: string }[];
   /** Concrete NL-MKB case (real of hypothetisch) — Writer moet 'm 1x inline citeren. */
   originality_anchor?: OriginalityAnchor;
+  /** User-supplied per-topic guidance threaded from the strategist. Writer
+   * must honour these directly (specific brand asks, audience focus, things to
+   * mention or avoid) on top of the outline. */
+  custom_instructions?: string;
 }
 
 export interface WriterDeps {
@@ -57,6 +61,7 @@ export async function runWriter(input: WriterInput, deps: WriterDeps): Promise<W
               contrarian_hint: input.contrarian_hint,
               key_facts: input.key_facts,
               originality_anchor: input.originality_anchor,
+              custom_instructions: input.custom_instructions,
             },
             null,
             2
@@ -67,10 +72,11 @@ export async function runWriter(input: WriterInput, deps: WriterDeps): Promise<W
               contrarian_hint: input.contrarian_hint,
               key_facts: input.key_facts,
               originality_anchor: input.originality_anchor,
+              custom_instructions: input.custom_instructions,
               previous_draft: last?.draft_html,
               previous_critique: last?.self_critique,
               instruction:
-                "Verbeter de vorige draft op basis van de critique. Behoud structuur, fix de issues. Gebruik alleen statistieken uit key_facts. Behoud de originality_anchor-citatie of voeg toe als die ontbreekt.",
+                "Verbeter de vorige draft op basis van de critique. Behoud structuur, fix de issues. Gebruik alleen statistieken uit key_facts. Behoud de originality_anchor-citatie of voeg toe als die ontbreekt. Volg custom_instructions strikt als die meegegeven zijn.",
             },
             null,
             2
