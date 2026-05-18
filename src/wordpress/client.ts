@@ -51,7 +51,11 @@ export function createWordpressClient(opts: WordpressClientOpts): WordpressClien
           "Content-Type": contentType,
           "Content-Disposition": `attachment; filename="${filename}"`,
         },
-        body,
+        // Wrap in a Blob so the body is a typed BodyInit that satisfies both
+        // root tsc (node lib) and webapp tsc (dom lib). Node 18+ has a global
+        // Blob class so this works in both runtimes. The cast through Uint8Array
+        // narrows Buffer's ArrayBufferLike generic to ArrayBuffer for BlobPart.
+        body: new Blob([body as unknown as Uint8Array<ArrayBuffer>], { type: contentType }),
       }),
     patchJson: (path, body) =>
       call(path, {

@@ -248,19 +248,31 @@ export function SettingsForm({
 
         <Section
           title="Google Search Console"
-          description="Schakel in om 'Suggest topics' te voeden met striking-distance queries, content-gaps en stijgende queries uit GSC. Vereist ook GSC_SERVICE_ACCOUNT_JSON in je env."
+          description="Schakel in om 'Suggest topics' te voeden met striking-distance queries, content-gaps en stijgende queries uit GSC. Plak je service-account JSON hieronder — wordt per site bewaard zodat elke site z'n eigen credential heeft."
         >
           {(() => {
             const sc = readSearchConsole(state.features);
             const setSc = (patch: Partial<SearchConsoleFeature>) =>
               up("features", { ...state.features, search_console: { ...sc, ...patch } });
+            const enabled = sc.enabled ?? false;
+            const gscJson = state.apiKeys.gscServiceAccountJson ?? "";
+            const jsonLooksValid = (() => {
+              if (!gscJson.trim()) return null;
+              try {
+                const parsed = JSON.parse(gscJson) as { client_email?: string; private_key?: string };
+                if (parsed.client_email && parsed.private_key) return parsed.client_email;
+                return false;
+              } catch {
+                return false;
+              }
+            })();
             return (
               <>
                 <div className="row" style={{ gap: 12, alignItems: "center" }}>
                   <label className="row" style={{ gap: 8, alignItems: "center", cursor: "pointer" }}>
                     <input
                       type="checkbox"
-                      checked={sc.enabled ?? false}
+                      checked={enabled}
                       onChange={(e) => setSc({ enabled: e.target.checked })}
                     />
                     <span>Search Console gebruiken</span>
@@ -272,8 +284,36 @@ export function SettingsForm({
                     value={sc.property_url ?? ""}
                     onChange={(e) => setSc({ property_url: e.target.value })}
                     placeholder="sc-domain:jouwsite.nl"
-                    disabled={!(sc.enabled ?? false)}
+                    disabled={!enabled}
                   />
+                </Field>
+                <Field label="Service account JSON">
+                  <textarea
+                    className="textarea mono"
+                    rows={6}
+                    value={gscJson}
+                    onChange={(e) =>
+                      up("apiKeys", { ...state.apiKeys, gscServiceAccountJson: e.target.value })
+                    }
+                    placeholder='{"type":"service_account","project_id":"...","client_email":"...","private_key":"..."}'
+                    disabled={!enabled}
+                    style={{ fontSize: 11, fontFamily: "monospace" }}
+                  />
+                  <div className="hint">
+                    Plak de volledige JSON die je downloadde uit Google Cloud. Vergeet niet
+                    het service-account-email als gebruiker toe te voegen in je GSC property
+                    (Settings → Users and permissions → Add user, restricted permission).
+                    {jsonLooksValid === false && (
+                      <div style={{ color: "var(--danger, #b91c1c)", marginTop: 4 }}>
+                        ⚠ JSON is ongeldig of mist <code>client_email</code> / <code>private_key</code>.
+                      </div>
+                    )}
+                    {typeof jsonLooksValid === "string" && (
+                      <div style={{ color: "var(--success, #047857)", marginTop: 4 }}>
+                        ✓ JSON geparsed — service account: <code>{jsonLooksValid}</code>
+                      </div>
+                    )}
+                  </div>
                 </Field>
               </>
             );

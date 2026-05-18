@@ -47,23 +47,28 @@ import you can edit them per-site under Settings → API keys.
 The **Suggest topics** button can use Google Search Console to surface real
 opportunity queries from your own traffic — striking-distance queries
 (position 8-20), content gaps (queries you rank for without a topic), and
-rising queries (trending impressions). Setup:
+rising queries (trending impressions).
 
-1. **Create a service account** in Google Cloud, grant it `webmasters.readonly`
-   scope, and download the JSON key.
-2. **Add the service account email** as a user (Restricted permission is
-   enough) to your GSC property at
-   `https://search.google.com/search-console`.
-3. **Export the env var** before starting the dev server:
-   ```bash
-   export GSC_SERVICE_ACCOUNT_JSON="$(cat path/to/service-account.json)"
-   npm run dev
-   ```
-4. **Enable per site** under Settings → Google Search Console:
+**Each site stores its own service-account JSON in the DB**, so multi-site
+deployments work out of the box without per-process env vars. Setup:
+
+1. **Create a service account** in Google Cloud:
+   - https://console.cloud.google.com/ → APIs & Services → Library → enable
+     "Search Console API"
+   - IAM & Admin → Service Accounts → Create service account
+   - Open the service account → Keys → Add Key → Create new key → JSON
+2. **Grant the service account access in GSC**:
+   - https://search.google.com/search-console → pick your property
+   - Settings → Users and permissions → Add user
+   - Paste the service-account `client_email`, permission: **Restricted**
+3. **Configure the site in Blog Studio**:
+   - Login → Settings → Google Search Console
    - Tick "Search Console gebruiken"
    - Paste the property URL (exactly as it appears in GSC, e.g.
      `sc-domain:artifation.nl` or `https://artifation.nl/`)
-5. Click **Suggest topics** on the Topics page. Proposals get a badge
+   - Paste the full service-account JSON into the **Service account JSON**
+     textarea. The UI parses it and confirms the `client_email` was found.
+4. Click **Suggest topics** on the Topics page. Proposals get a badge
    indicating which signal triggered them (📈 striking distance, 🎯 content
    gap, ⬆ rising query).
 
@@ -72,6 +77,10 @@ emits striking-distance + content-gap signals; the second run onwards also
 emits rising-query signals (because it now has a previous window to diff
 against). Without GSC configured, **Suggest topics** falls back to a pure-LLM
 manual seed.
+
+**Legacy env-var fallback**: if you still set the global
+`GSC_SERVICE_ACCOUNT_JSON` env var, sites that don't have a per-site JSON in
+Settings will fall back to it. Useful for single-user local setups.
 
 ## What's next
 

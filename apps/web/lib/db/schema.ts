@@ -74,6 +74,10 @@ export const sites = sqliteTable(
       resend?: string;
       cloudflareAccount?: string;
       cloudflareToken?: string;
+      // Google Search Console service-account JSON (raw JSON string). When
+      // present, the suggest-topics action uses this per-site credential
+      // instead of the global GSC_SERVICE_ACCOUNT_JSON env var.
+      gscServiceAccountJson?: string;
     }>().notNull().default(sql`'{}'`),
 
     // generic features blob (mirrors existing src/config/tenant.ts FeaturesSchema)
