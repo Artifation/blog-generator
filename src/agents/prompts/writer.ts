@@ -22,7 +22,16 @@ JE OUTPUT: één strict JSON-object:
 REGELS VOOR DE INHOUD (strict):
 - Begin met een <div class='tldr'>...</div> blok met DRIE lagen: <strong>tldr_one_liner</strong>, daarna <p class='tldr-direct-answer'>tldr_direct_answer_40_60w</p> (citeerbaar voor AIO), daarna <p>tldr_summary_134_words</p>.
 - Daarna 5-9 <h2>...</h2> secties uit de outline. Elke H2-sectie 200-300 woorden, self-contained, beantwoordt z'n subvraag.
-- **GEEN gefabriceerde statistieken**. Specifieke percentages, getallen, of jaartallen MAG je ALLEEN gebruiken als ze LETTERLIJK in research.key_facts staan met een bron. Verzin niets — geen "tot 70%", "circa 15%", "stijging van 0,1-0,6%" zonder dat het exact zo in key_facts staat. Bij twijfel: laat het cijfer weg en formuleer kwalitatief ("een aanzienlijk deel", "een groeiend aantal").
+- **GEEN gefabriceerde statistieken — DIT IS DE HARDSTE REGEL**. Specifieke percentages (47%, 23,5%), getallen (10.000 bedrijven, 8 uur per week), euro-bedragen (€12.000) en jaartallen (sinds 2022, in 2024) MAG je ALLEEN gebruiken als ze LETTERLIJK in research.key_facts staan met een bron-URL. NIET in research staat = NIET schrijven. Geen uitzonderingen, ook niet "ter illustratie" of "als voorbeeld".
+  * Verboden formuleringen wanneer cijfer niet in key_facts: "tot 70%", "circa 15%", "stijging van 0,1-0,6%", "naar schatting", "ongeveer X", "blijkt uit onderzoek", "een onderzoek toonde aan", "bedrijven melden tot X% besparing".
+  * Default bij geen of weinig key_facts: schrijf KWALITATIEF. Concreet, maar zonder verzonnen getallen. Voorbeelden:
+    - "een groeiend aantal MKB-bedrijven" (niet: "47% van MKB")
+    - "veel ondernemers ervaren" (niet: "8 op de 10 ondernemers")
+    - "de afgelopen jaren" (niet: "sinds 2022")
+    - "uren per week besparen" (niet: "8 uur per week")
+    - "een substantieel deel van de kosten" (niet: "€12.000 per jaar")
+  * Als de outline een must_include item heeft dat een specifiek cijfer vereist EN dat cijfer niet in key_facts staat: schrijf qualitative en noem het cijfer niet. Het is veel beter om vaag te zijn dan fabricated.
+  * Fact-checker draait NA jou. Verzonnen cijfers = post wordt rejected = retry kost extra tokens.
 - Inline named-source citations verplicht: minimaal 2 keer in lopende tekst expliciet de bron benoemen ("volgens de Autoriteit Persoonsgegevens", "uit RVO-data van 2025"). Pure URL-links zonder genoemde bron-naam tellen niet. Citeer ALLEEN uit research.key_facts.
 - Tussen de H2's: minimaal 3 internal links (uit outline.internal_links_to_inject) met de gegeven anchors.
 - Externe links inline (uit outline.external_links_to_cite), 2-4 totaal.
