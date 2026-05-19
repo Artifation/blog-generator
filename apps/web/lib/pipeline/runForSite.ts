@@ -14,6 +14,8 @@ import { optimizeForWeb } from "@/image/optimize";
 
 import { postProcessDraftHtml } from "@/pipeline/htmlPostProcess";
 import { computeDeterministicRubricSignals } from "@/pipeline/rubric";
+import { buildAllSchemaJsonLd } from "@/pipeline/schemaGenerator";
+import type { TenantConfig } from "@/config/tenant";
 import { checkCitations, enrichSignalsWithCitationCheck } from "@/pipeline/citationCheck";
 import { filterDeadResearchUrls } from "@/pipeline/researchUrlFilter";
 import { computeRunCost, type UsageEntry } from "@/pipeline/costTracker";
@@ -159,9 +161,33 @@ export async function runForSite(
     endStage(true);
     usage.push({ provider: "anthropic", model: fc.raw.model, inputTokens: fc.raw.inputTokens, outputTokens: fc.raw.outputTokens });
 
-    // Deterministic signals + citation check
+    // Build JSON-LD schemas (BlogPosting + BreadcrumbList — author Person is
+    // nested in BlogPosting) BEFORE quality judge so the seo_schema rubric
+    // signal sees them. Without this the judge consistently scores 0.0 on
+    // seo_schema because the draft HTML doesn't yet contain JSON-LD; final
+    // image URL is unknown at this stage so we use a placeholder that gets
+    // replaced at publish-time.
+    const baseUrl = `https://${site.domain}`;
+    const preJudgeSchema = buildAllSchemaJsonLd({
+      tenant: siteToTenantShim(site, baseUrl),
+      topic: { pillar: topic.pillarSlug, target_keyword: topic.targetKeyword },
+      post: {
+        headline: outline.parsed.outline.h1_suggestion,
+        description: outline.parsed.outline.tldr_one_liner,
+        slug: seo.parsed.slug,
+        url: `${baseUrl}/${seo.parsed.slug}/`,
+        datePublished: new Date().toISOString(),
+        imageUrl: `${baseUrl}/_image-placeholder-${seo.parsed.slug}.avif`,
+        imageAlt: outline.parsed.outline.h1_suggestion,
+      },
+      keyEntities: research.parsed.key_entities,
+    });
+    const htmlForJudge = `${seo.parsed.edited_html}\n${preJudgeSchema}`;
+
+    // Deterministic signals + citation check — run against htmlForJudge so
+    // the schema detection regex finds the JSON-LD scripts we just built.
     let signals = computeDeterministicRubricSignals({
-      html: seo.parsed.edited_html,
+      html: htmlForJudge,
       banList: site.banList,
       targetKeyword: topic.targetKeyword,
       internalUrls: outline.parsed.outline.internal_links_to_inject.map((l) => l.url),
@@ -321,4 +347,50 @@ export async function runForSite(
       costUsd: 0,
     };
   }
+}
+
+/**
+ * Map a Site (Drizzle shape used in the webapp) onto the TenantConfig shape
+ * the legacy schemaGenerator expects. Only the fields actually read by
+ * buildAllSchemaJsonLd are populated; the rest are filled with sensible
+ * stubs so TypeScript stops complaining. Casting at the end to avoid having
+ * to mirror the full TenantConfig type for an internal adapter.
+ */
+function siteToTenantShim(
+  site: Site & { pillars: Pillar[] },
+  baseUrl: string
+): TenantConfig {
+  return {
+    slug: site.slug,
+    domain: site.domain,
+    language: site.language,
+    brand: {
+      name: site.name,
+      voice: site.brandVoice,
+      ban_list: site.banList,
+      signature_phrases: site.signaturePhrases,
+    },
+    author: {
+      name: site.author?.name ?? "",
+      bio: site.author?.bio ?? "",
+      linkedin: site.author?.linkedin ?? "",
+      photo_url: site.author?.photoUrl ?? "",
+    },
+    organization: {
+      legal_name: site.organization?.legalName ?? site.name,
+      kvk: site.organization?.kvk ?? "",
+      btw: site.organization?.btw ?? "",
+      address: site.organization?.address ?? "",
+    },
+    wordpress: {
+      base_url: baseUrl,
+      user_secret_ref: "",
+      app_password_secret_ref: "",
+    },
+    email: { from: "", to: "", reply_to: "" },
+    pillars: site.pillars.map((p) => ({ id: p.slug, weight: p.weight })),
+    quality_threshold: site.qualityThreshold,
+    max_posts_per_week_published: site.maxPostsPerWeek,
+    features: site.features as unknown as TenantConfig["features"],
+  } as TenantConfig;
 }
