@@ -185,6 +185,35 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       logStage({ stage: "url-verify", warning: (err as Error).message });
     }
 
+    // Zero-key_facts guard: na grounding-filter + URL-filter kan research te dun zijn
+    // om de writer's "named citations verplicht" regel te halen. Beter nu aborten dan
+    // de writer laten hallucineren en pas in factChecker een reject incasseren.
+    const keyFactsCount = research.parsed.key_facts.length;
+    const externalSourcesCount = research.parsed.external_authority_sources.length;
+    if (keyFactsCount < 2 || externalSourcesCount < 1) {
+      const reason = `research te dun na filtering (key_facts=${keyFactsCount}, sources=${externalSourcesCount}); writer kan geen named citations leveren`;
+      logStage({
+        stage: "research-too-thin",
+        topicId: next.id,
+        keyFactsCount,
+        externalSourcesCount,
+        reason,
+      });
+      topics = markTopicStatus(topics, next.id, "rejected", now, {
+        reject_reason: reason,
+        retry_after: new Date(now.getTime() + 7 * 86400_000).toISOString(),
+      });
+      await saveTopics(topics, opts.tenantSlug, baseDir);
+      await persistRunSummary(
+        buildSummary({
+          runId, tenantSlug: opts.tenantSlug, topic: next, startedAt, now,
+          verdict: "rejected", reason,
+        }),
+        dataDir
+      );
+      return;
+    }
+
     // Build anchor history before Strategist to inform anchor diversity
     let anchorHistory: AnchorHistoryEntry[] = [];
     if (tenant.features.anchor_tracker?.enabled) {
@@ -359,11 +388,65 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       }
     }
 
+    // Short-circuit: bij fact_check verdict=fail draait judge niet (bespaart ~€0.03-0.05
+    // Opus-call per reject). Een post met fabricated claims is sowieso niet publishable.
+    if (fc.parsed.verdict === "fail") {
+      const reason = `fact_check failed (${fc.parsed.fabricated_claims.length} fabricated claims)`;
+      logStage({
+        stage: "factcheck-fail-short-circuit",
+        topicId: next.id,
+        fabricatedClaims: fc.parsed.fabricated_claims.length,
+        reason,
+      });
+      const html = await render(
+        React.createElement(Reject, {
+          title: outline.parsed.outline.h1_suggestion,
+          weightedTotal: 0,
+          scoreBreakdown: { fact_check: 0 } as Record<string, number>,
+          hardFails: ["fact_check = 0 (verdict=fail)"],
+          reasoning: `factChecker flagde ${fc.parsed.fabricated_claims.length} verzonnen claims. Pipeline kort-gesloten vóór quality-judge om Opus-credits te sparen.`,
+          improvementSuggestions: [
+            "Researcher: zorg dat hypothetical_scenario.outcome kwalitatief blijft (geen verzonnen cijfers).",
+            "Writer: citeer cijfers ALLEEN uit research.key_facts.",
+          ],
+        })
+      );
+      await sendEmail({
+        apiKey: requireEnv(env, "RESEND_API_KEY"),
+        from: tenant.email.from,
+        to: tenant.email.to,
+        replyTo: tenant.email.reply_to,
+        subject: `[${tenant.brand.name}] Reject: ${outline.parsed.outline.h1_suggestion} — fact_check failed`,
+        html,
+        attachments: [
+          { filename: "draft.html", content: Buffer.from(seo.parsed.edited_html, "utf-8") },
+          {
+            filename: "fact-check.json",
+            content: Buffer.from(JSON.stringify(fc.parsed, null, 2), "utf-8"),
+          },
+        ],
+      });
+      topics = markTopicStatus(topics, next.id, "rejected", now, {
+        reject_reason: reason,
+        retry_after: new Date(now.getTime() + 7 * 86400_000).toISOString(),
+      });
+      await saveTopics(topics, opts.tenantSlug, baseDir);
+      await persistRunSummary(
+        buildSummary({
+          runId, tenantSlug: opts.tenantSlug, topic: next, startedAt, now,
+          verdict: "rejected", signals, reason,
+        }),
+        dataDir
+      );
+      return;
+    }
+
     currentStage = "qualityJudge";
     const judge = await runQualityJudge(
       {
         edited_html: htmlForJudge,
         target_keyword: next.target_keyword,
+        pillar: next.pillar,
         deterministic_signals: signals,
         fact_check_verdict: fc.parsed.verdict,
         fabricated_claims_count: fc.parsed.fabricated_claims.length,

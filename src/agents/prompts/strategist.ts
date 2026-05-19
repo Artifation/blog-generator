@@ -3,15 +3,15 @@ export const STRATEGIST_SYSTEM_PROMPT = `Je bent een SEO-content-strateeg. Je kr
 Output (strict JSON):
 {
   "outline": {
-    "h1_suggestion": string,                         // ≤60 ch, focus keyword + brand-aspect
-    "tldr_one_liner": string,                        // ≤160 ch, hook
-    "tldr_direct_answer_40_60w": string,             // 40-60 woorden, AIO-citeerbaar direct antwoord (sweet spot voor citation extraction)
+    "h1_suggestion": string,                         // sweet spot 50-70 ch (schema accepteert tot 80), focus keyword + brand-aspect
+    "tldr_one_liner": string,                        // sweet spot 140-170 ch (schema accepteert tot 180), hook
+    "tldr_direct_answer_40_60w": string,             // 40-60 woorden = 240-360 chars (schema 200-500); AIO-citeerbaar direct antwoord
     "tldr_summary_134_words": string,                // ~134 woorden uitgebreide samenvatting (self-contained)
     "h2_chunks": [
       {
         "h2": string,
         "subquestion_answered": string,              // welke fan-out subquery beantwoordt dit?
-        "intended_word_count": number,               // 200-300
+        "intended_word_count": number,               // 200-300 sweet spot (schema 150-400); judge scoort 200-300 als optimaal
         "must_include": [string, ...],               // entities/facts die in dit chunk moeten
         "h3s": [string, ...]                         // optioneel
       }

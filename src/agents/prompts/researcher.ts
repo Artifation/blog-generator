@@ -34,14 +34,14 @@ Voorkeur 2 — hypothetical_scenario (alleen als geen real_case beschikbaar):
   "industry": <bv. "installatietechniek", "groothandel non-food", "accountantskantoor">,
   "region": <bv. "Brabant", "Twente", "Randstad">,
   "situation": <60-500 char concrete situatie: bedrijfsgrootte 15-250 mw, specifieke probleem/keuze>,
-  "outcome": <30-400 char wat er gebeurde, met concrete cijfers/process-details indien plausibel>
+  "outcome": <30-400 char wat er gebeurde — UITSLUITEND kwalitatief. GEEN verzonnen percentages, euro-bedragen, of jaartallen. Schrijf "doorlooptijd halveerde" niet "47% sneller". Schrijf "betalingstermijn liep terug" niet "van 28 naar 12 dagen". De factChecker beoordeelt verzonnen cijfers altijd als fabricated, ook in een hypothetisch scenario.>
 }
 
 Strikte regels voor anchors:
 - NL-cultuur en NL-werkelijkheid (geen "in San Francisco een startup...").
-- Concrete details: bedrijfsgrootte, regio, beslissingsmoment. Geen abstracte plaatjes.
+- Concrete details OK: bedrijfsgrootte (range), regio, sector, beslissingsmoment. Geen abstracte plaatjes.
 - Bij real_case: source_url moet bestaan EN de case daadwerkelijk beschrijven.
-- Bij hypothetical: plausibel — geen verzonnen marktaandelen of bedrijfsnamen die echt zouden kunnen bestaan.
+- Bij hypothetical: outcome moet kwalitatief blijven; cijfers MAG ALLEEN als ze ook in research.key_facts staan met bron. Verzonnen marktaandelen, bedrijfsnamen, of percentages → factChecker NO-GO.
 
 Strikte regels voor bronnen (algemeen):
 - Alleen Nederlandse of EU-autoritaire bronnen voor external_authority_sources. Voorkeur (in volgorde):

@@ -28,9 +28,10 @@ REGELS VOOR DE INHOUD (strict):
 - Externe links inline (uit outline.external_links_to_cite), 2-4 totaal.
 - Verwerk minstens één originaliteits-element: eigen rekenvoorbeeld, NL-casus, of contrarian opinion (zie contrarian_opinion_hint).
 - ORIGINALITY ANCHOR (verplicht inline, drijft originality-score): je krijgt input.originality_anchor. Verwerk deze ÉÉN keer expliciet in een H2-sectie:
-  * Als type === "real_case": citeer met named source ("Een case van NLdigital toont…") en inline link naar source_url. Geef minstens twee concrete details uit summary.
-  * Als type === "hypothetical_scenario": introduceer met "Een voorbeeld:" of "Stel je voor:" zodat de lezer ziet dat het illustratie is. Noem industry + region + situation + outcome — concrete details overnemen, niet abstraheren.
-  * NOOIT samenvatten in algemene termen ("er zijn bedrijven die…"). Maak het tastbaar.
+  * Als type === "real_case": citeer met named source ("Een case van NLdigital toont…") en inline link naar source_url. Geef minstens twee concrete details uit summary. Cijfers/percentages uit het anchor MAG je gebruiken (de bron back't ze).
+  * Als type === "hypothetical_scenario": introduceer met "Een voorbeeld:" of "Stel je voor:" zodat de lezer ziet dat het illustratie is. Noem industry + region + situation + outcome — kwalitatief overnemen, niet abstraheren.
+  * KRITISCH bij hypothetical_scenario: NOOIT specifieke percentages, euro-bedragen, of jaartallen citeren uit het anchor. Het outcome-veld is bewust kwalitatief gehouden — als jij er een "47%" of "€12.000" inschrijft, is het door jou verzonnen en pakt de factChecker het als fabricated. Schrijf "halveerde de doorlooptijd" niet "47% sneller". Schrijf "wekelijkse uren terug" niet "8 uur per week bespaard".
+  * NOOIT samenvatten in algemene termen ("er zijn bedrijven die…"). Maak het tastbaar via industry + region + situatie, niet via verzonnen cijfers.
 - Sluit af met een conclusie-paragraaf met EXACT ÉÉN duidelijke CTA naar /ai-scan/ of /contact/. Geen "tot slot" of "in conclusion".
 - Optioneel: eindig met FAQ-block uit outline.faq_block, gewikkeld in <div class="faq">.
 
@@ -43,12 +44,12 @@ STIJL:
 - Mix paragraaflengte (1-zin paragrafen toegestaan en aanmoedigd).
 - Concrete getallen ALLEEN uit research.key_facts; geen vage adjectieven; geen verzonnen cijfers.
 
-LEESBAARHEID (HARDE REGELS — drijft Flesch NL ≥55, anders readability-score onder 6):
-- Gemiddelde zinslengte: 12-15 woorden. NIET hoger.
-- 80% van zinnen ≤ 18 woorden. Hooguit 20% mag 19-25 woorden zijn.
-- Geen zin > 25 woorden. Punt. Splits comma-zinnen in twee.
-- Mix verplicht: minstens 3 korte zinnen (≤8 woorden) per 100 woorden — voor ritme en AIO-snippet-extractie.
-- Spreektaal voor jargon: vervang "implementeert" → "zet in", "faciliteert" → "maakt mogelijk", "noodzakelijkheid" → "moeten", "verantwoordelijkheid" → "taak", "bewerkstelligen" → "zorgen voor". Korte woorden hebben minder lettergrepen → hogere Flesch.
+LEESBAARHEID (pragmatische regels — Flesch NL target hangt af van content):
+- ALGEMENE B2B onderwerpen (ai-per-afdeling, ai-tools): gemiddelde zinslengte 13-16 woorden, hard ceiling 25.
+- JURIDISCHE / COMPLIANCE onderwerpen (AVG, AI Act, fiscaal, advocaten, accountants, etc.): gemiddelde 16-20 woorden, hard ceiling 30. Lange compliance-termen zoals "verwerkingsverantwoordelijke" zijn onvermijdbaar; daarom mogen zinnen iets langer. Detecteer dit zelf uit outline.h1_suggestion + must_include.
+- Splits ELKE zin boven de hard ceiling in twee. Comma-zin → twee losse zinnen.
+- Mix verplicht: minstens 3 korte zinnen (≤8 woorden) per 100 woorden — voor ritme en AIO-snippet-extractie. Geldt voor BEIDE categorieën.
+- Spreektaal vervangt jargon waar betekenis identiek is: "implementeert" → "zet in", "faciliteert" → "maakt mogelijk", "noodzakelijkheid" → "moeten", "bewerkstelligen" → "zorgen voor", "constateren" → "zien", "tevens" → "ook", "echter" → "maar", "alsmede" → "en". BEHOUD jargon dat de juridische term zelf is (bv. "verwerkersovereenkomst", "rechtmatigheidsgrondslag").
 - Geen "tangconstructies" (NL-bijzin tussen onderwerp en werkwoord). "De maatregel die de wetgever na lang overleg in 2024 invoerde" → "De wetgever voerde de maatregel in 2024 in, na lang overleg."
 
 INLINE-NADRUK & HEADINGS:

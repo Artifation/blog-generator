@@ -27,6 +27,10 @@ export type QualityJudgeOutput = z.infer<typeof QualityJudgeOutputSchema>;
 export interface QualityJudgeInput {
   edited_html: string;
   target_keyword: string;
+  /** Pillar van het topic — drijft pillar-bias in readability-mapping (legal/compliance
+   * pillars krijgen ruimere Flesch-bandbreedte omdat NL juridische vocabulair onvermijdbaar
+   * lange woorden bevat). */
+  pillar?: string;
   deterministic_signals: RubricSignals;
   fact_check_verdict: "pass" | "fail";
   fabricated_claims_count: number;

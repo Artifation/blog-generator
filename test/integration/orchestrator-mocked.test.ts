@@ -112,8 +112,12 @@ const RESEARCHER_RESPONSE = JSON.stringify({
   ],
   external_authority_sources: [
     { url: "https://rvo.nl", title: "RVO", why_authoritative: "overheid" },
+    { url: "https://ap.nl", title: "AP", why_authoritative: "toezichthouder" },
   ],
-  key_facts: [{ claim: "X", source_url: "https://rvo.nl" }],
+  key_facts: [
+    { claim: "X", source_url: "https://rvo.nl" },
+    { claim: "Y", source_url: "https://ap.nl" },
+  ],
   competitor_serp_summary: "x",
 });
 
@@ -307,6 +311,9 @@ describe("orchestrator integration — happy path (GO)", () => {
       baseDir: dir,
       dataDir: `${dir}/data`,
       env: RUN_ENV,
+      // Mock fetch: 200 OK voor alles. Voorkomt dat url-verify echte HTTP-calls
+      // doet (rvo.nl/ap.nl) die langer kunnen duren dan de test-timeout.
+      fetchImpl: (async () => new Response(null, { status: 200 })) as typeof fetch,
       now: new Date("2026-05-08T04:15:00Z"),
     });
 
@@ -370,6 +377,9 @@ describe("orchestrator integration — reject path (NO-GO)", () => {
       baseDir: dir,
       dataDir: `${dir}/data`,
       env: RUN_ENV,
+      // Mock fetch: 200 OK voor alles. Voorkomt dat url-verify echte HTTP-calls
+      // doet (rvo.nl/ap.nl) die langer kunnen duren dan de test-timeout.
+      fetchImpl: (async () => new Response(null, { status: 200 })) as typeof fetch,
       now: new Date("2026-05-08T04:15:00Z"),
     });
 
@@ -433,6 +443,9 @@ describe("orchestrator integration — cap reached", () => {
       baseDir: dir,
       dataDir: `${dir}/data`,
       env: RUN_ENV,
+      // Mock fetch: 200 OK voor alles. Voorkomt dat url-verify echte HTTP-calls
+      // doet (rvo.nl/ap.nl) die langer kunnen duren dan de test-timeout.
+      fetchImpl: (async () => new Response(null, { status: 200 })) as typeof fetch,
       now: new Date("2026-05-08T04:15:00Z"),
     });
 
