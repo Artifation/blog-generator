@@ -22,6 +22,34 @@ export interface RunAgentResult<T extends z.ZodTypeAny> {
 const defaultSleep = (ms: number): Promise<void> =>
   new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Anthropic returns HTTP 529 + body `{"type":"error","error":{"type":"overloaded_error",...}}`
+ * when its infrastructure can't accept new requests. Short retry-backoff (the
+ * default 2^attempt seconds) is useless here because overload windows last
+ * minutes, not seconds. We need long backoff for these specifically — without
+ * making non-overload errors slow too.
+ */
+function isOverloadedError(err: Error): boolean {
+  const msg = err.message || "";
+  return /529\b/.test(msg) || /overloaded_error/.test(msg) || /\boverloaded\b/i.test(msg);
+}
+
+/**
+ * Backoff in milliseconds for the given attempt number (1-indexed).
+ * - Overloaded errors: 60s, 120s, 240s — covers typical 5-15 min capacity dips
+ * - Other errors: 2s, 4s, 8s — same fast retry as before for transient noise
+ */
+function backoffMs(attempt: number, isOverloaded: boolean): number {
+  if (isOverloaded) {
+    // 60s · 2^(attempt-1) + small jitter to avoid thundering-herd if multiple
+    // agents retry the same overload window at once.
+    const base = 60_000 * 2 ** (attempt - 1);
+    const jitter = Math.floor(Math.random() * 5_000);
+    return base + jitter;
+  }
+  return 2 ** attempt * 1000;
+}
+
 export async function runAgent<T extends z.ZodTypeAny>(
   input: RunAgentInput<T>,
   sleepImpl: (ms: number) => Promise<void> = defaultSleep
@@ -46,7 +74,7 @@ export async function runAgent<T extends z.ZodTypeAny>(
     } catch (err) {
       lastError = err as Error;
       if (attempt === maxAttempts) break;
-      await sleepImpl(2 ** attempt * 1000);
+      await sleepImpl(backoffMs(attempt, isOverloadedError(lastError)));
     }
   }
   throw new Error(
