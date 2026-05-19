@@ -16,6 +16,11 @@ export const AuditorIssueSchema = z.object({
   message: z.string().min(3),
   quote: z.string().nullable(),
   suggested_rewrite: z.string().nullable(),
+  /** 1 = fix first (highest impact), 5 = nice-to-have polish. */
+  priority: z.number().int().min(1).max(5),
+  /** Estimated points the weighted_total would gain if this issue is fixed.
+   * Lets the UI surface a "fix-first ROI" list. */
+  estimated_score_lift: z.number().min(0).max(5).optional(),
 });
 
 export const AuditorOutputSchema = z.object({
@@ -30,6 +35,13 @@ export const AuditorOutputSchema = z.object({
   weighted_total: z.number().min(0).max(10),
   issues: z.array(AuditorIssueSchema).min(0).max(30),
   summary: z.string().min(10),
+  /** Fully rewritten version of the post applying the top issues. Optional —
+   * the agent may skip this for tiny tweaks. When present, the UI offers a
+   * "copy improved version" button. */
+  improved_version: z.string().nullable().optional(),
+  /** Bullet list of the 3-5 highest-impact things to fix first, in priority
+   * order. The UI shows this prominently above the full issues list. */
+  fix_first: z.array(z.string()).max(8).optional(),
 });
 
 export type AuditorIssue = z.infer<typeof AuditorIssueSchema>;
@@ -59,7 +71,10 @@ export async function runAuditor(input: AuditorInput, deps: AuditorDeps) {
       systemPrompt: AUDITOR_SYSTEM_PROMPT,
       userPrompt: JSON.stringify(input, null, 2),
       model: "gemini-2.5-pro",
-      maxTokens: 4000,
+      // Bumped from 4000 → 8000 because improved_version can carry a full
+      // rewrite of the source post (up to ~3000 words = ~4500 tokens) on top
+      // of the scores + issues + fix_first blocks.
+      maxTokens: 8000,
       temperature: 0.5,
       schema: AuditorOutputSchema,
     },

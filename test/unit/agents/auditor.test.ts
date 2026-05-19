@@ -39,6 +39,8 @@ const VALID_RESPONSE = {
       message: "Zin met 18+ woorden bevat veel jargon",
       quote: "Sommige zinnen zijn echt heel lang en bevatten veel jargon dat de lezer moeilijk doorgrondt op een dieper niveau.",
       suggested_rewrite: "Sommige zinnen zijn te lang. Lezers haken af.",
+      priority: 2,
+      estimated_score_lift: 0.8,
     },
     {
       severity: "suggestion",
@@ -46,9 +48,16 @@ const VALID_RESPONSE = {
       message: "Geen H2-headings — lange tekst splitsen",
       quote: null,
       suggested_rewrite: null,
+      priority: 4,
+      estimated_score_lift: 0.5,
     },
   ],
   summary: "De tekst is informatief maar leesbaarheid en structuur kunnen scherper.",
+  fix_first: [
+    "Splits de lange zin onder de inleiding in twee korte zinnen.",
+    "Voeg H2-headings toe om de blog scanbaar te maken.",
+  ],
+  improved_version: "Een blog over AI in MKB. Sommige zinnen zijn te lang. Lezers haken af.",
 };
 
 describe("runAuditor", () => {
@@ -92,5 +101,36 @@ describe("runAuditor", () => {
     expect(userPrompt).toContain("AI in MKB");
     expect(userPrompt).toContain("Direct, expert");
     expect(userPrompt).toContain("delve");
+  });
+
+  it("parses priority + estimated_score_lift per issue", async () => {
+    const result = await runAuditor(INPUT, { provider: provider(VALID_RESPONSE) });
+    expect(result.parsed.issues[0]!.priority).toBe(2);
+    expect(result.parsed.issues[0]!.estimated_score_lift).toBeCloseTo(0.8);
+    expect(result.parsed.issues[1]!.priority).toBe(4);
+  });
+
+  it("parses fix_first list and improved_version when provided", async () => {
+    const result = await runAuditor(INPUT, { provider: provider(VALID_RESPONSE) });
+    expect(result.parsed.fix_first).toHaveLength(2);
+    expect(result.parsed.fix_first![0]).toMatch(/splits/i);
+    expect(result.parsed.improved_version).toMatch(/AI in MKB/);
+  });
+
+  it("accepts a response without improved_version or fix_first (both optional)", () => {
+    const minimal = { ...VALID_RESPONSE };
+    delete (minimal as Record<string, unknown>).improved_version;
+    delete (minimal as Record<string, unknown>).fix_first;
+    const parsed = AuditorOutputSchema.safeParse(minimal);
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects priority outside 1..5", () => {
+    const bad = {
+      ...VALID_RESPONSE,
+      issues: [{ ...VALID_RESPONSE.issues[0], priority: 9 }],
+    };
+    const parsed = AuditorOutputSchema.safeParse(bad);
+    expect(parsed.success).toBe(false);
   });
 });

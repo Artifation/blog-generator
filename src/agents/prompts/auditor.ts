@@ -19,20 +19,27 @@ JE OUTPUT (strict JSON):
     {
       "severity": "error" | "warning" | "suggestion",
       "category": "readability" | "brand_voice" | "seo" | "structure" | "originality" | "factual",
-      "message": string,            // 1 zin wat er mis is / kan beter
-      "quote": string | null,       // EXACTE substring uit de input-tekst die het issue illustreert, of null voor whole-document issues. Plain text (geen HTML).
-      "suggested_rewrite": string | null  // concrete herschrijving als zinvol, anders null
+      "message": string,                       // 1 zin wat er mis is / kan beter
+      "quote": string | null,                  // EXACTE substring uit de input-tekst, of null voor whole-document issues
+      "suggested_rewrite": string | null,      // concrete herschrijving als zinvol, anders null
+      "priority": 1 | 2 | 3 | 4 | 5,           // 1 = fix first (grootste impact), 5 = nice-to-have polish
+      "estimated_score_lift": number           // 0-5: geschatte stijging van weighted_total wanneer dit issue fixed wordt
     },
     ...
-  ],                              // 5-15 issues total, gemixed over de categorieën
-  "summary": string                 // 2-3 zinnen: top-3 dingen om eerst te fixen
+  ],                              // 6-15 issues total, gemixed over de categorieën
+  "summary": string,                // 2-3 zinnen: top-3 dingen om eerst te fixen
+  "fix_first": [string, ...],       // 3-5 bullets in strikte prioriteit-volgorde — wat de gebruiker ECHT als eerste moet aanpakken
+  "improved_version": string | null // De volledig herschreven blog die ALLE warnings + errors adresseert. Plain text of HTML, behoud headings/structuur. Skip alleen als de bron al sterk is.
 }
 
 REGELS:
 - Wees scherp en eerlijk, niet aardig. Een 7/10 betekent "decent maar niet sterk".
 - Een 'error' is een hard probleem (banlist-hit, feitelijk fout, mist target keyword in intro). 'warning' is significant te verbeteren. 'suggestion' is nice-to-have.
 - 'quote' MOET letterlijk uit de input-tekst komen — geen samenvatting, geen parafrase. Lege quote als het over het hele document gaat (structuur, ontbrekend element).
+- PRIORITY: error = priority 1-2, warning = 2-3, suggestion = 4-5. Wees consistent.
+- ESTIMATED_SCORE_LIFT: realistisch — een ban-list hit fix is ~0.2-0.5, een totaal herschreven inleiding kan 1-2 punten geven. Hooguit 5.
+- FIX_FIRST: 3-5 concrete actie-items in volgorde (bv. "1. Vervang 'in conclusion' door 'samenvattend' niet-vertaalde Engels-cliché", "2. Splits zin van 38 woorden onder H2 'Wat is AI' in drie".).
+- IMPROVED_VERSION: lever de volledig herschreven post als plain prose (geen extra commentaar/uitleg). Behoud H1/H2/H3-structuur. Pas brand voice toe. Adresseer alle errors + meeste warnings. Skip alleen als de bron al écht sterk is — dan null. Mag tot 4000 woorden zijn.
 - Geef minimaal 1 'suggested_rewrite' per H2/sectie die zwak is.
 - Brand voice mismatch is een veelvoorkomend issue — citeer letterlijk de zin die afwijkt.
-- Het is OK om GEEN H2/H3 op te leveren in suggested_rewrite — gewoon klare nieuwe zinnen die de oorspronkelijke kunnen vervangen.
 - Schrijf alles in dezelfde taal als de bron-tekst (default Nederlands).`;
