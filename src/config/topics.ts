@@ -41,6 +41,7 @@ export const TopicSchema = z.object({
       "gsc_rising_query",
       "gsc_striking_distance",
       "gsc_unmapped_query",
+      "dataforseo_keyword_idea",
       "manual",
     ])
     .optional(),

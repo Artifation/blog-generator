@@ -17,6 +17,7 @@ export const TopicProposalSchema = z.object({
     "gsc_rising_query",
     "gsc_striking_distance",
     "gsc_unmapped_query",
+    "dataforseo_keyword_idea",
     "manual",
   ]),
   proposal_rationale: z.string().min(10),

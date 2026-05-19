@@ -11,6 +11,11 @@ import {
   findRisingQueries,
   findUnmappedQueries,
 } from "@/integrations/keywordOpportunities";
+import {
+  fetchKeywordIdeas,
+  type DataForSeoCredentials,
+  type KeywordIdea,
+} from "@/integrations/dataForSeo";
 import { listTopicsForSite, createTopic } from "~/lib/topics";
 import { revalidatePath } from "next/cache";
 
@@ -28,6 +33,7 @@ export interface TopicProposalView {
     | "gsc_rising_query"
     | "gsc_striking_distance"
     | "gsc_unmapped_query"
+    | "dataforseo_keyword_idea"
     | "manual";
 }
 
@@ -70,10 +76,78 @@ interface DiscoveredCandidate {
     | "gsc_rising_query"
     | "gsc_striking_distance"
     | "gsc_unmapped_query"
+    | "dataforseo_keyword_idea"
     | "manual";
   query?: string;
   title?: string;
   rationale?: string;
+}
+
+/**
+ * Try to discover keyword ideas from DataForSEO Labs for each pillar (one
+ * call per pillar, capped at 5). Returns empty list when DFS isn't configured.
+ *
+ * Cost: ~$0.0075 per call. With 3 pillars that's ~$0.025 per Suggest topics
+ * click. We cap at 5 pillars to keep cost bounded.
+ */
+async function discoverDataForSeoIdeas(
+  pillarNames: string[],
+  existingTopics: { title: string; targetKeyword: string }[],
+  apiKeys: NonNullable<Awaited<ReturnType<typeof requireSite>>["apiKeys"]>
+): Promise<DiscoveredCandidate[]> {
+  const login = apiKeys?.dataForSeoLogin?.trim();
+  const password = apiKeys?.dataForSeoPassword?.trim();
+  if (!login || !password) return [];
+
+  const languageCode = apiKeys?.dataForSeoLanguageCode?.trim() || "nl";
+  const locationCode = Number(apiKeys?.dataForSeoLocationCode || "2528") || 2528;
+
+  const creds: DataForSeoCredentials = { login, password };
+  const out: DiscoveredCandidate[] = [];
+  const existingKeywords = new Set(
+    existingTopics.map((t) => t.targetKeyword.toLowerCase())
+  );
+  const seen = new Set<string>();
+
+  // Cap at 5 pillars to keep cost predictable.
+  for (const pillar of pillarNames.slice(0, 5)) {
+    try {
+      const ideas = await fetchKeywordIdeas(
+        { keyword: pillar, locationCode, languageCode, limit: 50, minVolume: 50 },
+        creds
+      );
+      // Take up to 5 best (sorted by volume already) per pillar; skip already
+      // existing targets and any duplicate across pillars.
+      const top = ideas
+        .filter((i) => !existingKeywords.has(i.keyword.toLowerCase()))
+        .filter((i) => {
+          const k = i.keyword.toLowerCase();
+          if (seen.has(k)) return false;
+          seen.add(k);
+          return true;
+        })
+        .slice(0, 5);
+
+      for (const idea of top) {
+        out.push({
+          source: "dataforseo_keyword_idea",
+          query: idea.keyword,
+          rationale: buildDfsRationale(idea, pillar),
+        });
+      }
+    } catch {
+      // One pillar failing shouldn't kill the whole flow; keep going.
+    }
+  }
+
+  return out;
+}
+
+function buildDfsRationale(idea: KeywordIdea, pillar: string): string {
+  const parts: string[] = [`${idea.searchVolume}/maand`];
+  if (typeof idea.difficulty === "number") parts.push(`difficulty ${idea.difficulty}/100`);
+  if (typeof idea.cpc === "number" && idea.cpc > 0) parts.push(`CPC $${idea.cpc.toFixed(2)}`);
+  return `${parts.join(", ")} — DataForSEO keyword idea voor pillar "${pillar}".`;
 }
 
 /**
@@ -194,7 +268,16 @@ export async function suggestTopicsAction(
     site.apiKeys?.gscServiceAccountJson
   );
 
-  const candidates: DiscoveredCandidate[] = [...gscCandidates];
+  // Try DataForSEO keyword ideas per pillar; falls back silently when DFS
+  // credentials aren't configured. Real-market volumes complement GSC's
+  // own-site impressions data.
+  const dfsCandidates = await discoverDataForSeoIdeas(
+    site.pillars.map((p) => p.name),
+    existing.map((t) => ({ title: t.title, targetKeyword: t.targetKeyword })),
+    site.apiKeys
+  );
+
+  const candidates: DiscoveredCandidate[] = [...gscCandidates, ...dfsCandidates];
 
   // Always include a manual seed so the LLM has freedom to propose creative
   // topics even when GSC found something. Without this the suggester is
@@ -210,10 +293,10 @@ export async function suggestTopicsAction(
   });
 
   // Lookup: proposal_source assigned by suggester → rationale text from our
-  // discovery (so the UI can show "kans om page 1 te halen" instead of the
-  // generic LLM-written rationale).
+  // discovery (so the UI can show "kans om page 1 te halen" or DFS volume
+  // numbers instead of the generic LLM-written rationale).
   const rationaleByQuery = new Map<string, string>();
-  for (const c of gscCandidates) {
+  for (const c of [...gscCandidates, ...dfsCandidates]) {
     if (c.query && c.rationale) rationaleByQuery.set(c.query.toLowerCase(), c.rationale);
   }
 

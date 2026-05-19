@@ -21,6 +21,8 @@ function sourceBadge(source: TopicProposalView["source"]): React.ReactNode {
       return <span className="badge b-green" title="GSC: impressies stijgen tussen windows">⬆ stijgende query</span>;
     case "competitor_sitemap":
       return <span className="badge b-gray" title="Nieuw artikel bij concurrent">👀 competitor</span>;
+    case "dataforseo_keyword_idea":
+      return <span className="badge b-blue" title="DataForSEO: echte maandelijkse search volume + difficulty">💎 DFS keyword</span>;
     case "manual":
     default:
       return null;
