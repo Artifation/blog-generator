@@ -107,8 +107,11 @@ function DraftCard({
         <p className="tldr">{draft.tldr}</p>
         {draft.hardFails && draft.hardFails.length > 0 && (
           <div className="dc-meta" style={{ marginTop: 6 }}>
-            {draft.hardFails.map((f) => (
-              <span key={f} className="badge b-red">
+            {draft.hardFails.map((f, idx) => (
+              // Index-based key: duplicates in the array (e.g. two identically-worded
+              // fabricated claims from one rejection) are allowed and would crash
+              // React's reconciliation if we used `f` as the key.
+              <span key={`${idx}-${f}`} className="badge b-red">
                 {f}
               </span>
             ))}
