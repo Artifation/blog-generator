@@ -12,6 +12,7 @@ import {
   Globe,
   ExternalLink,
   Wallet,
+  ScanSearch,
 } from "lucide-react";
 
 interface SidebarNavProps {
@@ -27,6 +28,7 @@ export function SidebarNav({ pendingDrafts, queuedTopics, siteSlug }: SidebarNav
     { href: "/topics", icon: Layers, label: "Topics", badge: queuedTopics > 0 ? queuedTopics : null },
     { href: "/drafts", icon: Inbox, label: "Drafts", badge: pendingDrafts > 0 ? pendingDrafts : null },
     { href: "/published", icon: Send, label: "Gepubliceerd" },
+    { href: "/audit", icon: ScanSearch, label: "Blog-audit" },
     { href: "/runs", icon: Activity, label: "Runs" },
     { href: "/costs", icon: Wallet, label: "Kosten" },
     { href: "/settings", icon: Settings, label: "Instellingen" },
