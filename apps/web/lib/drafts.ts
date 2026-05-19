@@ -19,6 +19,23 @@ export async function getDraft(id: string): Promise<Draft | null> {
   return rows[0] ?? null;
 }
 
+/**
+ * Most recent rejected draft for the given topic, or null. Used by the
+ * pipeline's retry-feedback loop so the writer can see which specific
+ * claims the factChecker flagged on the previous attempt and avoid them.
+ */
+export async function getLatestRejectedDraftForTopic(topicId: string): Promise<Draft | null> {
+  await ensureSchema();
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(drafts)
+    .where(and(eq(drafts.topicId, topicId), eq(drafts.status, "rejected")))
+    .orderBy(desc(drafts.createdAt))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export interface CreateDraftInput {
   siteId: string;
   topicId?: string | null;
