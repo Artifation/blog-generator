@@ -18,6 +18,7 @@ import { buildAllSchemaJsonLd } from "@/pipeline/schemaGenerator";
 import type { TenantConfig } from "@/config/tenant";
 import { checkCitations, enrichSignalsWithCitationCheck } from "@/pipeline/citationCheck";
 import { filterDeadResearchUrls } from "@/pipeline/researchUrlFilter";
+import { extractExternalHrefs, stripDeadLinks } from "@/pipeline/stripDeadLinks";
 import { computeRunCost, type UsageEntry } from "@/pipeline/costTracker";
 
 import type { Site, Topic, Pillar, Draft } from "~/lib/db/schema";
@@ -151,6 +152,37 @@ export async function runForSite(
     endStage(true);
     seo.parsed.edited_html = postProcessDraftHtml(seo.parsed.edited_html);
     usage.push({ provider: "anthropic", model: seo.raw.model, inputTokens: seo.raw.inputTokens, outputTokens: seo.raw.outputTokens });
+
+    // Final dead-link scrub on the SEO-edited HTML. researchUrlFilter only
+    // caught dead source URLs in research output; the writer / seoEditor can
+    // still introduce hrefs that are dead or soft-404 (CMS pages that have
+    // moved). We re-check every external <a> in the draft and strip the
+    // anchor tags from any URL that's confirmed dead — anchor text stays so
+    // the prose doesn't get holes. This is the last line of defence.
+    endStage = startStage("draftLinkScrub");
+    try {
+      const draftHrefs = extractExternalHrefs(seo.parsed.edited_html);
+      if (draftHrefs.length > 0) {
+        const linkCheck = await checkCitations({ urls: draftHrefs, timeoutMs: 6000 });
+        const deadSet = new Set(linkCheck.dead.map((d) => d.url));
+        if (deadSet.size > 0) {
+          seo.parsed.edited_html = stripDeadLinks(seo.parsed.edited_html, deadSet);
+          console.log(
+            JSON.stringify({
+              stage: "draftLinkScrub",
+              stripped: deadSet.size,
+              checked: draftHrefs.length,
+            })
+          );
+        }
+      }
+      endStage(true);
+    } catch (err) {
+      // Don't fail the run for a scrub error — log and continue with original
+      // HTML. The downstream citation rubric still flags broken links.
+      console.warn("draftLinkScrub failed:", (err as Error).message);
+      endStage(false);
+    }
 
     // Fact-check
     endStage = startStage("factChecker");

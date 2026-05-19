@@ -11,6 +11,42 @@ export interface CitationCheckResult {
   deadRatio: number; // 0-1
 }
 
+// Soft-404 detection: server returns 200 but the page is actually a
+// "page not found" CMS template. Common at Wolters Kluwer, big news sites,
+// SaaS-marketing sites. Two signals:
+//   1) The post-redirect URL contains a known 404-path marker.
+//   2) The <title> contains a "not found" phrase.
+// We check #1 cheaply (no body read needed) and #2 by reading the first
+// ~10 KB and matching against a phrase list. Both checks are language-aware
+// (NL + EN cover ~95% of relevant cases).
+const SOFT404_PATH_PATTERN = /\/(404|error|not[-_]?found|page-not-found|pagina-niet-gevonden)(?:[\/?#]|$)/i;
+const SOFT404_TITLE_PATTERN =
+  /(404\s+pagina|pagina\s+niet\s+gevonden|niet\s+gevonden|404\s+error|page\s+not\s+found|not\s+found\s+\|)/i;
+
+async function detectSoftNotFound(res: Response): Promise<boolean> {
+  // Use final URL after redirects when available (browser-ish runtimes set this).
+  if (res.url && SOFT404_PATH_PATTERN.test(res.url)) return true;
+
+  // Skip body read for non-HTML responses (PDFs, images, JSON-only APIs).
+  const ct = res.headers.get("content-type") ?? "";
+  if (ct && !/text\/html|application\/xhtml/i.test(ct)) return false;
+
+  try {
+    // Read only the first ~10 KB — enough to capture <title> on virtually
+    // every CMS, cheap enough to not hurt the citation-check budget.
+    const text = await res.text();
+    const head = text.slice(0, 10_000);
+    const titleMatch = head.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+    if (titleMatch) {
+      const title = titleMatch[1] ?? "";
+      if (SOFT404_TITLE_PATTERN.test(title)) return true;
+    }
+  } catch {
+    // Body read failed (rare). Fall through to alive — don't false-positive.
+  }
+  return false;
+}
+
 export async function checkCitations(input: CitationCheckInput): Promise<CitationCheckResult> {
   const fetchFn = input.fetchImpl ?? fetch;
   const timeoutMs = input.timeoutMs ?? 5000;
@@ -40,8 +76,13 @@ export async function checkCitations(input: CitationCheckInput): Promise<Citatio
         });
         if (res.status >= 400) {
           dead.push({ url, reason: `status:${res.status}` });
+        } else if (res.status >= 200 && res.status < 400) {
+          // Soft-404 check on 2xx/3xx responses (some redirects land on
+          // generic 404 templates that still return 200).
+          const isSoft404 = await detectSoftNotFound(res);
+          if (isSoft404) dead.push({ url, reason: "status:soft404" });
         }
-        // 200-399 = alive
+        // 200-399 + not soft-404 = alive
       } catch (err: unknown) {
         if (
           (err instanceof Error && err.name === "AbortError") ||
