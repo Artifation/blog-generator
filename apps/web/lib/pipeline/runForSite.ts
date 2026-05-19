@@ -316,9 +316,15 @@ export async function runForSite(
       // We pack the fact-checker's fabricated_claims into hardFails so they
       // surface as red badges on the Drafts page — that's the most actionable
       // info ("here are the made-up numbers, fix or remove them").
+      // factChecker's fabricated_claims is Array<{claim, reason}> — destructure
+      // .claim so we don't end up storing literal "[object Object]" strings.
+      // We pack the reason in a second sentence so the badge in the UI is
+      // descriptive without being too long.
       const rejectHardFails = [
         ...judge.parsed.hard_fails,
-        ...fc.parsed.fabricated_claims.map((c) => `fabricated claim: ${c}`),
+        ...fc.parsed.fabricated_claims.map(
+          (c) => `fabricated claim: ${c.claim}${c.reason ? ` — ${c.reason}` : ""}`
+        ),
       ];
       const rejectedDraft = await createDraft({
         siteId: site.id,
