@@ -13,6 +13,7 @@ import {
   ExternalLink,
   Wallet,
   ScanSearch,
+  BookOpen,
 } from "lucide-react";
 
 interface SidebarNavProps {
@@ -31,6 +32,7 @@ export function SidebarNav({ pendingDrafts, queuedTopics, siteSlug }: SidebarNav
     { href: "/audit", icon: ScanSearch, label: "Blog-audit" },
     { href: "/runs", icon: Activity, label: "Runs" },
     { href: "/costs", icon: Wallet, label: "Kosten" },
+    { href: "/wiki", icon: BookOpen, label: "Wiki" },
     { href: "/settings", icon: Settings, label: "Instellingen" },
   ];
 
