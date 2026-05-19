@@ -4,12 +4,21 @@ import { requireSite } from "~/lib/auth";
 import { createProviderRegistry } from "@/llm/client";
 import { runAuditor, type AuditorOutput } from "@/agents/auditor";
 import { computeDeterministicRubricSignals } from "@/pipeline/rubric";
+import {
+  analyzeHeadings,
+  analyzeSentences,
+  countPassiveVoiceNL,
+  estimateReadingTimeMinutes,
+  countQuestions,
+} from "@/pipeline/auditSignals";
 
 export interface AuditResultView {
   scores: AuditorOutput["scores"];
   weightedTotal: number;
   issues: AuditorOutput["issues"];
   summary: string;
+  fixFirst: string[];
+  improvedVersion: string | null;
   deterministic: {
     wordCount: number;
     banlistHits: number;
@@ -22,6 +31,21 @@ export interface AuditResultView {
     hasCta: boolean;
     internalLinkCount: number;
     externalLinkCount: number;
+    readingTimeMinutes: number;
+    questionCount: number;
+    passiveVoiceCount: number;
+    headings: {
+      counts: { h1: number; h2: number; h3: number; h4: number };
+      issues: string[];
+    };
+    sentences: {
+      count: number;
+      avgWords: number;
+      medianWords: number;
+      maxWords: number;
+      percentOver25Words: number;
+      longSentences: { sentence: string; wordCount: number }[];
+    };
   };
 }
 
@@ -59,6 +83,12 @@ export async function auditBlogAction(input: {
     internalUrls: [`https://${site.domain}`],
   });
 
+  const headings = analyzeHeadings(html);
+  const sentences = analyzeSentences(html);
+  const passiveCount = countPassiveVoiceNL(html);
+  const readingTime = estimateReadingTimeMinutes(det.word_count);
+  const questionCount = countQuestions(html);
+
   // LLM audit for the qualitative bits (brand voice, originality, structure
   // critique with quoted spans).
   let agent: AuditorOutput;
@@ -84,6 +114,8 @@ export async function auditBlogAction(input: {
       weightedTotal: agent.weighted_total,
       issues: agent.issues,
       summary: agent.summary,
+      fixFirst: agent.fix_first ?? [],
+      improvedVersion: agent.improved_version ?? null,
       deterministic: {
         wordCount: det.word_count,
         banlistHits: det.banlist_hits,
@@ -96,6 +128,18 @@ export async function auditBlogAction(input: {
         hasCta: det.has_cta,
         internalLinkCount: det.internal_link_count,
         externalLinkCount: det.external_link_count,
+        readingTimeMinutes: readingTime,
+        questionCount,
+        passiveVoiceCount: passiveCount,
+        headings: { counts: headings.counts, issues: headings.issues },
+        sentences: {
+          count: sentences.count,
+          avgWords: sentences.avgWords,
+          medianWords: sentences.medianWords,
+          maxWords: sentences.maxWords,
+          percentOver25Words: sentences.percentOver25Words,
+          longSentences: sentences.longSentences,
+        },
       },
     },
   };
