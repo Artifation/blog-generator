@@ -320,6 +320,70 @@ export function SettingsForm({
           })()}
         </Section>
 
+        <Section
+          title="DataForSEO (optioneel, betaald)"
+          description="Met DataForSEO Labs krijg je echte maandelijkse search volumes + keyword difficulty per voorgesteld topic. Komt erbovenop GSC — niet ervoor in de plaats. Pricing: ~$0.0075 per pillar per Suggest-topics call."
+        >
+          <div className="row" style={{ gap: 12 }}>
+            <Field label="Login (email)">
+              <input
+                className="input mono"
+                value={state.apiKeys.dataForSeoLogin ?? ""}
+                onChange={(e) =>
+                  up("apiKeys", { ...state.apiKeys, dataForSeoLogin: e.target.value })
+                }
+                placeholder="jouw-dfs-account@example.com"
+              />
+            </Field>
+            <Field label="Password (API password, niet je login)">
+              <input
+                className="input mono"
+                type="password"
+                value={state.apiKeys.dataForSeoPassword ?? ""}
+                onChange={(e) =>
+                  up("apiKeys", { ...state.apiKeys, dataForSeoPassword: e.target.value })
+                }
+                placeholder="********"
+              />
+            </Field>
+          </div>
+          <div className="row" style={{ gap: 12 }}>
+            <Field label="Taal (ISO code)">
+              <input
+                className="input mono"
+                value={state.apiKeys.dataForSeoLanguageCode ?? ""}
+                onChange={(e) =>
+                  up("apiKeys", { ...state.apiKeys, dataForSeoLanguageCode: e.target.value })
+                }
+                placeholder="nl"
+              />
+            </Field>
+            <Field label="Locatie (DFS code)">
+              <input
+                className="input tnum"
+                inputMode="numeric"
+                value={state.apiKeys.dataForSeoLocationCode ?? ""}
+                onChange={(e) =>
+                  up("apiKeys", {
+                    ...state.apiKeys,
+                    dataForSeoLocationCode: e.target.value.replace(/\D/g, "") || undefined,
+                  })
+                }
+                placeholder="2528"
+              />
+              <div className="hint" style={{ fontSize: 11 }}>
+                NL = 2528, US = 2840, DE = 2276, BE = 2056. Zie DataForSEO Locations API.
+              </div>
+            </Field>
+          </div>
+          <div className="hint">
+            Maak een account op{" "}
+            <a href="https://dataforseo.com/" target="_blank" rel="noreferrer">dataforseo.com</a>{" "}
+            en gebruik je API-credentials (Login → API tab). Zonder credentials valt Suggest topics
+            terug op de gratis GSC + Gemini stack.
+          </div>
+        </Section>
+
         <Section title="API-keys" description="Lokaal opgeslagen in SQLite. Geldt voor de volgende pipeline-run.">
           <ApiKey label="Anthropic" value={state.apiKeys.anthropic ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, anthropic: v })} />
           <ApiKey label="Gemini" value={state.apiKeys.gemini ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, gemini: v })} />

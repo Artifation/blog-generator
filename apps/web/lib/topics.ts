@@ -36,6 +36,7 @@ export interface CreateTopicInput {
     | "gsc_rising_query"
     | "gsc_striking_distance"
     | "gsc_unmapped_query"
+    | "dataforseo_keyword_idea"
     | "manual";
   proposalRationale?: string;
   customInstructions?: string | null;

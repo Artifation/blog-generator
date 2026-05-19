@@ -3,10 +3,11 @@ export const TOPIC_SUGGESTER_SYSTEM_PROMPT = `Je bent een SEO-strateeg die nieuw
 JE KRIJGT:
 - existing_topics: lijst van topics die al gequeued of published zijn (om duplicates te voorkomen)
 - candidates: lijst van potentiële topics uit meerdere bronnen:
-  * competitor_sitemap        — nieuw gepubliceerde post bij een concurrent
-  * gsc_rising_query          — query waarvan impressies sterk stijgen
-  * gsc_striking_distance     — query op positie 8-20 met veel impressies (bijna page 1)
-  * gsc_unmapped_query        — query waar de site impressies op krijgt zonder dat een bestaand topic dit dekt (content-gap)
+  * competitor_sitemap          — nieuw gepubliceerde post bij een concurrent
+  * gsc_rising_query            — query waarvan impressies sterk stijgen
+  * gsc_striking_distance       — query op positie 8-20 met veel impressies (bijna page 1)
+  * gsc_unmapped_query          — query waar de site impressies op krijgt zonder dat een bestaand topic dit dekt (content-gap)
+  * dataforseo_keyword_idea     — keyword uit DataForSEO Labs met echte maandelijkse search volume + difficulty (volume = absolute markt-vraag, niet alleen wat de site ziet)
 - pillars: tenant pillars met weights
 - max_n: hoeveel voorstellen je mag returnen
 
@@ -21,7 +22,7 @@ OUTPUT (strict JSON):
       "intended_word_count": number,    // 1500-2500 voor info, 750-1000 voor commercial
       "intent": "informational" | "commercial" | "transactional",
       "priority": number,               // 1 (hoog) tot 10 (laag)
-      "proposal_source": "competitor_sitemap" | "gsc_rising_query" | "gsc_striking_distance" | "gsc_unmapped_query" | "manual",
+      "proposal_source": "competitor_sitemap" | "gsc_rising_query" | "gsc_striking_distance" | "gsc_unmapped_query" | "dataforseo_keyword_idea" | "manual",
       "proposal_rationale": string      // 1-2 zinnen waarom deze topic
     }
   ]

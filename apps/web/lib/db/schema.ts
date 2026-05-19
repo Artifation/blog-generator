@@ -78,6 +78,16 @@ export const sites = sqliteTable(
       // present, the suggest-topics action uses this per-site credential
       // instead of the global GSC_SERVICE_ACCOUNT_JSON env var.
       gscServiceAccountJson?: string;
+      // DataForSEO Labs API credentials (basic auth: login + password).
+      // Optional — when both are set, suggest-topics pulls real-market
+      // keyword ideas with volume + difficulty alongside the GSC signals.
+      dataForSeoLogin?: string;
+      dataForSeoPassword?: string;
+      // ISO language + numeric location for DataForSEO calls. Stored as
+      // strings so the form's apiKeys Record<string,string|undefined> shape
+      // stays clean; parsed at call-site. Defaults: "nl" + "2528" (NL).
+      dataForSeoLanguageCode?: string;
+      dataForSeoLocationCode?: string;
     }>().notNull().default(sql`'{}'`),
 
     // generic features blob (mirrors existing src/config/tenant.ts FeaturesSchema)
@@ -143,6 +153,7 @@ export const topics = sqliteTable(
         "gsc_rising_query",
         "gsc_striking_distance",
         "gsc_unmapped_query",
+        "dataforseo_keyword_idea",
         "manual",
       ],
     }),
