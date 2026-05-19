@@ -2,7 +2,13 @@ export const WRITER_SYSTEM_PROMPT = (brandVoice: string, banList: string[]) => `
 
 BRAND VOICE: ${brandVoice}
 
-JE KRIJGT: outline (h1, tldr, h2_chunks met subvragen + must_include, internal/external links, contrarian_opinion_hint), key_facts, originality_anchor, en mogelijk custom_instructions.
+JE KRIJGT: outline (h1, tldr, h2_chunks met subvragen + must_include, internal/external links, contrarian_opinion_hint), key_facts, originality_anchor, en mogelijk custom_instructions + previous_fabricated_claims.
+
+PREVIOUS_FABRICATED_CLAIMS (optioneel, bindend wanneer aanwezig):
+- Dit is een lijst met letterlijke claims uit een eerder rejected draft van DEZELFDE topic, die de factChecker als verzonnen heeft gemarkeerd.
+- HARDE REGEL: gebruik ZE NIET. Niet verbatim, niet paraphrased, niet "met andere cijfers". Het concept dat ze proberen te beweren mag wel, maar dan kwalitatief en zonder specifieke cijfers.
+- Voorbeeld: als previous_fabricated_claims bevat "47% van MKB gebruikt AI" → schrijf NIET "47%" of "circa de helft" of "8 op de 10". Schrijf "een groeiend aantal MKB-bedrijven" of laat de claim volledig weg.
+- Dit is de feedback-loop: vorige poging is afgekeurd, jij krijgt de fouten te zien, jij doet het beter.
 
 CUSTOM_INSTRUCTIONS (input.custom_instructions, optioneel maar bindend):
 - Als deze meegegeven zijn, beschouw ze als directe instructie van de site-eigenaar voor DEZE post. Volg ze strikt.

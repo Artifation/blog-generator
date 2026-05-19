@@ -22,7 +22,7 @@ import { extractExternalHrefs, stripDeadLinks, filterDefinitivelyDead } from "@/
 import { computeRunCost, type UsageEntry } from "@/pipeline/costTracker";
 
 import type { Site, Topic, Pillar, Draft } from "~/lib/db/schema";
-import { createDraft } from "~/lib/drafts";
+import { createDraft, getLatestRejectedDraftForTopic } from "~/lib/drafts";
 import { startRun, finishRun } from "~/lib/runs";
 import { updateTopic } from "~/lib/topics";
 import { listPublishedPostsForSite } from "~/lib/drafts";
@@ -146,6 +146,27 @@ export async function runForSite(
     endStage(true);
     usage.push({ provider: "anthropic", model: outline.raw.model, inputTokens: outline.raw.inputTokens, outputTokens: outline.raw.outputTokens });
 
+    // Retry-feedback loop: if this topic was rejected before, read the
+    // factChecker's fabricated_claims out of the previous rejected draft and
+    // feed them to the writer as "do NOT repeat these". The hardFails column
+    // stores claims as "fabricated claim: <text>"; we strip the prefix.
+    const prevRejected = await getLatestRejectedDraftForTopic(topic.id).catch(() => null);
+    const previousFabricatedClaims = prevRejected
+      ? (prevRejected.hardFails ?? [])
+          .filter((f) => f.startsWith("fabricated claim: "))
+          .map((f) => f.slice("fabricated claim: ".length))
+      : [];
+    if (previousFabricatedClaims.length > 0) {
+      console.log(
+        JSON.stringify({
+          stage: "retryFeedbackLoop",
+          previousRejectedDraftId: prevRejected!.id,
+          previousFabricatedCount: previousFabricatedClaims.length,
+          message: "Feeding previous-rejection fabricated claims back to writer",
+        })
+      );
+    }
+
     // Writer
     endStage = startStage("writer");
     const writer = await runWriter(
@@ -157,6 +178,8 @@ export async function runForSite(
         key_facts: research.parsed.key_facts,
         originality_anchor: research.parsed.originality_anchor,
         custom_instructions: combinedInstructions,
+        previous_fabricated_claims:
+          previousFabricatedClaims.length > 0 ? previousFabricatedClaims : undefined,
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );

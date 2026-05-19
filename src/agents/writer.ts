@@ -27,6 +27,11 @@ export interface WriterInput {
    * must honour these directly (specific brand asks, audience focus, things to
    * mention or avoid) on top of the outline. */
   custom_instructions?: string;
+  /** Fabricated claims from a prior rejected draft of this same topic. When
+   * present, the writer must explicitly NOT reproduce these (verbatim or
+   * paraphrased) — they were already flagged by the factChecker as unsourced.
+   * This closes the feedback loop so retries don't repeat the same mistakes. */
+  previous_fabricated_claims?: string[];
 }
 
 export interface WriterDeps {
@@ -62,6 +67,7 @@ export async function runWriter(input: WriterInput, deps: WriterDeps): Promise<W
               key_facts: input.key_facts,
               originality_anchor: input.originality_anchor,
               custom_instructions: input.custom_instructions,
+              previous_fabricated_claims: input.previous_fabricated_claims,
             },
             null,
             2
@@ -73,10 +79,11 @@ export async function runWriter(input: WriterInput, deps: WriterDeps): Promise<W
               key_facts: input.key_facts,
               originality_anchor: input.originality_anchor,
               custom_instructions: input.custom_instructions,
+              previous_fabricated_claims: input.previous_fabricated_claims,
               previous_draft: last?.draft_html,
               previous_critique: last?.self_critique,
               instruction:
-                "Verbeter de vorige draft op basis van de critique. Behoud structuur, fix de issues. Gebruik alleen statistieken uit key_facts. Behoud de originality_anchor-citatie of voeg toe als die ontbreekt. Volg custom_instructions strikt als die meegegeven zijn.",
+                "Verbeter de vorige draft op basis van de critique. Behoud structuur, fix de issues. Gebruik alleen statistieken uit key_facts. Behoud de originality_anchor-citatie of voeg toe als die ontbreekt. Volg custom_instructions strikt als die meegegeven zijn. Vermijd previous_fabricated_claims volledig.",
             },
             null,
             2
