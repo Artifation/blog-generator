@@ -33,6 +33,7 @@ export default async function TopicsPage() {
           priority: t.priority,
           rejectReason: t.rejectReason,
           publishedUrl: t.publishedUrl,
+          customInstructions: t.customInstructions,
         }))}
       />
     </AdminShell>

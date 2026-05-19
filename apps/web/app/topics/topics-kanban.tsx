@@ -4,8 +4,8 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Sparkles, Trash2, X, RefreshCw, ExternalLink, Wand2, Check } from "lucide-react";
-import { createTopicAction, deleteTopicAction } from "~/lib/actions/topics";
+import { Plus, Sparkles, Trash2, X, RefreshCw, ExternalLink, Wand2, Check, Pencil } from "lucide-react";
+import { createTopicAction, deleteTopicAction, updateTopicAction } from "~/lib/actions/topics";
 import { generateForTopicAction } from "~/lib/actions/generate";
 import { suggestTopicsAction, acceptTopicProposalsAction, type TopicProposalView } from "~/lib/actions/suggest-topics";
 import { RequiredBadge, OptionalBadge, FieldHelp } from "~/components/ui/form-help";
@@ -41,6 +41,7 @@ interface TopicRow {
   priority: number;
   rejectReason: string | null;
   publishedUrl: string | null;
+  customInstructions: string | null;
 }
 
 const COLUMNS: Array<{ status: string; label: string; tone: string }> = [
@@ -61,6 +62,7 @@ export function TopicsKanban({
 }) {
   const router = useRouter();
   const [adding, setAdding] = React.useState(false);
+  const [editing, setEditing] = React.useState<TopicRow | null>(null);
   const [generating, setGenerating] = React.useState<string | null>(null);
   const [suggestions, setSuggestions] = React.useState<TopicProposalView[] | null>(null);
   const [suggesting, setSuggesting] = React.useState(false);
@@ -225,6 +227,16 @@ export function TopicsKanban({
                           <button
                             type="button"
                             className="icon-btn"
+                            onClick={() => setEditing(t)}
+                            disabled={generating !== null}
+                            aria-label="Bewerk topic"
+                            title="Bewerk topic (titel, keyword, custom instructies, status)"
+                          >
+                            <Pencil size={13} />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-btn"
                             onClick={() => remove(t)}
                             disabled={generating !== null}
                             aria-label="Verwijder"
@@ -249,6 +261,18 @@ export function TopicsKanban({
           onClose={() => setAdding(false)}
           onCreated={() => {
             setAdding(false);
+            router.refresh();
+          }}
+        />
+      )}
+
+      {editing && (
+        <EditTopicModal
+          topic={editing}
+          pillars={pillars}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
             router.refresh();
           }}
         />
@@ -577,6 +601,215 @@ function AddTopicModal({
           </button>
           <button type="button" className="btn btn-primary" onClick={submit} disabled={saving}>
             {saving ? "Toevoegen..." : "Topic toevoegen"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function EditTopicModal({
+  topic,
+  pillars,
+  onClose,
+  onSaved,
+}: {
+  topic: TopicRow;
+  pillars: Pillar[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [title, setTitle] = React.useState(topic.title);
+  const [keyword, setKeyword] = React.useState(topic.targetKeyword);
+  const [pillarSlug, setPillarSlug] = React.useState(topic.pillarSlug);
+  const [intent, setIntent] = React.useState<"informational" | "commercial" | "transactional">(
+    topic.intent
+  );
+  const [wordCount, setWordCount] = React.useState(topic.intendedWordCount);
+  const [priority, setPriority] = React.useState(topic.priority);
+  const [customInstructions, setCustomInstructions] = React.useState(topic.customInstructions ?? "");
+  const [resetStatus, setResetStatus] = React.useState(topic.status === "rejected");
+  const [saving, setSaving] = React.useState(false);
+
+  async function submit() {
+    if (!title.trim() || !keyword.trim()) {
+      toast.error("Titel en target keyword zijn verplicht");
+      return;
+    }
+    setSaving(true);
+    const r = await updateTopicAction(topic.id, {
+      title: title.trim(),
+      targetKeyword: keyword.trim(),
+      pillarSlug,
+      intent,
+      intendedWordCount: wordCount,
+      priority,
+      customInstructions: customInstructions.trim() || null,
+      // Only set status when resetting — otherwise leave whatever it currently is.
+      ...(resetStatus && topic.status === "rejected"
+        ? { status: "queued" as const, rejectReason: null }
+        : {}),
+    });
+    setSaving(false);
+    if (r.ok) {
+      toast.success(
+        resetStatus && topic.status === "rejected"
+          ? "Topic bijgewerkt + status terug naar queued"
+          : "Topic bijgewerkt"
+      );
+      onSaved();
+    } else {
+      toast.error(r.error);
+    }
+  }
+
+  return (
+    <div
+      className="modal-backdrop"
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(11,27,59,0.4)", backdropFilter: "blur(2px)", display: "grid", placeItems: "center", zIndex: 50 }}
+    >
+      <div
+        className="card"
+        onClick={(e) => e.stopPropagation()}
+        style={{ width: "min(92vw, 520px)", maxHeight: "88vh", overflow: "hidden", boxShadow: "var(--shadow-lg)" }}
+      >
+        <div className="card-header">
+          <h3>Topic bewerken</h3>
+          <button type="button" className="icon-btn card-action" onClick={onClose} aria-label="Sluit">
+            <X size={16} />
+          </button>
+        </div>
+        <div className="card-body col" style={{ gap: 12, overflowY: "auto" }}>
+          <div className="field">
+            <label>
+              <span>Werktitel</span>
+              <RequiredBadge />
+            </label>
+            <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </div>
+          <div className="field">
+            <label>
+              <span>Target keyword</span>
+              <RequiredBadge />
+            </label>
+            <input className="input" value={keyword} onChange={(e) => setKeyword(e.target.value)} />
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
+            <div className="field">
+              <label>
+                <span>Pillar</span>
+                <RequiredBadge />
+              </label>
+              <select className="select" value={pillarSlug} onChange={(e) => setPillarSlug(e.target.value)}>
+                {pillars.map((p) => (
+                  <option key={p.slug} value={p.slug}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div className="field">
+              <label>
+                <span>Intent</span>
+                <RequiredBadge />
+              </label>
+              <select className="select" value={intent} onChange={(e) => setIntent(e.target.value as typeof intent)}>
+                <option value="informational">Informational</option>
+                <option value="commercial">Commercial</option>
+                <option value="transactional">Transactional</option>
+              </select>
+            </div>
+            <div className="field">
+              <label>
+                <span>Woorden</span>
+                <OptionalBadge />
+              </label>
+              <input
+                className="input"
+                type="number"
+                min={500}
+                max={5000}
+                step={100}
+                value={wordCount}
+                onChange={(e) => setWordCount(Number(e.target.value) || 1500)}
+              />
+            </div>
+          </div>
+          <div className="field">
+            <label>
+              <span>Prioriteit</span>
+              <OptionalBadge />
+            </label>
+            <input
+              className="input"
+              type="number"
+              value={priority}
+              onChange={(e) => setPriority(Number(e.target.value) || 0)}
+            />
+          </div>
+          <div className="field">
+            <label>
+              <span>Custom instructies</span>
+              <OptionalBadge />
+            </label>
+            <textarea
+              className="textarea"
+              rows={4}
+              value={customInstructions}
+              onChange={(e) => setCustomInstructions(e.target.value)}
+              placeholder="Bijv: GEEN specifieke percentages of bedragen; schrijf kwalitatief ('een groeiend aantal'). Of: focus op compliance, noem product X."
+            />
+            <FieldHelp>
+              Voor rejected topics met fact_check fails: voeg hier "GEEN specifieke
+              percentages of bedragen, schrijf kwalitatief" toe om verzonnen
+              statistieken te voorkomen op een volgende run.
+            </FieldHelp>
+          </div>
+
+          {topic.status === "rejected" && (
+            <div
+              style={{
+                padding: 10,
+                background: "rgba(59,130,246,0.06)",
+                border: "1px solid rgba(59,130,246,0.25)",
+                borderRadius: 6,
+              }}
+            >
+              <label className="row" style={{ gap: 8, alignItems: "center", cursor: "pointer", fontSize: 13 }}>
+                <input
+                  type="checkbox"
+                  checked={resetStatus}
+                  onChange={(e) => setResetStatus(e.target.checked)}
+                />
+                <span>
+                  <strong>Reset naar queued</strong> — topic gaat terug in de wachtrij
+                  en kan opnieuw worden gegenereerd
+                </span>
+              </label>
+              {topic.rejectReason && (
+                <div className="muted" style={{ fontSize: 11, marginTop: 6, marginLeft: 24 }}>
+                  Reden vorige rejection: {topic.rejectReason}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <div
+          style={{
+            padding: "14px 20px",
+            borderTop: "1px solid var(--border)",
+            display: "flex",
+            gap: 8,
+            justifyContent: "flex-end",
+            background: "var(--surface-2)",
+          }}
+        >
+          <button type="button" className="btn btn-ghost" onClick={onClose}>
+            Annuleer
+          </button>
+          <button type="button" className="btn btn-primary" onClick={submit} disabled={saving}>
+            {saving ? "Opslaan..." : "Opslaan"}
           </button>
         </div>
       </div>
