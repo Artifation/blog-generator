@@ -262,6 +262,33 @@ export async function runForSite(
     const cost = computeRunCost(usage);
 
     if (judge.parsed.verdict === "NO-GO" || judge.parsed.weighted_total < site.qualityThreshold) {
+      // Save the rejected draft so the user can inspect what was generated
+      // and decide whether to manually rewrite, regenerate with different
+      // custom_instructions, or accept that the topic needs a different angle.
+      // We pack the fact-checker's fabricated_claims into hardFails so they
+      // surface as red badges on the Drafts page — that's the most actionable
+      // info ("here are the made-up numbers, fix or remove them").
+      const rejectHardFails = [
+        ...judge.parsed.hard_fails,
+        ...fc.parsed.fabricated_claims.map((c) => `fabricated claim: ${c}`),
+      ];
+      const rejectedDraft = await createDraft({
+        siteId: site.id,
+        topicId: topic.id,
+        runId: run.id,
+        status: "rejected",
+        title: outline.parsed.outline.h1_suggestion,
+        slug: seo.parsed.slug,
+        contentHtml: seo.parsed.edited_html,
+        metaTitle: seo.parsed.meta_title,
+        metaDescription: seo.parsed.meta_description,
+        tldr: outline.parsed.outline.tldr_one_liner,
+        rubricScores: judge.parsed.scores,
+        weightedTotal: judge.parsed.weighted_total,
+        hardFails: rejectHardFails,
+        costUsd: cost.totalUsd,
+      });
+
       await updateTopic(topic.id, {
         status: "rejected",
         rejectReason: judge.parsed.hard_fails.join("; ") || `score < threshold (${judge.parsed.weighted_total.toFixed(1)} < ${site.qualityThreshold})`,
@@ -276,7 +303,7 @@ export async function runForSite(
       });
       return {
         runId: finalRun.id,
-        draftId: null,
+        draftId: rejectedDraft.id,
         verdict: "rejected",
         weightedTotal: judge.parsed.weighted_total,
         hardFails: judge.parsed.hard_fails,

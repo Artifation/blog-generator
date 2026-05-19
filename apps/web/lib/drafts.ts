@@ -35,6 +35,9 @@ export interface CreateDraftInput {
   weightedTotal?: number | null;
   hardFails?: string[];
   costUsd?: number | null;
+  /** Defaults to "pending_review". Pipeline reject path uses "rejected" so
+   * the draft surfaces in the Recent section instead of being thrown away. */
+  status?: Draft["status"];
 }
 
 export async function createDraft(input: CreateDraftInput): Promise<Draft> {
@@ -58,6 +61,7 @@ export async function createDraft(input: CreateDraftInput): Promise<Draft> {
     weightedTotal: input.weightedTotal ?? null,
     hardFails: input.hardFails ?? [],
     costUsd: input.costUsd ?? null,
+    status: input.status ?? "pending_review",
   });
   return (await getDraft(id))!;
 }
