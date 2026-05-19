@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { stripDeadLinks, extractExternalHrefs } from "@/pipeline/stripDeadLinks";
+import { stripDeadLinks, extractExternalHrefs, filterDefinitivelyDead } from "@/pipeline/stripDeadLinks";
 
 describe("extractExternalHrefs", () => {
   it("extracts http(s) hrefs from anchor tags", () => {
@@ -68,5 +68,63 @@ describe("stripDeadLinks", () => {
   it("returns empty deadSet input unchanged", () => {
     const html = "<a href='https://x.nl/a'>x</a>";
     expect(stripDeadLinks(html, new Set())).toBe(html);
+  });
+});
+
+describe("filterDefinitivelyDead", () => {
+  it("keeps status:404 and status:410", () => {
+    const dead = [
+      { url: "https://a", reason: "status:404" },
+      { url: "https://b", reason: "status:410" },
+    ];
+    expect(filterDefinitivelyDead(dead).map((d) => d.url)).toEqual([
+      "https://a",
+      "https://b",
+    ]);
+  });
+
+  it("keeps status:soft404", () => {
+    const dead = [{ url: "https://wk.com/page", reason: "status:soft404" }];
+    expect(filterDefinitivelyDead(dead)).toHaveLength(1);
+  });
+
+  it("filters out WAF-blocked codes (403, 429)", () => {
+    const dead = [
+      { url: "https://rvo.nl/x", reason: "status:403" },
+      { url: "https://ap.nl/y", reason: "status:429" },
+    ];
+    expect(filterDefinitivelyDead(dead)).toEqual([]);
+  });
+
+  it("filters out 5xx (transient server errors)", () => {
+    const dead = [
+      { url: "https://x", reason: "status:500" },
+      { url: "https://y", reason: "status:503" },
+    ];
+    expect(filterDefinitivelyDead(dead)).toEqual([]);
+  });
+
+  it("filters out timeouts and network errors", () => {
+    const dead = [
+      { url: "https://slow", reason: "timeout" },
+      { url: "https://offline", reason: "network:ECONNREFUSED" },
+    ];
+    expect(filterDefinitivelyDead(dead)).toEqual([]);
+  });
+
+  it("preserves only the definitively-dead from a mixed batch", () => {
+    const dead = [
+      { url: "https://real-404", reason: "status:404" },
+      { url: "https://soft", reason: "status:soft404" },
+      { url: "https://waf-block", reason: "status:403" },
+      { url: "https://slow", reason: "timeout" },
+      { url: "https://gone", reason: "status:410" },
+    ];
+    const result = filterDefinitivelyDead(dead);
+    expect(result.map((d) => d.url).sort()).toEqual([
+      "https://gone",
+      "https://real-404",
+      "https://soft",
+    ]);
   });
 });
