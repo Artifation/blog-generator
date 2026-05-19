@@ -133,4 +133,49 @@ describe("runAuditor", () => {
     const parsed = AuditorOutputSchema.safeParse(bad);
     expect(parsed.success).toBe(false);
   });
+
+  it("accepts serp_gaps + serp_positioning when provided", () => {
+    const withSerp = {
+      ...VALID_RESPONSE,
+      serp_gaps: [
+        {
+          topic: "Concrete kosten per maand",
+          covered_by: ["frankwatching.com", "computable.nl"],
+          rationale: "Twee van de top-3 noemen specifieke prijsranges; jouw post blijft abstract.",
+        },
+      ],
+      serp_positioning: "Top-10 is definitie-zwaar; jij kan winnen met hands-on stappenplan voor MKB.",
+    };
+    const parsed = AuditorOutputSchema.safeParse(withSerp);
+    expect(parsed.success).toBe(true);
+  });
+
+  it("rejects a serp_gap without covered_by", () => {
+    const bad = {
+      ...VALID_RESPONSE,
+      serp_gaps: [
+        { topic: "X", covered_by: [], rationale: "iets uit de SERP top-10 reden hier" },
+      ],
+    };
+    const parsed = AuditorOutputSchema.safeParse(bad);
+    expect(parsed.success).toBe(false);
+  });
+
+  it("sends serp_results in the prompt when provided", async () => {
+    const p = provider(VALID_RESPONSE);
+    await runAuditor(
+      {
+        ...INPUT,
+        serp_results: [
+          { rank: 1, url: "https://frankwatching.com/x", domain: "frankwatching.com", title: "AI voor MKB: alles wat je moet weten", description: "Hoe AI MKB-bedrijven helpt..." },
+        ],
+      },
+      { provider: p }
+    );
+    const userPrompt = (
+      (p.call as ReturnType<typeof vi.fn>).mock.calls[0]![0] as { userPrompt: string }
+    ).userPrompt;
+    expect(userPrompt).toContain("frankwatching.com");
+    expect(userPrompt).toContain("AI voor MKB");
+  });
 });

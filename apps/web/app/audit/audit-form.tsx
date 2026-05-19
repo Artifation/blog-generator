@@ -9,12 +9,15 @@ import {
   Lightbulb,
   RefreshCw,
   Copy,
+  Wand2,
   CheckCircle2,
   Target,
   Clock,
   Type as TypeIcon,
   ListChecks,
   FileText,
+  Globe,
+  ExternalLink,
 } from "lucide-react";
 import { auditBlogAction, type AuditResultView } from "~/lib/actions/audit";
 
@@ -47,6 +50,48 @@ export function AuditForm({ brandVoice, banList }: AuditFormProps) {
       return;
     }
     setResult(res.result);
+  }
+
+  /**
+   * Replace the first occurrence of `quote` in the content with `rewrite`.
+   * Tries an exact match first; falls back to a whitespace-tolerant match so
+   * the apply still works if the AI's quote has slightly different spacing.
+   */
+  function applyRewrite(quote: string, rewrite: string) {
+    if (!quote || !rewrite) return;
+    if (content.includes(quote)) {
+      setContent(content.replace(quote, rewrite));
+      toast.success("Herschrijving toegepast in de tekst");
+      return;
+    }
+    const norm = (s: string) => s.replace(/\s+/g, " ");
+    const target = norm(quote);
+    const haystack = norm(content);
+    const idx = haystack.indexOf(target);
+    if (idx === -1) {
+      toast.error("Quote niet meer letterlijk gevonden — tekst handmatig aanpassen.");
+      return;
+    }
+    let normCursor = 0;
+    let origStart = -1;
+    let origEnd = -1;
+    for (let i = 0; i < content.length; i++) {
+      const c = content[i]!;
+      if (origStart === -1 && normCursor === idx) origStart = i;
+      const isWs = /\s/.test(c);
+      const prev = content[i - 1];
+      if (!isWs || (prev && !/\s/.test(prev))) normCursor++;
+      if (origStart !== -1 && normCursor === idx + target.length) {
+        origEnd = i;
+        break;
+      }
+    }
+    if (origStart === -1 || origEnd === -1) {
+      toast.error("Kon de positie van de quote niet bepalen.");
+      return;
+    }
+    setContent(content.slice(0, origStart) + rewrite + content.slice(origEnd));
+    toast.success("Herschrijving toegepast (whitespace-tolerant)");
   }
 
   return (
@@ -129,6 +174,7 @@ export function AuditForm({ brandVoice, banList }: AuditFormProps) {
             content={content}
             banList={banList}
             brandVoice={brandVoice}
+            onApplyRewrite={applyRewrite}
           />
         )}
       </div>
@@ -164,11 +210,13 @@ function AuditResultPanel({
   content,
   banList,
   brandVoice: _brandVoice,
+  onApplyRewrite,
 }: {
   result: AuditResultView;
   content: string;
   banList: string[];
   brandVoice: string;
+  onApplyRewrite: (quote: string, rewrite: string) => void;
 }) {
   const [tab, setTab] = React.useState<Tab>("overview");
 
@@ -198,7 +246,7 @@ function AuditResultPanel({
           {tab === "overview" && (
             <OverviewTab result={result} content={content} banList={banList} />
           )}
-          {tab === "issues" && <IssuesTab result={result} />}
+          {tab === "issues" && <IssuesTab result={result} onApplyRewrite={onApplyRewrite} />}
           {tab === "rewrite" && <RewriteTab improved={result.improvedVersion} />}
         </div>
       </div>
@@ -421,6 +469,14 @@ function OverviewTab({
         </div>
       )}
 
+      {(result.serpGaps.length > 0 || result.serpPositioning || result.serpResults.length > 0) && (
+        <SerpPanel
+          gaps={result.serpGaps}
+          positioning={result.serpPositioning}
+          results={result.serpResults}
+        />
+      )}
+
       <SignalsPanel result={result} />
 
       <div>
@@ -434,6 +490,122 @@ function OverviewTab({
         </div>
         <HighlightedContent content={content} banList={banList} issues={result.issues} />
       </div>
+    </div>
+  );
+}
+
+function SerpPanel({
+  gaps,
+  positioning,
+  results,
+}: {
+  gaps: AuditResultView["serpGaps"];
+  positioning: string | null;
+  results: AuditResultView["serpResults"];
+}) {
+  return (
+    <div
+      style={{
+        padding: 14,
+        background: "linear-gradient(135deg, rgba(16,185,129,0.06), rgba(59,130,246,0.05))",
+        border: "1px solid rgba(16,185,129,0.22)",
+        borderRadius: 8,
+      }}
+    >
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+        <Globe size={16} style={{ color: "var(--success, #047857)" }} />
+        <span style={{ fontWeight: 600, fontSize: 14 }}>SERP-analyse</span>
+        <span className="muted" style={{ fontSize: 11 }}>
+          Top-10 Google-resultaten via DataForSEO
+        </span>
+      </div>
+
+      {positioning && (
+        <div
+          style={{
+            fontSize: 13,
+            padding: 10,
+            marginBottom: 10,
+            background: "rgba(16,185,129,0.08)",
+            borderLeft: "3px solid var(--success, #047857)",
+            borderRadius: 4,
+            lineHeight: 1.5,
+          }}
+        >
+          <strong>Positionering:</strong> {positioning}
+        </div>
+      )}
+
+      {gaps.length > 0 && (
+        <div style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 6 }}>
+            Content-gaps ({gaps.length}) — onderwerpen die de top-10 dekt, jouw post niet
+          </div>
+          <div className="col" style={{ gap: 6 }}>
+            {gaps.map((g, i) => (
+              <div
+                key={i}
+                style={{
+                  padding: 8,
+                  background: "var(--surface)",
+                  border: "1px solid var(--border)",
+                  borderRadius: 6,
+                  fontSize: 12,
+                }}
+              >
+                <div style={{ fontWeight: 600, marginBottom: 2 }}>🎯 {g.topic}</div>
+                <div className="muted" style={{ marginBottom: 4 }}>{g.rationale}</div>
+                <div style={{ fontSize: 10 }}>
+                  <span className="muted">Gedekt door: </span>
+                  {g.covered_by.map((d, j) => (
+                    <span
+                      key={j}
+                      style={{
+                        display: "inline-block",
+                        padding: "1px 6px",
+                        marginRight: 4,
+                        marginTop: 2,
+                        background: "var(--surface-2)",
+                        border: "1px solid var(--border)",
+                        borderRadius: 999,
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      {d}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {results.length > 0 && (
+        <details>
+          <summary style={{ cursor: "pointer", fontSize: 12, fontWeight: 600 }}>
+            Toon top-10 SERP-resultaten ({results.length})
+          </summary>
+          <ol style={{ paddingLeft: 20, margin: "6px 0 0 0", fontSize: 12, lineHeight: 1.5 }}>
+            {results.map((r, i) => (
+              <li key={i} style={{ marginBottom: 4 }}>
+                <a
+                  href={r.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={{ color: "var(--secondary, #3b82f6)", textDecoration: "none" }}
+                >
+                  {r.title} <ExternalLink size={10} style={{ verticalAlign: "middle" }} />
+                </a>
+                <div className="muted mono" style={{ fontSize: 10 }}>{r.domain}</div>
+                {r.description && (
+                  <div className="muted" style={{ fontSize: 11, marginTop: 2 }}>{r.description}</div>
+                )}
+              </li>
+            ))}
+          </ol>
+        </details>
+      )}
     </div>
   );
 }
@@ -574,7 +746,13 @@ function Stat({
 // Issues tab — filter chips + sortable list
 // ---------------------------------------------------------------------------
 
-function IssuesTab({ result }: { result: AuditResultView }) {
+function IssuesTab({
+  result,
+  onApplyRewrite,
+}: {
+  result: AuditResultView;
+  onApplyRewrite: (quote: string, rewrite: string) => void;
+}) {
   const [severityFilter, setSeverityFilter] = React.useState<Set<Severity>>(
     new Set(["error", "warning", "suggestion"])
   );
@@ -663,7 +841,9 @@ function IssuesTab({ result }: { result: AuditResultView }) {
           Geen issues in dit filter.
         </div>
       ) : (
-        visible.map((issue, i) => <IssueRow key={i} issue={issue} />)
+        visible.map((issue, i) => (
+          <IssueRow key={i} issue={issue} onApplyRewrite={onApplyRewrite} />
+        ))
       )}
     </div>
   );
@@ -700,10 +880,17 @@ function FilterChip({
   );
 }
 
-function IssueRow({ issue }: { issue: AuditResultView["issues"][0] }) {
+function IssueRow({
+  issue,
+  onApplyRewrite,
+}: {
+  issue: AuditResultView["issues"][0];
+  onApplyRewrite: (quote: string, rewrite: string) => void;
+}) {
   const sev = issue.severity;
   const Icon = sev === "error" ? AlertCircle : sev === "warning" ? AlertTriangle : Lightbulb;
   const color = sev === "error" ? "var(--danger, #b91c1c)" : sev === "warning" ? "var(--warning, #b45309)" : "var(--info, #2563eb)";
+  const canApply = !!issue.quote && !!issue.suggested_rewrite;
 
   return (
     <div
@@ -770,23 +957,47 @@ function IssueRow({ issue }: { issue: AuditResultView["issues"][0] }) {
           <div style={{ marginTop: 6 }}>
             <div className="row" style={{ justifyContent: "space-between", alignItems: "center", marginBottom: 2 }}>
               <div className="muted" style={{ fontSize: 11 }}>Voorgestelde herschrijving:</div>
-              <button
-                type="button"
-                onClick={() => copyToClipboard(issue.suggested_rewrite!, "Herschrijving")}
-                style={{
-                  fontSize: 11,
-                  padding: "2px 8px",
-                  border: "1px solid var(--border)",
-                  borderRadius: 4,
-                  background: "var(--surface)",
-                  cursor: "pointer",
-                  display: "flex",
-                  gap: 4,
-                  alignItems: "center",
-                }}
-              >
-                <Copy size={11} /> Kopieer
-              </button>
+              <div className="row" style={{ gap: 4 }}>
+                {canApply && (
+                  <button
+                    type="button"
+                    onClick={() => onApplyRewrite(issue.quote!, issue.suggested_rewrite!)}
+                    title="Vervang de quote in je tekst-input door deze herschrijving"
+                    style={{
+                      fontSize: 11,
+                      padding: "2px 8px",
+                      border: "1px solid var(--secondary, #3b82f6)",
+                      borderRadius: 4,
+                      background: "rgba(59, 130, 246, 0.08)",
+                      color: "var(--secondary, #3b82f6)",
+                      cursor: "pointer",
+                      display: "flex",
+                      gap: 4,
+                      alignItems: "center",
+                      fontWeight: 500,
+                    }}
+                  >
+                    <Wand2 size={11} /> Toepassen
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(issue.suggested_rewrite!, "Herschrijving")}
+                  style={{
+                    fontSize: 11,
+                    padding: "2px 8px",
+                    border: "1px solid var(--border)",
+                    borderRadius: 4,
+                    background: "var(--surface)",
+                    cursor: "pointer",
+                    display: "flex",
+                    gap: 4,
+                    alignItems: "center",
+                  }}
+                >
+                  <Copy size={11} /> Kopieer
+                </button>
+              </div>
             </div>
             <div
               style={{

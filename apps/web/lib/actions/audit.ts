@@ -2,7 +2,7 @@
 
 import { requireSite } from "~/lib/auth";
 import { createProviderRegistry } from "@/llm/client";
-import { runAuditor, type AuditorOutput } from "@/agents/auditor";
+import { runAuditor, type AuditorOutput, type SerpResultForAuditor } from "@/agents/auditor";
 import { computeDeterministicRubricSignals } from "@/pipeline/rubric";
 import {
   analyzeHeadings,
@@ -11,6 +11,7 @@ import {
   estimateReadingTimeMinutes,
   countQuestions,
 } from "@/pipeline/auditSignals";
+import { fetchSerpResults } from "@/integrations/dataForSeoSerp";
 
 export interface AuditResultView {
   scores: AuditorOutput["scores"];
@@ -19,6 +20,9 @@ export interface AuditResultView {
   summary: string;
   fixFirst: string[];
   improvedVersion: string | null;
+  serpGaps: NonNullable<AuditorOutput["serp_gaps"]>;
+  serpPositioning: string | null;
+  serpResults: SerpResultForAuditor[];
   deterministic: {
     wordCount: number;
     banlistHits: number;
@@ -89,8 +93,34 @@ export async function auditBlogAction(input: {
   const readingTime = estimateReadingTimeMinutes(det.word_count);
   const questionCount = countQuestions(html);
 
+  // Optional SERP enrichment when the site has DataForSEO configured. Lets
+  // the auditor do real competitive-gap analysis instead of just rubric
+  // checks. Fails silently — the audit still works without SERP.
+  let serpResults: SerpResultForAuditor[] = [];
+  const dfsLogin = site.apiKeys?.dataForSeoLogin?.trim();
+  const dfsPassword = site.apiKeys?.dataForSeoPassword?.trim();
+  if (dfsLogin && dfsPassword) {
+    try {
+      const langCode = site.apiKeys?.dataForSeoLanguageCode?.trim() || "nl";
+      const locCode = Number(site.apiKeys?.dataForSeoLocationCode || "2528") || 2528;
+      const serp = await fetchSerpResults(
+        { login: dfsLogin, password: dfsPassword },
+        { keyword: input.targetKeyword, locationCode: locCode, languageCode: langCode }
+      );
+      serpResults = serp.results.map((r) => ({
+        rank: r.rank,
+        url: r.url,
+        domain: r.domain,
+        title: r.title,
+        description: r.description,
+      }));
+    } catch {
+      // best-effort; continue without SERP
+    }
+  }
+
   // LLM audit for the qualitative bits (brand voice, originality, structure
-  // critique with quoted spans).
+  // critique with quoted spans, and SERP-aware gap analysis when available).
   let agent: AuditorOutput;
   try {
     const res = await runAuditor(
@@ -99,6 +129,7 @@ export async function auditBlogAction(input: {
         target_keyword: input.targetKeyword,
         brand_voice: site.brandVoice,
         ban_list: site.banList,
+        serp_results: serpResults.length > 0 ? serpResults : undefined,
       },
       { provider: providers.get(site.apiKeys?.gemini ? "gemini" : "anthropic") }
     );
@@ -116,6 +147,9 @@ export async function auditBlogAction(input: {
       summary: agent.summary,
       fixFirst: agent.fix_first ?? [],
       improvedVersion: agent.improved_version ?? null,
+      serpGaps: agent.serp_gaps ?? [],
+      serpPositioning: agent.serp_positioning ?? null,
+      serpResults,
       deterministic: {
         wordCount: det.word_count,
         banlistHits: det.banlist_hits,
