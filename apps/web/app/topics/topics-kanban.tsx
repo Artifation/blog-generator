@@ -8,6 +8,7 @@ import { Plus, Sparkles, Trash2, X, RefreshCw, ExternalLink, Wand2, Check } from
 import { createTopicAction, deleteTopicAction } from "~/lib/actions/topics";
 import { generateForTopicAction } from "~/lib/actions/generate";
 import { suggestTopicsAction, acceptTopicProposalsAction, type TopicProposalView } from "~/lib/actions/suggest-topics";
+import { RequiredBadge, OptionalBadge, FieldHelp } from "~/components/ui/form-help";
 
 type Pillar = { slug: string; name: string };
 
@@ -318,7 +319,10 @@ function SuggestPromptDialog({
         </div>
         <div className="card-body col" style={{ gap: 12 }}>
           <div className="field">
-            <label>Specifieke instructie (optioneel)</label>
+            <label>
+              <span>Specifieke instructie</span>
+              <OptionalBadge />
+            </label>
             <textarea
               className="textarea"
               rows={5}
@@ -327,9 +331,11 @@ function SuggestPromptDialog({
               placeholder="Bijv: bedenk 5 topics rond AI-implementatie voor advocatenkantoren, focus Q3 — of: vergelijkingen tussen ChatGPT en Claude voor specifieke MKB-use-cases — of: leg uit met casussen, geen generieke 'wat is X'."
               autoFocus
             />
-            <div className="hint" style={{ fontSize: 11 }}>
-              De AI volgt deze strikt boven op je brand voice en pillars.
-            </div>
+            <FieldHelp>
+              Vrij tekstveld. De AI volgt dit strikt bovenop je brand voice + pillars
+              + (optioneel) DataForSEO data. Laat leeg → klik "Brede voorstellen" voor
+              de standaardgenerator.
+            </FieldHelp>
           </div>
         </div>
         <div
@@ -431,26 +437,44 @@ function AddTopicModal({
         </div>
         <div className="card-body col" style={{ gap: 12 }}>
           <div className="field">
-            <label>Werktitel</label>
+            <label>
+              <span>Werktitel</span>
+              <RequiredBadge />
+            </label>
             <input
               className="input"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="De complete gids voor..."
+              placeholder="De complete gids voor AI in MKB"
             />
+            <FieldHelp>
+              Werktitel — de strategist mag deze herschrijven naar een sterker
+              H1-voorstel. Houd 'm beschrijvend (niet clickbait).
+            </FieldHelp>
           </div>
           <div className="field">
-            <label>Target keyword</label>
+            <label>
+              <span>Target keyword</span>
+              <RequiredBadge />
+            </label>
             <input
               className="input"
               value={keyword}
               onChange={(e) => setKeyword(e.target.value)}
-              placeholder="long-tail keyword"
+              placeholder="ai voor mkb"
             />
+            <FieldHelp>
+              Focus keyword — de hoofdterm waar deze blog op moet ranken. Long-tail
+              werkt vaak beter dan brede termen (bv. "ai-implementatie advocatenkantoor"
+              ipv "ai").
+            </FieldHelp>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12 }}>
             <div className="field">
-              <label>Pillar</label>
+              <label>
+                <span>Pillar</span>
+                <RequiredBadge />
+              </label>
               <select
                 className="select"
                 value={pillarSlug}
@@ -462,9 +486,13 @@ function AddTopicModal({
                   </option>
                 ))}
               </select>
+              <FieldHelp>Onder welk content-thema valt dit topic.</FieldHelp>
             </div>
             <div className="field">
-              <label>Intent</label>
+              <label>
+                <span>Intent</span>
+                <RequiredBadge />
+              </label>
               <select
                 className="select"
                 value={intent}
@@ -474,9 +502,16 @@ function AddTopicModal({
                 <option value="commercial">Commercial</option>
                 <option value="transactional">Transactional</option>
               </select>
+              <FieldHelp>
+                Informational = uitleg/gids. Commercial = vergelijking/keuze.
+                Transactional = direct kopen/aanmelden.
+              </FieldHelp>
             </div>
             <div className="field">
-              <label>Woorden</label>
+              <label>
+                <span>Woorden</span>
+                <OptionalBadge />
+              </label>
               <input
                 className="input"
                 type="number"
@@ -486,19 +521,33 @@ function AddTopicModal({
                 value={wordCount}
                 onChange={(e) => setWordCount(Number(e.target.value) || 1500)}
               />
+              <FieldHelp>
+                Doel-lengte. Default 1500. Informational mag 2000-2500;
+                commercial/transactional 750-1000.
+              </FieldHelp>
             </div>
           </div>
           <div className="field">
-            <label>Prioriteit</label>
+            <label>
+              <span>Prioriteit</span>
+              <OptionalBadge />
+            </label>
             <input
               className="input"
               type="number"
               value={priority}
               onChange={(e) => setPriority(Number(e.target.value) || 0)}
             />
+            <FieldHelp>
+              Hogere getallen worden eerder gepakt door de pipeline. Default 0
+              (FIFO). Gebruik 5-10 voor urgente topics.
+            </FieldHelp>
           </div>
           <div className="field">
-            <label>Custom instructies (optioneel)</label>
+            <label>
+              <span>Custom instructies</span>
+              <OptionalBadge />
+            </label>
             <textarea
               className="textarea"
               rows={4}
@@ -506,10 +555,11 @@ function AddTopicModal({
               onChange={(e) => setCustomInstructions(e.target.value)}
               placeholder="Bijv: focus op compliance-aspect, noem ons product X, gebruik casus van klant Y, doelgroep advocatenkantoren..."
             />
-            <div className="hint" style={{ fontSize: 11 }}>
-              Vrij tekstveld dat de strategist + writer meekrijgen. Gebruik voor brand-specifieke
-              of klant-specifieke vragen die niet uit titel/keyword volgen.
-            </div>
+            <FieldHelp>
+              Vrij tekstveld dat de strategist + writer meekrijgen. Gebruik voor
+              brand- of klant-specifieke vragen die niet uit titel/keyword volgen
+              (focus, casussen, te vermijden onderwerpen, specifieke doelgroep).
+            </FieldHelp>
           </div>
         </div>
         <div

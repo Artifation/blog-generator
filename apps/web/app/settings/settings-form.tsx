@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Save, AlertCircle } from "lucide-react";
 import { updateSiteAction, deleteSiteAction } from "~/lib/actions/sites";
 import { slugify } from "~/lib/utils";
+import { RequiredBadge, OptionalBadge, FieldHelp, SectionIntro } from "~/components/ui/form-help";
 
 type Pillar = { slug?: string; name: string; weight: number };
 
@@ -100,20 +101,41 @@ export function SettingsForm({
       </div>
 
       <div className="col gap-lg" style={{ paddingBottom: 80 }}>
-        <Section title="Basis" description="Naam, slug, domein en taal.">
+        <Section title="Basis" description="Naam, slug, domein en taal van deze site.">
+          <SectionIntro>
+            Deze waardes worden gebruikt op de gepubliceerde blog (titel, URL-structuur)
+            en sturen alle agents (taal-detectie, brand voice). Wijzig de slug alleen
+            als de site nog niet live is — bestaande URL's wijzigen niet retroactief.
+          </SectionIntro>
           <div className="row" style={{ gap: 12 }}>
-            <Field label="Naam">
-              <input className="input" value={state.name} onChange={(e) => up("name", e.target.value)} />
+            <Field
+              label="Naam"
+              required
+              help="Wordt zichtbaar als author/publisher op published posts en in interne lijsten."
+            >
+              <input className="input" value={state.name} onChange={(e) => up("name", e.target.value)} placeholder="Artifation" />
             </Field>
-            <Field label="Slug">
-              <input className="input mono" value={state.slug} onChange={(e) => up("slug", slugify(e.target.value))} />
+            <Field
+              label="Slug"
+              required
+              help="Korte URL-veilige identifier. Gebruikt in interne paden (bijv. /blog/<slug>)."
+            >
+              <input className="input mono" value={state.slug} onChange={(e) => up("slug", slugify(e.target.value))} placeholder="artifation" />
             </Field>
           </div>
           <div className="row" style={{ gap: 12 }}>
-            <Field label="Domein">
-              <input className="input" value={state.domain} onChange={(e) => up("domain", e.target.value)} />
+            <Field
+              label="Domein"
+              required
+              help="Het echte domein zonder protocol (bijv. 'artifation.nl'). Gebruikt voor canonical URL's en interne-link-detectie."
+            >
+              <input className="input" value={state.domain} onChange={(e) => up("domain", e.target.value)} placeholder="artifation.nl" />
             </Field>
-            <Field label="Taal">
+            <Field
+              label="Taal"
+              required
+              help="Default taal voor alle gegenereerde content op deze site."
+            >
               <select className="select" value={state.language} onChange={(e) => up("language", e.target.value)}>
                 <option value="nl-NL">Nederlands</option>
                 <option value="en-US">English (US)</option>
@@ -127,43 +149,92 @@ export function SettingsForm({
         </Section>
 
         <Section title="Brand voice" description="Hoe moet de writer klinken — en wat te vermijden.">
-          <Field label="Voice">
-            <textarea className="textarea" rows={6} value={state.brandVoice} onChange={(e) => up("brandVoice", e.target.value)} />
+          <SectionIntro>
+            Brand voice is de tweede sterkste signaal voor de writer (na de outline).
+            Wees concreet: persona (jij/u), toon (direct/uitleggend), energie. Vermijd
+            generieke marketing-woorden — die maken het juist platter.
+          </SectionIntro>
+          <Field
+            label="Voice"
+            required
+            help="2-5 zinnen die uitleggen hoe je site klinkt. Voorbeeld: 'Direct, expert, nuchter. Spreek de lezer aan met je. Geen marketingjargon. Onderbouw met concrete voorbeelden.'"
+          >
+            <textarea
+              className="textarea"
+              rows={6}
+              value={state.brandVoice}
+              onChange={(e) => up("brandVoice", e.target.value)}
+              placeholder="Direct, expert, nuchter — geen marketingjargon. Spreek lezer aan met 'je'. Onderbouw beweringen met concrete getallen of cases. Vermijd buzz-words."
+            />
           </Field>
           <ChipsField
             label="Ban list"
-            description="Woorden en zinnen die nooit in gepubliceerde posts mogen verschijnen."
+            optional
+            description="Woorden/zinnen die NOOIT in gepubliceerde posts mogen voorkomen. Default banlist (delve, leverage, in conclusion, etc.) wordt automatisch toegevoegd — voeg hier alleen brand-specifieke verboden toe (bv. namen van concurrenten, gedateerde slogans)."
             values={state.banList}
             onChange={(v) => up("banList", v)}
           />
           <ChipsField
             label="Signature phrases"
-            description="Zinnen die jouw brand signaleren."
+            optional
+            description="Korte typische zinnen die jouw brand herkenbaar maken. De writer gebruikt deze waar het natuurlijk past."
             values={state.signaturePhrases}
             onChange={(v) => up("signaturePhrases", v)}
           />
         </Section>
 
-        <Section title="Pillars" description="Content pillars sturen topic-selectie. Weights normaliseren naar 1.0.">
+        <Section title="Pillars" description="Content pillars sturen topic-selectie en het topic-suggester-agent.">
+          <SectionIntro>
+            Pillars zijn de hoofd-thema's van je blog (bv. "AI per afdeling", "AI-act"
+            voor een AI-consultancy). De topic-suggester en DataForSEO-flow gebruiken
+            de pillar-namen als seed. Weights normaliseren bij opslaan naar 1.0 —
+            de verhouding stuurt hoe vaak elk pillar aan bod komt.
+          </SectionIntro>
           <PillarEditor pillars={state.pillars} onChange={(v) => up("pillars", v)} />
         </Section>
 
-        <Section title="Kwaliteit & cadans">
+        <Section title="Kwaliteit & cadans" description="Drempelwaardes voor publish + schedule.">
+          <SectionIntro>
+            Drafts onder de threshold worden automatisch rejected (komen op de
+            rejected-tab maar publiseren niet). De cron-schedule wordt nu nog niet
+            automatisch gedraaid — manual triggers werken.
+          </SectionIntro>
           <div className="row" style={{ gap: 12 }}>
-            <Field label="Quality threshold (0–10)">
+            <Field
+              label="Quality threshold (0–10)"
+              required
+              help="Drafts met een gewogen quality-score onder deze waarde worden afgekeurd. 8.0 is streng, 7.0 ruimer."
+            >
               <input className="input tnum" type="number" min={0} max={10} step={0.1} value={state.qualityThreshold} onChange={(e) => up("qualityThreshold", Number(e.target.value) || 0)} />
             </Field>
-            <Field label="Max posts / week">
+            <Field
+              label="Max posts / week"
+              required
+              help="Hard cap voor de pipeline. Bij overschrijding krijgt het topic status 'cap_deferred' en wacht."
+            >
               <input className="input tnum" type="number" min={0} value={state.maxPostsPerWeek} onChange={(e) => up("maxPostsPerWeek", Number(e.target.value) || 0)} />
             </Field>
-            <Field label="Schedule (cron, UTC)">
-              <input className="input mono" value={state.scheduleCron} onChange={(e) => up("scheduleCron", e.target.value)} />
+            <Field
+              label="Schedule (cron, UTC)"
+              required
+              help="Cron-expressie voor automatische runs (5 velden, UTC). Default: '0 6 * * 1,3,5' = ma/wo/vr 06:00 UTC."
+            >
+              <input className="input mono" value={state.scheduleCron} onChange={(e) => up("scheduleCron", e.target.value)} placeholder="0 6 * * 1,3,5" />
             </Field>
           </div>
         </Section>
 
         <Section title="Publiceren" description="Waar finale posts naartoe gaan.">
-          <Field label="Bestemming">
+          <SectionIntro>
+            Built-in CMS = posts worden gerenderd op deze webapp zelf (/blog/&lt;slug&gt;).
+            WordPress = posts worden via REST API gepost naar je WP-instance. Markdown
+            = .md-bestanden in data/exports/. Je kunt later van bestemming wisselen.
+          </SectionIntro>
+          <Field
+            label="Bestemming"
+            required
+            help="Default is 'Built-in CMS' — werkt direct zonder externe setup. Kies WordPress alleen als je daar al een site hebt draaien."
+          >
             <select className="select" value={state.publishDestination} onChange={(e) => up("publishDestination", e.target.value as SiteData["publishDestination"])}>
               <option value="built_in">Built-in CMS</option>
               <option value="wordpress">WordPress</option>
@@ -173,7 +244,15 @@ export function SettingsForm({
           {state.publishDestination === "wordpress" && (
             <div className="card" style={{ background: "var(--surface-2)" }}>
               <div className="card-body col" style={{ gap: 12 }}>
-                <Field label="WordPress URL">
+                <SectionIntro>
+                  WordPress credentials. Vereist een Application Password (Users →
+                  Profile → Application Passwords in WP-admin), niet je gewone wachtwoord.
+                </SectionIntro>
+                <Field
+                  label="WordPress URL"
+                  required
+                  help="Volledige basis-URL incl. https://. Bijv. https://blog.artifation.nl"
+                >
                   <input
                     className="input"
                     value={state.wordpressConfig?.baseUrl ?? ""}
@@ -184,10 +263,15 @@ export function SettingsForm({
                         appPassword: state.wordpressConfig?.appPassword ?? "",
                       })
                     }
+                    placeholder="https://blog.example.com"
                   />
                 </Field>
                 <div className="row" style={{ gap: 12 }}>
-                  <Field label="User">
+                  <Field
+                    label="User"
+                    required
+                    help="WordPress-gebruikersnaam (login, niet display name)."
+                  >
                     <input
                       className="input"
                       value={state.wordpressConfig?.user ?? ""}
@@ -198,9 +282,14 @@ export function SettingsForm({
                           appPassword: state.wordpressConfig?.appPassword ?? "",
                         })
                       }
+                      placeholder="admin"
                     />
                   </Field>
-                  <Field label="App password">
+                  <Field
+                    label="App password"
+                    required
+                    help="Application Password uit WP-admin. NIET je gewone login-wachtwoord."
+                  >
                     <input
                       className="input"
                       type="password"
@@ -212,6 +301,7 @@ export function SettingsForm({
                           appPassword: e.target.value,
                         })
                       }
+                      placeholder="xxxx xxxx xxxx xxxx xxxx xxxx"
                     />
                   </Field>
                 </div>
@@ -221,11 +311,22 @@ export function SettingsForm({
         </Section>
 
         <Section title="Auteur" description="De byline op gepubliceerde posts.">
+          <SectionIntro>
+            Wordt gebruikt in JSON-LD schema (Person/Author) en in de zichtbare byline
+            op de blog. Google's E-E-A-T weegt herkenbaar auteurschap mee in rankings.
+          </SectionIntro>
           <div className="row" style={{ gap: 12 }}>
-            <Field label="Naam">
-              <input className="input" value={state.author.name ?? ""} onChange={(e) => up("author", { ...state.author, name: e.target.value })} />
+            <Field
+              label="Naam"
+              required
+              help="Volledige naam van de auteur. Wordt zichtbaar onder elke post."
+            >
+              <input className="input" value={state.author.name ?? ""} onChange={(e) => up("author", { ...state.author, name: e.target.value })} placeholder="Julian Dunsbergen" />
             </Field>
-            <Field label="LinkedIn URL">
+            <Field
+              label="LinkedIn URL"
+              help="LinkedIn-profiel van de auteur. Wordt gelinkt vanaf de byline (E-E-A-T signaal)."
+            >
               <input
                 className="input"
                 value={state.author.linkedin ?? ""}
@@ -234,12 +335,16 @@ export function SettingsForm({
               />
             </Field>
           </div>
-          <Field label="Bio">
+          <Field
+            label="Bio"
+            help="1-3 zinnen over de auteur. Verschijnt onderaan elke post + in schema."
+          >
             <textarea
               className="textarea"
               rows={3}
               value={state.author.bio ?? ""}
               onChange={(e) => up("author", { ...state.author, bio: e.target.value })}
+              placeholder="Julian helpt MKB-bedrijven AI implementeren zonder marketingjargon. 12+ jaar ervaring in B2B SaaS."
             />
           </Field>
         </Section>
@@ -278,7 +383,11 @@ export function SettingsForm({
                     <span>Search Console gebruiken</span>
                   </label>
                 </div>
-                <Field label="Property URL (precies zoals in GSC, bv. 'sc-domain:artifation.nl' of 'https://artifation.nl/')">
+                <Field
+                  label="Property URL"
+                  required={enabled}
+                  help="Exact zoals in GSC. Domain-property: 'sc-domain:artifation.nl'. URL-prefix-property: 'https://artifation.nl/' (mét trailing slash)."
+                >
                   <input
                     className="input mono"
                     value={sc.property_url ?? ""}
@@ -287,7 +396,11 @@ export function SettingsForm({
                     disabled={!enabled}
                   />
                 </Field>
-                <Field label="Service account JSON">
+                <Field
+                  label="Service account JSON"
+                  required={enabled}
+                  help="Plak de volledige JSON-key uit Google Cloud (IAM → Service Accounts → Keys → Add Key). Vergeet niet het service-account-email als gebruiker toe te voegen in je GSC property (Settings → Users and permissions → Add user, permission 'Restricted')."
+                >
                   <textarea
                     className="textarea mono"
                     rows={6}
@@ -299,21 +412,16 @@ export function SettingsForm({
                     disabled={!enabled}
                     style={{ fontSize: 11, fontFamily: "monospace" }}
                   />
-                  <div className="hint">
-                    Plak de volledige JSON die je downloadde uit Google Cloud. Vergeet niet
-                    het service-account-email als gebruiker toe te voegen in je GSC property
-                    (Settings → Users and permissions → Add user, restricted permission).
-                    {jsonLooksValid === false && (
-                      <div style={{ color: "var(--danger, #b91c1c)", marginTop: 4 }}>
-                        ⚠ JSON is ongeldig of mist <code>client_email</code> / <code>private_key</code>.
-                      </div>
-                    )}
-                    {typeof jsonLooksValid === "string" && (
-                      <div style={{ color: "var(--success, #047857)", marginTop: 4 }}>
-                        ✓ JSON geparsed — service account: <code>{jsonLooksValid}</code>
-                      </div>
-                    )}
-                  </div>
+                  {jsonLooksValid === false && (
+                    <div style={{ color: "var(--danger, #b91c1c)", marginTop: 4, fontSize: 11 }}>
+                      ⚠ JSON is ongeldig of mist <code>client_email</code> / <code>private_key</code>.
+                    </div>
+                  )}
+                  {typeof jsonLooksValid === "string" && (
+                    <div style={{ color: "var(--success, #047857)", marginTop: 4, fontSize: 11 }}>
+                      ✓ JSON geparsed — service account: <code>{jsonLooksValid}</code>
+                    </div>
+                  )}
                 </Field>
               </>
             );
@@ -322,10 +430,21 @@ export function SettingsForm({
 
         <Section
           title="DataForSEO (optioneel, betaald)"
-          description="Met DataForSEO Labs krijg je echte maandelijkse search volumes + keyword difficulty per voorgesteld topic. Komt erbovenop GSC — niet ervoor in de plaats. Pricing: ~$0.0075 per pillar per Suggest-topics call."
+          description="Met DataForSEO Labs krijg je echte maandelijkse search volumes + keyword difficulty per voorgesteld topic en SERP-aware audit-feedback."
         >
+          <SectionIntro>
+            Helemaal optioneel. Zonder credentials valt Suggest topics terug op de
+            gratis GSC + Gemini stack en mist het audit-feature alleen het SERP-panel.
+            Pricing: ~$0.0075 per pillar bij Suggest topics + ~$0.0006 per audit.
+            Maak een account op{" "}
+            <a href="https://dataforseo.com/" target="_blank" rel="noreferrer">dataforseo.com</a>{" "}
+            en gebruik je API-credentials (Login → API-tab).
+          </SectionIntro>
           <div className="row" style={{ gap: 12 }}>
-            <Field label="Login (email)">
+            <Field
+              label="Login (email)"
+              help="Het emailadres waarmee je inlogt op DataForSEO."
+            >
               <input
                 className="input mono"
                 value={state.apiKeys.dataForSeoLogin ?? ""}
@@ -335,7 +454,10 @@ export function SettingsForm({
                 placeholder="jouw-dfs-account@example.com"
               />
             </Field>
-            <Field label="Password (API password, niet je login)">
+            <Field
+              label="API password"
+              help="Het API-password uit Login → API-tab. NIET je gewone dashboard-login wachtwoord."
+            >
               <input
                 className="input mono"
                 type="password"
@@ -348,7 +470,10 @@ export function SettingsForm({
             </Field>
           </div>
           <div className="row" style={{ gap: 12 }}>
-            <Field label="Taal (ISO code)">
+            <Field
+              label="Taal (ISO code)"
+              help="Default 'nl'. Gebruik 'en', 'de', 'fr' voor andere markten."
+            >
               <input
                 className="input mono"
                 value={state.apiKeys.dataForSeoLanguageCode ?? ""}
@@ -358,7 +483,10 @@ export function SettingsForm({
                 placeholder="nl"
               />
             </Field>
-            <Field label="Locatie (DFS code)">
+            <Field
+              label="Locatie (DFS code)"
+              help="NL = 2528, US = 2840, DE = 2276, BE = 2056. Default is NL. Zie DataForSEO Locations API voor andere landen."
+            >
               <input
                 className="input tnum"
                 inputMode="numeric"
@@ -371,25 +499,25 @@ export function SettingsForm({
                 }
                 placeholder="2528"
               />
-              <div className="hint" style={{ fontSize: 11 }}>
-                NL = 2528, US = 2840, DE = 2276, BE = 2056. Zie DataForSEO Locations API.
-              </div>
             </Field>
-          </div>
-          <div className="hint">
-            Maak een account op{" "}
-            <a href="https://dataforseo.com/" target="_blank" rel="noreferrer">dataforseo.com</a>{" "}
-            en gebruik je API-credentials (Login → API tab). Zonder credentials valt Suggest topics
-            terug op de gratis GSC + Gemini stack.
           </div>
         </Section>
 
-        <Section title="API-keys" description="Lokaal opgeslagen in SQLite. Geldt voor de volgende pipeline-run.">
-          <ApiKey label="Anthropic" value={state.apiKeys.anthropic ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, anthropic: v })} />
-          <ApiKey label="Gemini" value={state.apiKeys.gemini ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, gemini: v })} />
-          <ApiKey label="Groq" value={state.apiKeys.groq ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, groq: v })} />
-          <ApiKey label="Fal.ai" value={state.apiKeys.fal ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, fal: v })} />
-          <ApiKey label="Resend (email)" value={state.apiKeys.resend ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, resend: v })} />
+        <Section
+          title="API-keys"
+          description="Pipeline-keys voor de blog-generatoren. Lokaal opgeslagen in SQLite."
+        >
+          <SectionIntro>
+            <strong>Minstens één van Anthropic OF Gemini is verplicht</strong> — die
+            doen het schrijfwerk. Groq, Fal.ai en Resend zijn optioneel: zonder Fal.ai
+            krijg je geen images, zonder Resend geen e-mail notificaties. Keys gelden
+            voor alle agents in de volgende pipeline-run.
+          </SectionIntro>
+          <ApiKey label="Anthropic" value={state.apiKeys.anthropic ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, anthropic: v })} hint="Verplicht of Gemini. Voor strategist + writer + factChecker + qualityJudge." />
+          <ApiKey label="Gemini" value={state.apiKeys.gemini ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, gemini: v })} hint="Verplicht of Anthropic. Researcher (search grounding), topic suggester, scrape extractor, blog audit." />
+          <ApiKey label="Groq" value={state.apiKeys.groq ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, groq: v })} hint="Optioneel. Image-prompter draait op Groq voor snelle goedkope prompts." />
+          <ApiKey label="Fal.ai" value={state.apiKeys.fal ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, fal: v })} hint="Optioneel. Genereert blog-feature-images. Zonder Fal krijgen posts geen image." />
+          <ApiKey label="Resend (email)" value={state.apiKeys.resend ?? ""} onChange={(v) => up("apiKeys", { ...state.apiKeys, resend: v })} hint="Optioneel. Voor email-notificaties bij nieuwe drafts en topic-voorstellen." />
         </Section>
 
         <Section title="Gevaarzone" description="Permanente acties.">
@@ -456,11 +584,28 @@ function Section({
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({
+  label,
+  required,
+  help,
+  children,
+}: {
+  label: string;
+  /** Defaults to false (= optional). Pass true for verplicht-velden so the
+   * Required badge appears next to the label and screen readers see it. */
+  required?: boolean;
+  /** Short hint shown under the field, explaining what it's for. */
+  help?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="field" style={{ flex: 1 }}>
-      <label>{label}</label>
+      <label>
+        <span>{label}</span>
+        {required ? <RequiredBadge /> : <OptionalBadge />}
+      </label>
       {children}
+      {help && <FieldHelp>{help}</FieldHelp>}
     </div>
   );
 }
@@ -469,10 +614,13 @@ function ApiKey({
   label,
   value,
   onChange,
+  hint,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  /** Short hint explaining when this key is required and what it's used for. */
+  hint?: string;
 }) {
   const [show, setShow] = React.useState(false);
   return (
@@ -490,6 +638,7 @@ function ApiKey({
           {show ? "Verberg" : "Toon"}
         </button>
       </div>
+      {hint && <FieldHelp>{hint}</FieldHelp>}
     </div>
   );
 }
@@ -552,11 +701,16 @@ function ChipsField({
   description,
   values,
   onChange,
+  optional,
+  required,
 }: {
   label: string;
   description?: string;
   values: string[];
   onChange: (v: string[]) => void;
+  /** Defaults to neither badge — explicit opt-in keeps backwards compat. */
+  optional?: boolean;
+  required?: boolean;
 }) {
   const [input, setInput] = React.useState("");
   function add() {
@@ -567,7 +721,10 @@ function ChipsField({
   }
   return (
     <div className="field">
-      <label>{label}</label>
+      <label>
+        <span>{label}</span>
+        {required ? <RequiredBadge /> : optional ? <OptionalBadge /> : null}
+      </label>
       {description && <div className="hint">{description}</div>}
       <div className="chips">
         {values.map((v, i) => (

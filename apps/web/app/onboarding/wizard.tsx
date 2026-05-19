@@ -9,6 +9,7 @@ import { slugify } from "~/lib/utils";
 import { createSiteAction } from "~/lib/actions/sites";
 import { loginAction, createOwnerUserAction } from "~/lib/actions/auth";
 import { scrapeWebsiteAction } from "~/lib/actions/scrape";
+import { RequiredBadge, OptionalBadge, FieldHelp } from "~/components/ui/form-help";
 
 const STEPS = ["Basis", "Brand voice", "Pillars", "Kwaliteit", "Publiceren & keys"] as const;
 
@@ -366,7 +367,10 @@ function BasicsStep({
   return (
     <>
       <div className="field">
-        <label>Naam</label>
+        <label>
+          <span>Naam</span>
+          <RequiredBadge />
+        </label>
         <input
           className="input"
           value={state.name}
@@ -377,16 +381,24 @@ function BasicsStep({
           placeholder="Bijv. Acme Blog"
           autoFocus
         />
+        <FieldHelp>De naam van deze site. Verschijnt als publisher op gepubliceerde blogs.</FieldHelp>
       </div>
       <div className="row" style={{ gap: 12 }}>
         <div className="field" style={{ flex: 1 }}>
-          <label>Slug</label>
+          <label>
+            <span>Slug</span>
+            <RequiredBadge />
+          </label>
           <input className="input mono" value={state.slug} onChange={(e) => update("slug", slugify(e.target.value))} placeholder="acme" />
-          <div className="hint">Wordt gebruikt in /blog/:slug/post URLs</div>
+          <FieldHelp>URL-veilige korte naam — wordt gebruikt in /blog/:slug/:post URLs.</FieldHelp>
         </div>
         <div className="field" style={{ flex: 1 }}>
-          <label>Domein</label>
+          <label>
+            <span>Domein</span>
+            <RequiredBadge />
+          </label>
           <input className="input" value={state.domain} onChange={(e) => update("domain", e.target.value)} placeholder="acme.com" />
+          <FieldHelp>Het echte domein zonder https:// (voor canonical URL's). Wordt ook gebruikt voor de auto-fill scrape.</FieldHelp>
         </div>
       </div>
 
@@ -448,7 +460,10 @@ function BasicsStep({
       </div>
 
       <div className="field">
-        <label>Taal</label>
+        <label>
+          <span>Taal</span>
+          <RequiredBadge />
+        </label>
         <select className="select" value={state.language} onChange={(e) => update("language", e.target.value)}>
           <option value="nl-NL">Nederlands</option>
           <option value="en-US">English (US)</option>
@@ -457,6 +472,7 @@ function BasicsStep({
           <option value="fr-FR">Français</option>
           <option value="es-ES">Español</option>
         </select>
+        <FieldHelp>Default taal voor gegenereerde content. Bij auto-invullen wordt deze gedetecteerd uit je website.</FieldHelp>
       </div>
     </>
   );
@@ -472,35 +488,49 @@ function VoiceStep({
   return (
     <>
       <div className="field">
-        <label>Brand voice</label>
+        <label>
+          <span>Brand voice</span>
+          <RequiredBadge />
+        </label>
         <textarea
           className="textarea"
           rows={6}
           value={state.brandVoice}
           onChange={(e) => update("brandVoice", e.target.value)}
         />
-        <div className="hint">Beschrijf toon, persoon (je/jij/wij), formaliteit, wat te vermijden.</div>
+        <FieldHelp>
+          2-5 zinnen die uitleggen hoe je site klinkt. Wees concreet: persona
+          (je/u/wij), toon (direct/uitleggend), energie. Voorbeeld: "Direct,
+          expert, nuchter. Spreek de lezer aan met je. Geen marketingjargon."
+        </FieldHelp>
       </div>
       <ChipsField
         label="Ban list"
-        description="Woorden en zinnen die nooit in gepubliceerde posts mogen verschijnen."
+        description="Woorden/zinnen die NOOIT in gepubliceerde posts mogen voorkomen. Default banlist (delve, leverage, in conclusion, etc.) staat al klaar — voeg eventueel brand-specifieke verboden toe. Optioneel."
         values={state.banList}
         onChange={(v) => update("banList", v)}
       />
       <ChipsField
         label="Signature phrases (optioneel)"
-        description="Terugkerende zinnen die jouw brand signaleren."
+        description="Terugkerende zinnen die jouw brand herkenbaar maken. Writer gebruikt deze waar het natuurlijk past. Optioneel."
         values={state.signaturePhrases}
         onChange={(v) => update("signaturePhrases", v)}
       />
       <div className="field">
-        <label>Auteursnaam</label>
+        <label>
+          <span>Auteursnaam</span>
+          <RequiredBadge />
+        </label>
         <input
           className="input"
           value={state.authorName}
           onChange={(e) => update("authorName", e.target.value)}
           placeholder="Jouw naam (verschijnt als byline)"
         />
+        <FieldHelp>
+          Verschijnt onder elke post als byline + in JSON-LD schema (E-E-A-T
+          signaal voor Google).
+        </FieldHelp>
       </div>
     </>
   );
@@ -583,7 +613,10 @@ function QualityStep({
   return (
     <>
       <div className="field">
-        <label>Quality threshold (0–10)</label>
+        <label>
+          <span>Quality threshold (0–10)</span>
+          <RequiredBadge />
+        </label>
         <input
           className="input tnum"
           type="number"
@@ -593,10 +626,13 @@ function QualityStep({
           value={state.qualityThreshold}
           onChange={(e) => update("qualityThreshold", Number(e.target.value) || 0)}
         />
-        <div className="hint">Drafts met een lagere score worden afgewezen. 8.0 = hoog, 6.0 = mild.</div>
+        <FieldHelp>Drafts met een lagere gewogen score worden automatisch afgewezen. 8.0 = streng, 7.0 = ruimer, 6.0 = mild.</FieldHelp>
       </div>
       <div className="field">
-        <label>Max posts per week</label>
+        <label>
+          <span>Max posts per week</span>
+          <RequiredBadge />
+        </label>
         <input
           className="input tnum"
           type="number"
@@ -605,12 +641,15 @@ function QualityStep({
           value={state.maxPostsPerWeek}
           onChange={(e) => update("maxPostsPerWeek", Number(e.target.value) || 0)}
         />
-        <div className="hint">Boven deze cap pauzeert de pipeline tot volgende week.</div>
+        <FieldHelp>Hard cap. Boven deze cap pauzeert de pipeline (topic krijgt status 'cap_deferred') tot volgende week.</FieldHelp>
       </div>
       <div className="field">
-        <label>Schedule (cron, UTC)</label>
+        <label>
+          <span>Schedule (cron, UTC)</span>
+          <RequiredBadge />
+        </label>
         <input className="input mono" value={state.scheduleCron} onChange={(e) => update("scheduleCron", e.target.value)} />
-        <div className="hint">Default: maandag/woensdag/vrijdag 06:00 UTC. Manuele triggers blijven altijd werken.</div>
+        <FieldHelp>Cron-expressie (5 velden, UTC). Default: maandag/woensdag/vrijdag 06:00 UTC. Manuele triggers blijven altijd werken.</FieldHelp>
       </div>
     </>
   );
@@ -626,7 +665,10 @@ function PublishStep({
   return (
     <>
       <div className="field">
-        <label>Publish destination</label>
+        <label>
+          <span>Publish destination</span>
+          <RequiredBadge />
+        </label>
         <div className="row" style={{ gap: 8 }}>
           <DestOpt
             v="built_in"
@@ -651,22 +693,38 @@ function PublishStep({
             sub=".md files in data/exports/."
           />
         </div>
+        <FieldHelp>
+          Built-in is de snelste start (geen externe setup). Je kunt later
+          altijd wisselen onder Settings → Publiceren.
+        </FieldHelp>
       </div>
       {state.publishDestination === "wordpress" && (
         <div className="card" style={{ background: "var(--surface-2)" }}>
           <div className="card-body col" style={{ gap: 12 }}>
             <div className="field">
-              <label>WordPress URL</label>
+              <label>
+                <span>WordPress URL</span>
+                <RequiredBadge />
+              </label>
               <input className="input" value={state.wpBaseUrl} onChange={(e) => update("wpBaseUrl", e.target.value)} placeholder="https://your-site.com" />
+              <FieldHelp>Volledige basis-URL incl. https://.</FieldHelp>
             </div>
             <div className="row" style={{ gap: 12 }}>
               <div className="field" style={{ flex: 1 }}>
-                <label>WP user</label>
+                <label>
+                  <span>WP user</span>
+                  <RequiredBadge />
+                </label>
                 <input className="input" value={state.wpUser} onChange={(e) => update("wpUser", e.target.value)} placeholder="blog-bot" />
+                <FieldHelp>WP-gebruikersnaam (login, niet display name).</FieldHelp>
               </div>
               <div className="field" style={{ flex: 1 }}>
-                <label>App password</label>
+                <label>
+                  <span>App password</span>
+                  <RequiredBadge />
+                </label>
                 <input className="input" type="password" value={state.wpAppPassword} onChange={(e) => update("wpAppPassword", e.target.value)} />
+                <FieldHelp>Application Password uit WP-admin (Users → Profile → Application Passwords). NIET je login-wachtwoord.</FieldHelp>
               </div>
             </div>
           </div>
@@ -676,7 +734,8 @@ function PublishStep({
       <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
         <h4 style={{ margin: "0 0 8px", fontSize: 13, color: "var(--primary)" }}>LLM API-keys</h4>
         <p className="hint" style={{ marginBottom: 12 }}>
-          Lokaal in SQLite. Anthropic (writer/editor/judge), Gemini (research), Groq (image prompts), Fal.ai (image gen).
+          Lokaal opgeslagen in SQLite. <strong>Minstens één van Anthropic OF Gemini is verplicht</strong> —
+          die doen het schrijfwerk. Groq, Fal.ai en Resend zijn optioneel.
         </p>
         <div className="col" style={{ gap: 10 }}>
           <ApiKeyField label="Anthropic" value={state.apiKeys.anthropic} onChange={(v) => update("apiKeys", { ...state.apiKeys, anthropic: v })} />

@@ -20,6 +20,7 @@ import {
   ExternalLink,
 } from "lucide-react";
 import { auditBlogAction, type AuditResultView } from "~/lib/actions/audit";
+import { RequiredBadge, FieldHelp } from "~/components/ui/form-help";
 
 type Severity = "error" | "warning" | "suggestion";
 type Category = AuditResultView["issues"][0]["category"];
@@ -111,7 +112,10 @@ export function AuditForm({ brandVoice, banList }: AuditFormProps) {
         <div className="card">
           <div className="card-body col" style={{ gap: 12 }}>
             <div className="field">
-              <label>Target keyword</label>
+              <label>
+                <span>Target keyword</span>
+                <RequiredBadge />
+              </label>
               <input
                 className="input"
                 value={keyword}
@@ -119,9 +123,17 @@ export function AuditForm({ brandVoice, banList }: AuditFormProps) {
                 placeholder="bijv. 'ai voor mkb'"
                 disabled={running}
               />
+              <FieldHelp>
+                Het focus-keyword waarop deze blog moet ranken. De auditor checkt
+                of het keyword voorkomt in titel, intro en headings. Bij
+                DataForSEO-integratie haalt het ook de top-10 SERP op voor dit keyword.
+              </FieldHelp>
             </div>
             <div className="field">
-              <label>Blog content (HTML of platte tekst)</label>
+              <label>
+                <span>Blog content (HTML of platte tekst)</span>
+                <RequiredBadge />
+              </label>
               <textarea
                 className="textarea mono"
                 rows={14}
@@ -131,12 +143,14 @@ export function AuditForm({ brandVoice, banList }: AuditFormProps) {
                 disabled={running}
                 style={{ fontSize: 12 }}
               />
-              <div className="hint" style={{ fontSize: 11 }}>
+              <FieldHelp>
                 {content.length > 0 && (
                   <>~{wordCount(content)} woorden · </>
                 )}
-                HTML mag, maar platte tekst kan ook — we wrappen het automatisch.
-              </div>
+                Plak je volledige blog. HTML mag — headings, paragraphs, links —
+                maar platte tekst werkt ook; we wrappen het automatisch. Hoe meer
+                structuur (H1/H2's), hoe scherper de feedback op heading-hiërarchie.
+              </FieldHelp>
             </div>
             <div className="row">
               <button
