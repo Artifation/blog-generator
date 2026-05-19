@@ -112,7 +112,7 @@ function DraftCard({
               // fabricated claims from one rejection) are allowed and would crash
               // React's reconciliation if we used `f` as the key.
               <span key={`${idx}-${f}`} className="badge b-red">
-                {f}
+                {formatHardFail(f)}
               </span>
             ))}
           </div>
@@ -125,4 +125,14 @@ function DraftCard({
       )}
     </Link>
   );
+}
+
+// Legacy rejected drafts from before the PR #20 fix have entries like
+// "fabricated claim: [object Object]" because fc.fabricated_claims was
+// stringified without destructuring .claim. We render those as a generic
+// "fact-check failure" badge instead of showing the literal garbage to the
+// user. New drafts have human-readable text and render verbatim.
+function formatHardFail(f: string): string {
+  if (f === "fabricated claim: [object Object]") return "fact-check failure (legacy, details unavailable)";
+  return f;
 }
