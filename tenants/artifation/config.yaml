@@ -110,10 +110,13 @@ features:
     enabled: false
     formats: []   # ["linkedin", "newsletter", "xthread"] om aan te zetten
   search_console:
-    enabled: false
+    enabled: true
     property_url: "sc-domain:artifation.nl"  # vereist GSC_SERVICE_ACCOUNT_JSON secret
   topic_suggester:
-    enabled: false
-    competitor_domains: []
+    enabled: true
+    competitor_domains:
+      - aicompliancehub.nl
+      - teacher4ai.net
+      - nldigital.nl
     max_proposals_per_week: 5
     expire_after_weeks: 4

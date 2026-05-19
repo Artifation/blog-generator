@@ -39,6 +39,7 @@ import { buildAllSchemaJsonLd } from "./schemaGenerator.ts";
 import { detectCannibalizationViaGsc } from "./cannibalizationGsc.ts";
 import { logStage, persistRunSummary, type RunSummary } from "./runLogger.ts";
 import { filterDeadResearchUrls } from "./researchUrlFilter.ts";
+import { fetchSerpResults } from "@/integrations/dataForSeoSerp";
 import type { RubricSignals } from "./rubric.ts";
 import type { TenantConfig } from "@/config/tenant";
 
@@ -212,6 +213,24 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       }
     }
 
+    // DataForSEO SERP-research: top-10 NL Google rankings voor het target keyword.
+    // Strategist gebruikt dit om outline te baseren op wat feitelijk rankt + waar de
+    // gap zit. Niet-fataal — bij ontbrekende creds of API-fout draait pipeline door.
+    currentStage = "serpResearch";
+    let serpResults: { rank: number; url: string; domain: string; title: string; description: string }[] | undefined;
+    if (env.DATAFORSEO_LOGIN && env.DATAFORSEO_PASSWORD) {
+      try {
+        const serp = await fetchSerpResults(
+          { login: env.DATAFORSEO_LOGIN, password: env.DATAFORSEO_PASSWORD },
+          { keyword: next.target_keyword, fetchImpl: opts.fetchImpl }
+        );
+        serpResults = serp.results;
+        logStage({ stage: "serp-research", topicId: next.id, results: serp.results.length });
+      } catch (err) {
+        logStage({ stage: "serp-research", warning: (err as Error).message });
+      }
+    }
+
     currentStage = "strategist";
     const outline = await runStrategist(
       {
@@ -221,6 +240,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         intent: next.intent,
         intended_word_count_target: next.intended_word_count_target,
         ...(anchorHistory.length > 0 ? { anchor_history: anchorHistory } : {}),
+        ...(serpResults && serpResults.length > 0 ? { serp_results: serpResults } : {}),
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );

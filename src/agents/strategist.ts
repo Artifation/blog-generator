@@ -49,6 +49,9 @@ export interface StrategistInput {
    * product X", "gebruik casus klant Y"). The strategist must let this shape
    * the outline (sections, angles, what to emphasize) on top of the research. */
   custom_instructions?: string;
+  /** Top-10 live SERP-resultaten van DataForSEO. Strategist gebruikt deze om
+   * outline te baseren op wat feitelijk rankt — niet alleen op LLM-intuïtie. */
+  serp_results?: { rank: number; url: string; domain: string; title: string; description: string }[];
 }
 
 export interface StrategistDeps {

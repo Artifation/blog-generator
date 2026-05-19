@@ -40,6 +40,16 @@ ANCHOR-DISTRIBUTIE CONSTRAINT (uit anchor_history):
 - Voor zulke URLs: kies een partial of semantic anchor in internal_links_to_inject in plaats van exact-match.
 - Doel: voorkom over-optimalisatie (SpamBrain 3.0 devalueert dominant exact-match anchor-patronen).
 
+SERP_RESULTS (input.serp_results, optioneel — top-10 live Google NL rankings):
+- Wanneer aanwezig: gebruik dit om te bepalen WAT de SERP nu beloont. Het is concurrent-intelligence, geen template om te kopiëren.
+- ANALYSEER specifiek:
+  * Welke title-patronen domineren (cijferlijsten, hoe-vragen, jaartal, vergelijkingen)? Pas h1_suggestion en H2-toon aan.
+  * Welke domains ranken (gov vs vakblad vs concurrent)? Geeft signaal over zoekintent: gov-dominant = informational, vakblad-dominant = commercial.
+  * Welke subtopics komen in titles + descriptions terug? Die HOREN in de outline (must_include items).
+  * Wat ONTBREEKT in de top-10? Dáár ligt de differentiatie-kans → contrarian_opinion_hint hierop bouwen.
+- BELANGRIJK: NIET de top-10 titels napapegaaien. Geef de lezer iets dat in de top-10 nog NIET goed bediend wordt (een specifieke MKB-hoek, een hands-on stappenplan waar concurrenten algemeen blijven, een contrarian opinion, etc.).
+- Als geen serp_results meegegeven: vaar op research.competitor_serp_summary + key_facts.
+
 CUSTOM_INSTRUCTIONS (input.custom_instructions, optioneel):
 - Als deze meegegeven zijn, beschouw ze als hard requirement bovenop de research. Dit is de directe instructie van de site-eigenaar voor DEZE topic.
 - Voorbeelden: "focus op compliance-aspect", "noem product X", "gebruik casus klant Y", "vermijd Z", "doelgroep advocatenkantoren".
