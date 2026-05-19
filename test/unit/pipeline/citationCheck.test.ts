@@ -86,6 +86,76 @@ describe("checkCitations", () => {
     expect(result.deadRatio).toBeCloseTo(1 / 3);
   });
 
+  it("marks soft-404 with status 200 + 404-title as dead with reason status:soft404", async () => {
+    const html =
+      "<!doctype html><html><head><title>404 Pagina niet gevonden | Wolters Kluwer</title></head><body>...</body></html>";
+    const fetchImpl: typeof fetch = vi.fn(async () => {
+      return new Response(html, {
+        status: 200,
+        headers: { "Content-Type": "text/html" },
+      }) as Response;
+    }) as unknown as typeof fetch;
+
+    const result = await checkCitations({
+      urls: ["https://wolterskluwer.com/missing"],
+      fetchImpl,
+    });
+    expect(result.dead).toHaveLength(1);
+    expect(result.dead[0]!.reason).toBe("status:soft404");
+  });
+
+  it("marks soft-404 via final URL containing /404/ as dead", async () => {
+    // Server returns 200 but final response.url indicates a 404-page redirect.
+    const fetchImpl: typeof fetch = vi.fn(async () => {
+      const res = new Response("<html><title>Niet beschikbaar</title></html>", {
+        status: 200,
+        headers: { "Content-Type": "text/html" },
+      }) as Response & { url: string };
+      // simulate redirect: Response.url reports the final URL
+      Object.defineProperty(res, "url", { value: "https://example.com/404/" });
+      return res;
+    }) as unknown as typeof fetch;
+
+    const result = await checkCitations({
+      urls: ["https://example.com/some-old-page"],
+      fetchImpl,
+    });
+    expect(result.dead).toHaveLength(1);
+    expect(result.dead[0]!.reason).toBe("status:soft404");
+  });
+
+  it("does NOT mark a valid 200 page as soft-404", async () => {
+    const html =
+      "<!doctype html><html><head><title>De complete gids voor AI in MKB</title></head><body>article body</body></html>";
+    const fetchImpl: typeof fetch = vi.fn(async () => {
+      return new Response(html, { status: 200 }) as Response;
+    }) as unknown as typeof fetch;
+    const result = await checkCitations({
+      urls: ["https://example.com/legit"],
+      fetchImpl,
+    });
+    expect(result.alive).toBe(1);
+    expect(result.dead).toHaveLength(0);
+  });
+
+  it("does NOT false-positive when 404 appears in URL path but not in title", async () => {
+    // Some sites have legit content with "404" in the URL/title (anti-pattern but exists).
+    // We only mark soft-404 when the TITLE specifically signals not-found, not the path.
+    const html =
+      "<!doctype html><html><head><title>Top 404 tools voor MKB</title></head><body>article</body></html>";
+    const fetchImpl: typeof fetch = vi.fn(async () => {
+      return new Response(html, { status: 200 }) as Response;
+    }) as unknown as typeof fetch;
+    const result = await checkCitations({
+      urls: ["https://example.com/legit-404-article"],
+      fetchImpl,
+    });
+    // "404" in title alone is not enough — we need a phrase indicating not-found.
+    // This particular title doesn't contain "niet gevonden" / "not found" / "404 error"
+    // / "page not found", so it should stay alive.
+    expect(result.alive).toBe(1);
+  });
+
   it("deduplicates URLs", async () => {
     const fetchImpl = makeFetch({ "https://example.com/a": { status: 200 } });
     const result = await checkCitations({
