@@ -105,6 +105,31 @@ export async function runForSite(
       endStage(false);
     }
 
+    // Auto-detect fact-poor research. When the researcher found < 5 verifiable
+    // key_facts, the writer tends to fabricate statistics to compensate
+    // (resulting in repeat fact_check rejections). Inject a forced-qualitative
+    // directive that overrides any LLM tendency to "sound authoritative" with
+    // made-up numbers. Combines with topic.customInstructions so user-supplied
+    // guidance still applies.
+    const factPoor = research.parsed.key_facts.length < 5;
+    const qualitativeOverride = factPoor
+      ? `KRITISCH: research vond slechts ${research.parsed.key_facts.length} verifieerbare feit(en). SCHRIJF KWALITATIEF. ABSOLUUT GEEN specifieke percentages, euro-bedragen of jaartallen — alleen kwalitatieve frasering: "een groeiend aantal", "veel MKB-bedrijven", "de afgelopen jaren", "een aanzienlijk deel". Specifieke getallen MAG ALLEEN als ze LETTERLIJK in research.key_facts staan. Bij twijfel: weglaten.`
+      : null;
+
+    const combinedInstructions = [qualitativeOverride, topic.customInstructions ?? null]
+      .filter(Boolean)
+      .join("\n\n") || undefined;
+
+    if (factPoor) {
+      console.log(
+        JSON.stringify({
+          stage: "factPoorMode",
+          keyFactsCount: research.parsed.key_facts.length,
+          message: "Research is fact-poor; forcing qualitative writing mode",
+        })
+      );
+    }
+
     // Strategist
     endStage = startStage("strategist");
     const outline = await runStrategist(
@@ -114,7 +139,7 @@ export async function runForSite(
         target_keyword: topic.targetKeyword,
         intent: topic.intent,
         intended_word_count_target: topic.intendedWordCount,
-        custom_instructions: topic.customInstructions ?? undefined,
+        custom_instructions: combinedInstructions,
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );
@@ -131,7 +156,7 @@ export async function runForSite(
         contrarian_hint: outline.parsed.contrarian_opinion_hint,
         key_facts: research.parsed.key_facts,
         originality_anchor: research.parsed.originality_anchor,
-        custom_instructions: topic.customInstructions ?? undefined,
+        custom_instructions: combinedInstructions,
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );
