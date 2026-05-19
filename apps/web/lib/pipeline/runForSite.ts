@@ -15,6 +15,7 @@ import { optimizeForWeb } from "@/image/optimize";
 import { postProcessDraftHtml } from "@/pipeline/htmlPostProcess";
 import { computeDeterministicRubricSignals } from "@/pipeline/rubric";
 import { buildAllSchemaJsonLd } from "@/pipeline/schemaGenerator";
+import { parsePreviousFabricatedClaims } from "@/pipeline/fabricatedClaimsParser";
 import type { TenantConfig } from "@/config/tenant";
 import { checkCitations, enrichSignalsWithCitationCheck } from "@/pipeline/citationCheck";
 import { filterDeadResearchUrls } from "@/pipeline/researchUrlFilter";
@@ -148,13 +149,10 @@ export async function runForSite(
 
     // Retry-feedback loop: if this topic was rejected before, read the
     // factChecker's fabricated_claims out of the previous rejected draft and
-    // feed them to the writer as "do NOT repeat these". The hardFails column
-    // stores claims as "fabricated claim: <text>"; we strip the prefix.
+    // feed them to the writer as "do NOT repeat these".
     const prevRejected = await getLatestRejectedDraftForTopic(topic.id).catch(() => null);
     const previousFabricatedClaims = prevRejected
-      ? (prevRejected.hardFails ?? [])
-          .filter((f) => f.startsWith("fabricated claim: "))
-          .map((f) => f.slice("fabricated claim: ".length))
+      ? parsePreviousFabricatedClaims(prevRejected.hardFails ?? [])
       : [];
     if (previousFabricatedClaims.length > 0) {
       console.log(
