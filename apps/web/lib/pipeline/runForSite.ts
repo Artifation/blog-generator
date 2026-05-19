@@ -18,7 +18,7 @@ import { buildAllSchemaJsonLd } from "@/pipeline/schemaGenerator";
 import type { TenantConfig } from "@/config/tenant";
 import { checkCitations, enrichSignalsWithCitationCheck } from "@/pipeline/citationCheck";
 import { filterDeadResearchUrls } from "@/pipeline/researchUrlFilter";
-import { extractExternalHrefs, stripDeadLinks } from "@/pipeline/stripDeadLinks";
+import { extractExternalHrefs, stripDeadLinks, filterDefinitivelyDead } from "@/pipeline/stripDeadLinks";
 import { computeRunCost, type UsageEntry } from "@/pipeline/costTracker";
 
 import type { Site, Topic, Pillar, Draft } from "~/lib/db/schema";
@@ -157,24 +157,29 @@ export async function runForSite(
     // caught dead source URLs in research output; the writer / seoEditor can
     // still introduce hrefs that are dead or soft-404 (CMS pages that have
     // moved). We re-check every external <a> in the draft and strip the
-    // anchor tags from any URL that's confirmed dead — anchor text stays so
-    // the prose doesn't get holes. This is the last line of defence.
+    // anchor tags from URLs whose reason is DEFINITIVELY dead — same logic
+    // as researchUrlFilter (404/410/soft404). WAF-blocked (403/429), 5xx,
+    // timeouts and transient network errors are NOT stripped because they're
+    // usually false negatives on bot-hostile authoritative sites (RVO, AP,
+    // gov.nl, Wolters Kluwer) where the page is fine but blocks Node-UA.
     endStage = startStage("draftLinkScrub");
     try {
       const draftHrefs = extractExternalHrefs(seo.parsed.edited_html);
       if (draftHrefs.length > 0) {
         const linkCheck = await checkCitations({ urls: draftHrefs, timeoutMs: 6000 });
-        const deadSet = new Set(linkCheck.dead.map((d) => d.url));
+        const definitivelyDead = filterDefinitivelyDead(linkCheck.dead);
+        const deadSet = new Set(definitivelyDead.map((d) => d.url));
         if (deadSet.size > 0) {
           seo.parsed.edited_html = stripDeadLinks(seo.parsed.edited_html, deadSet);
-          console.log(
-            JSON.stringify({
-              stage: "draftLinkScrub",
-              stripped: deadSet.size,
-              checked: draftHrefs.length,
-            })
-          );
         }
+        console.log(
+          JSON.stringify({
+            stage: "draftLinkScrub",
+            checked: draftHrefs.length,
+            stripped: deadSet.size,
+            unverified: linkCheck.dead.length - definitivelyDead.length,
+          })
+        );
       }
       endStage(true);
     } catch (err) {

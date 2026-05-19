@@ -32,6 +32,25 @@ export function extractExternalHrefs(html: string): string[] {
 }
 
 /**
+ * From a list of {url, reason} pairs returned by checkCitations, keep only
+ * the URLs whose reason marks them as DEFINITIVELY dead. Soft signals
+ * (timeout, 403/429 WAF blocks, 5xx, transient network) are excluded so we
+ * don't strip valid citations to authoritative bot-hostile sites (RVO, AP,
+ * gov.nl, Wolters Kluwer often 403 Node-style user-agents while the page
+ * is fine for human visitors).
+ *
+ * Mirrors the policy in researchUrlFilter — kept here as a tiny pure helper
+ * so it's unit-testable independent of the pipeline orchestration.
+ */
+const DEFINITIVELY_DEAD_REASON = /^status:(404|410|soft404)$/;
+
+export function filterDefinitivelyDead(
+  dead: { url: string; reason: string }[]
+): { url: string; reason: string }[] {
+  return dead.filter((d) => DEFINITIVELY_DEAD_REASON.test(d.reason));
+}
+
+/**
  * Replace every <a href=DEAD_URL>body</a> with just `body`. Anchors whose
  * href is NOT in `deadSet` are left untouched. Inner HTML (strong/em/etc.)
  * is preserved.
