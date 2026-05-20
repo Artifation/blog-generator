@@ -16,7 +16,7 @@ Output (strict JSON):
         "h3s": [string, ...]                         // optioneel
       }
     ],                                                // 5-9 chunks
-    "internal_links_to_inject": [{"url": string, "anchor": string}, ...],  // ≥3
+    "internal_links_to_inject": [{"url": string, "anchor": string}, ...],  // ≥5 — kies uit research.internal_link_targets + input.existing_site_urls; varieer anchors
     "external_links_to_cite": [string, ...],
     "schema_choices": [string, ...],                  // bv. ["BlogPosting", "FAQPage"]
     "faq_block": [{"q": string, "a_short": string}, ...] // 0-5

@@ -14,7 +14,7 @@ JE OUTPUT (strict JSON):
     "originality": number,              // 0-10: aanwezig: eigen data/voorbeeld/contrarian opinion? HARD FAIL <6.
     "anti_ai_cliche": number,           // 0-10: gebruik deterministic signals
     "fact_check": number,               // 10 als verdict=pass, 0 als fail
-    "seo_meta": number,                 // 0-10: meta_title, meta_description, slug, alt-texts, ≥3 internal links
+    "seo_meta": number,                 // 0-10: meta_title, meta_description, slug, alt-texts, ≥5 internal links (4 = -1, 3 = -2, <3 = -3)
     "seo_schema": number,               // 0-10: aanwezigheid Article + BreadcrumbList + Person schema (uit deterministic_signals)
     "brand_voice": number,              // 0-10: NL "je"-vorm, Artifation-toon
     "readability": number               // 0-10: leid af uit flesch_nl_score MET pillar-bias:

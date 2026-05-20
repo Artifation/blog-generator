@@ -16,6 +16,7 @@ import { postProcessDraftHtml } from "@/pipeline/htmlPostProcess";
 import { computeDeterministicRubricSignals } from "@/pipeline/rubric";
 import { buildAllSchemaJsonLd } from "@/pipeline/schemaGenerator";
 import { parsePreviousFabricatedClaims } from "@/pipeline/fabricatedClaimsParser";
+import { fetchSitemapEntries } from "@/pipeline/sitemap";
 import type { TenantConfig } from "@/config/tenant";
 import { checkCitations, enrichSignalsWithCitationCheck } from "@/pipeline/citationCheck";
 import { filterDeadResearchUrls } from "@/pipeline/researchUrlFilter";
@@ -76,14 +77,37 @@ export async function runForSite(
   try {
     const providers = createProviderRegistry(env);
 
-    // Existing site urls = published posts (for cannibalization avoidance hint)
+    // Existing site URLs = union of (a) already-published posts in our DB
+    // and (b) the live sitemap of the site's domain. The DB list alone is
+    // empty for fresh sites and starves the internal-link rubric; the
+    // sitemap gives the researcher/strategist real material to link to.
+    // Sitemap fetch is best-effort — a 404 or network error is non-fatal,
+    // we just fall back to the DB list.
+    let endStage = startStage("collectInternalUrls");
     const publishedSoFar = await listPublishedPostsForSite(site.id);
-    const existingUrls = publishedSoFar
+    const dbUrls = publishedSoFar
       .map((p) => p.externalUrl ?? `https://${site.domain}/${p.slug}`)
       .filter(Boolean);
+    let sitemapUrls: string[] = [];
+    try {
+      const entries = await fetchSitemapEntries(`https://${site.domain}/sitemap.xml`);
+      sitemapUrls = entries.map((e) => e.url);
+    } catch (err) {
+      console.warn(`sitemap fetch failed for ${site.domain}: ${(err as Error).message}`);
+    }
+    const existingUrls = Array.from(new Set([...dbUrls, ...sitemapUrls]));
+    console.log(
+      JSON.stringify({
+        stage: "collectInternalUrls",
+        dbUrls: dbUrls.length,
+        sitemapUrls: sitemapUrls.length,
+        merged: existingUrls.length,
+      })
+    );
+    endStage(true);
 
     // Researcher
-    let endStage = startStage("researcher");
+    endStage = startStage("researcher");
     const research = await runResearcher(
       {
         target_keyword: topic.targetKeyword,

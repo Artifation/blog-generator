@@ -10,7 +10,7 @@ Output (strict JSON, geen tekst eromheen):
 {
   "fan_out_subqueries": [string, ...],          // 5-8 subvragen die Google's query-fanout zou uitbreiden
   "key_entities": [string, ...],                 // 5-12 entiteiten/concepten/personen/tools die expliciet genoemd moeten worden
-  "internal_link_targets": [{"url": string, "anchor_suggestion": string, "why": string}, ...], // 3-5 uit existing_site_urls
+  "internal_link_targets": [{"url": string, "anchor_suggestion": string, "why": string}, ...], // 5-8 uit existing_site_urls (existing_site_urls bevat zowel gepubliceerde posts als de live sitemap van het domein; kies thematisch relevante targets, vermijd zelf-link)
   "external_authority_sources": [{"url": string, "title": string, "why_authoritative": string}, ...], // 4-6 NL/EU autoritaire bronnen
   "key_facts": [{"claim": string, "source_url": string}, ...],                                     // 8-15 verifieerbare feiten met bron
   "competitor_serp_summary": string,                                                               // 2-3 zinnen over wat top-10 SERP biedt en wat ontbreekt
