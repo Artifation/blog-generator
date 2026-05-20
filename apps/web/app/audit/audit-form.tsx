@@ -34,7 +34,19 @@ export function AuditForm({ brandVoice, banList }: AuditFormProps) {
   const [content, setContent] = React.useState("");
   const [keyword, setKeyword] = React.useState("");
   const [running, setRunning] = React.useState(false);
+  const [elapsedS, setElapsedS] = React.useState(0);
   const [result, setResult] = React.useState<AuditResultView | null>(null);
+
+  // Tick a seconds counter while the audit is running so the user sees
+  // progress instead of a frozen "AI leest…" — the LLM call can legitimately
+  // take 30-120s and a static spinner makes it look hung.
+  React.useEffect(() => {
+    if (!running) return;
+    setElapsedS(0);
+    const start = Date.now();
+    const id = setInterval(() => setElapsedS(Math.floor((Date.now() - start) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [running]);
 
   async function audit() {
     if (!content.trim() || !keyword.trim()) {
@@ -43,14 +55,26 @@ export function AuditForm({ brandVoice, banList }: AuditFormProps) {
     }
     setRunning(true);
     const tid = toast.loading("AI leest je blog en geeft feedback…");
-    const res = await auditBlogAction({ html: content, targetKeyword: keyword });
-    toast.dismiss(tid);
-    setRunning(false);
-    if (!res.ok) {
-      toast.error(res.error);
-      return;
+    // Belt-and-braces try/finally: server actions can throw (framework-level
+    // errors, network blip, unhandled rejection) and without this guard the
+    // loading toast stays forever + the button is stuck on "AI leest…".
+    try {
+      const res = await auditBlogAction({ html: content, targetKeyword: keyword });
+      if (!res.ok) {
+        toast.error(res.error, { duration: 8000 });
+        return;
+      }
+      setResult(res.result);
+      toast.success("Audit klaar");
+    } catch (err) {
+      toast.error(
+        `Audit kon niet voltooien: ${(err as Error).message ?? "onbekende fout"}. Probeer opnieuw of check je internet/API-keys.`,
+        { duration: 10000 }
+      );
+    } finally {
+      toast.dismiss(tid);
+      setRunning(false);
     }
-    setResult(res.result);
   }
 
   /**
@@ -161,7 +185,8 @@ export function AuditForm({ brandVoice, banList }: AuditFormProps) {
               >
                 {running ? (
                   <>
-                    <RefreshCw size={13} className="spin" /> AI leest…
+                    <RefreshCw size={13} className="spin" /> AI leest… {elapsedS}s
+                    {elapsedS > 45 && <span style={{ fontSize: 11, opacity: 0.7, marginLeft: 4 }}>(duurt soms tot 2 min)</span>}
                   </>
                 ) : (
                   <>
