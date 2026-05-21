@@ -24,8 +24,8 @@ Voorkeur 1 — real_case (gebruik dit als je een GEVERIFIEERDE publieke case kun
 {
   "type": "real_case",
   "source_url": <URL naar publiekelijk gepubliceerde case — RVO showcase, NLdigital, Frankwatching, Emerce, Marketingfacts, MKB-Nederland>,
-  "summary": <60-500 char beschrijving van wat het bedrijf deed/leerde>,
-  "what_makes_it_relevant": <30-400 char waarom dit voor doelpubliek MKB van Artifation relevant is>
+  "summary": <60-900 char beschrijving van wat het bedrijf deed/leerde>,
+  "what_makes_it_relevant": <30-800 char waarom dit voor doelpubliek MKB van Artifation relevant is>
 }
 
 Voorkeur 2 — hypothetical_scenario (alleen als geen real_case beschikbaar):
@@ -33,8 +33,8 @@ Voorkeur 2 — hypothetical_scenario (alleen als geen real_case beschikbaar):
   "type": "hypothetical_scenario",
   "industry": <bv. "installatietechniek", "groothandel non-food", "accountantskantoor">,
   "region": <bv. "Brabant", "Twente", "Randstad">,
-  "situation": <60-500 char concrete situatie: bedrijfsgrootte 15-250 mw, specifieke probleem/keuze>,
-  "outcome": <30-400 char wat er gebeurde — UITSLUITEND kwalitatief. GEEN verzonnen percentages, euro-bedragen, of jaartallen. Schrijf "doorlooptijd halveerde" niet "47% sneller". Schrijf "betalingstermijn liep terug" niet "van 28 naar 12 dagen". De factChecker beoordeelt verzonnen cijfers altijd als fabricated, ook in een hypothetisch scenario.>
+  "situation": <60-900 char concrete situatie: bedrijfsgrootte 15-250 mw, specifieke probleem/keuze>,
+  "outcome": <30-800 char wat er gebeurde — UITSLUITEND kwalitatief. GEEN verzonnen percentages, euro-bedragen, of jaartallen. Schrijf "doorlooptijd halveerde" niet "47% sneller". Schrijf "betalingstermijn liep terug" niet "van 28 naar 12 dagen". De factChecker beoordeelt verzonnen cijfers altijd als fabricated, ook in een hypothetisch scenario.>
 }
 
 Strikte regels voor anchors:
