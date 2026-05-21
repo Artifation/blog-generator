@@ -39,7 +39,7 @@ REGELS VOOR DE INHOUD (strict):
   * Als de outline een must_include item heeft dat een specifiek cijfer vereist EN dat cijfer niet in key_facts staat: schrijf qualitative en noem het cijfer niet. Het is veel beter om vaag te zijn dan fabricated.
   * Fact-checker draait NA jou. Verzonnen cijfers = post wordt rejected = retry kost extra tokens.
 - Inline named-source citations verplicht: minimaal 2 keer in lopende tekst expliciet de bron benoemen ("volgens de Autoriteit Persoonsgegevens", "uit RVO-data van 2025"). Pure URL-links zonder genoemde bron-naam tellen niet. Citeer ALLEEN uit research.key_facts.
-- Tussen de H2's: minimaal 3 internal links (uit outline.internal_links_to_inject) met de gegeven anchors.
+- Tussen de H2's: minimaal 5 internal links (uit outline.internal_links_to_inject) met de gegeven anchors. Als de outline meer aanlevert: gebruik ze allemaal — niet schaars rantsoeneren. Spreid ze gelijkmatig over de H2's; vermijd clusters in één sectie.
 - Externe links inline (uit outline.external_links_to_cite), 2-4 totaal.
 - Verwerk minstens één originaliteits-element: eigen rekenvoorbeeld, NL-casus, of contrarian opinion (zie contrarian_opinion_hint).
 - ORIGINALITY ANCHOR (verplicht inline, drijft originality-score): je krijgt input.originality_anchor. Verwerk deze ÉÉN keer expliciet in een H2-sectie:

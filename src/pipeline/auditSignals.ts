@@ -162,6 +162,199 @@ export function countQuestions(textOrHtml: string): number {
 }
 
 // ---------------------------------------------------------------------------
+// Paragraph length distribution
+// ---------------------------------------------------------------------------
+
+export interface ParagraphDistribution {
+  count: number;
+  short: number; // < 30 words — punchy
+  medium: number; // 30-80 words — sweet spot
+  long: number; // > 80 words — likely wall-of-text
+  avgWords: number;
+  lengths: number[]; // raw lengths in order, for sparkline rendering
+}
+
+export function analyzeParagraphs(html: string): ParagraphDistribution {
+  const lengths = [...html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi)]
+    .map((m) => stripHtml(m[1] ?? "").split(/\s+/).filter(Boolean).length)
+    .filter((n) => n > 0);
+  if (lengths.length === 0) {
+    return { count: 0, short: 0, medium: 0, long: 0, avgWords: 0, lengths: [] };
+  }
+  const short = lengths.filter((n) => n < 30).length;
+  const medium = lengths.filter((n) => n >= 30 && n <= 80).length;
+  const long = lengths.filter((n) => n > 80).length;
+  const avg = lengths.reduce((a, b) => a + b, 0) / lengths.length;
+  return {
+    count: lengths.length,
+    short,
+    medium,
+    long,
+    avgWords: Math.round(avg * 10) / 10,
+    lengths,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Keyword distribution — where does the target keyword land?
+// ---------------------------------------------------------------------------
+
+export interface KeywordDistribution {
+  /** Total occurrences in the full body text. */
+  total: number;
+  /** Appears in the title / H1 of the post. */
+  inTitle: boolean;
+  /** Appears anywhere in the first 200 words (intro). */
+  inIntro: boolean;
+  /** Appears in at least one H2/H3 subheading. */
+  inSubheading: boolean;
+  /** Appears in the last 200 words (conclusion-ish). */
+  inConclusion: boolean;
+  /** Headings (text only) that mention the keyword. */
+  headingsWithKeyword: string[];
+}
+
+export function analyzeKeywordDistribution(html: string, keyword: string): KeywordDistribution {
+  const kw = keyword.trim().toLowerCase();
+  if (!kw) {
+    return { total: 0, inTitle: false, inIntro: false, inSubheading: false, inConclusion: false, headingsWithKeyword: [] };
+  }
+  const fullText = stripHtml(html).toLowerCase();
+  const words = fullText.split(/\s+/).filter(Boolean);
+  const total = countOccurrences(fullText, kw);
+
+  // Title = first H1, else first H2.
+  const h1Match = /<h1[^>]*>([\s\S]*?)<\/h1>/i.exec(html);
+  const h2Match = /<h2[^>]*>([\s\S]*?)<\/h2>/i.exec(html);
+  const title = stripInner((h1Match?.[1] ?? h2Match?.[1]) ?? "").toLowerCase();
+  const inTitle = title.includes(kw);
+
+  // Intro = first 200 words of the body (heuristic; close enough).
+  const intro = words.slice(0, 200).join(" ");
+  const inIntro = intro.includes(kw);
+
+  // Conclusion = last 200 words.
+  const conclusion = words.slice(Math.max(0, words.length - 200)).join(" ");
+  const inConclusion = conclusion.includes(kw);
+
+  // Subheadings.
+  const subRe = /<h([2-3])[^>]*>([\s\S]*?)<\/h\1>/gi;
+  const headingsWithKeyword: string[] = [];
+  let sm: RegExpExecArray | null;
+  while ((sm = subRe.exec(html)) !== null) {
+    const txt = stripInner(sm[2] ?? "");
+    if (txt.toLowerCase().includes(kw)) headingsWithKeyword.push(txt);
+  }
+
+  return {
+    total,
+    inTitle,
+    inIntro,
+    inSubheading: headingsWithKeyword.length > 0,
+    inConclusion,
+    headingsWithKeyword,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Phrase hits with surrounding context — for ban-list + cliché lists.
+// ---------------------------------------------------------------------------
+
+export interface PhraseHit {
+  term: string;
+  context: string; // ~80 chars surrounding the hit, with the term centered
+}
+
+const DEFAULT_AI_CLICHES = [
+  "delve",
+  "leverage",
+  "harness the power of",
+  "moreover",
+  "furthermore",
+  "additionally",
+  "notably",
+  "it's worth noting",
+  "in conclusion",
+  "to sum up",
+  "tot slot",
+  "samenvattend",
+  "in een wereld waar",
+  "in de steeds veranderende wereld",
+  "cruciaal",
+  "essentieel",
+  "het is belangrijk om te begrijpen",
+];
+
+export function findPhraseHits(html: string, terms: string[], maxHits = 5): PhraseHit[] {
+  const text = stripHtml(html);
+  const lower = text.toLowerCase();
+  const out: PhraseHit[] = [];
+  const seen = new Set<string>();
+  for (const term of terms) {
+    if (!term) continue;
+    const t = term.toLowerCase();
+    const idx = lower.indexOf(t);
+    if (idx === -1) continue;
+    const start = Math.max(0, idx - 40);
+    const end = Math.min(text.length, idx + t.length + 40);
+    const prefix = start === 0 ? "" : "…";
+    const suffix = end === text.length ? "" : "…";
+    const context = `${prefix}${text.slice(start, end)}${suffix}`;
+    const key = `${term}|${context}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push({ term, context });
+    if (out.length >= maxHits) break;
+  }
+  return out;
+}
+
+export function getDefaultAiCliches(): string[] {
+  return [...DEFAULT_AI_CLICHES];
+}
+
+// ---------------------------------------------------------------------------
+// First-paragraph (hook) analysis
+// ---------------------------------------------------------------------------
+
+export interface IntroAnalysis {
+  text: string;
+  wordCount: number;
+  /** Target keyword appears in the first paragraph. */
+  hasKeyword: boolean;
+  /** Opens with or contains a question — a common hook tactic. */
+  hasQuestion: boolean;
+  /** Addresses the reader (je/jij/jouw/u/uw) — increases engagement. */
+  addressesReader: boolean;
+  /** Opens with a number, statistic, or "wist je dat" — strong hook signal. */
+  hasNumberHook: boolean;
+  /** 0-3 score summarizing the hook quality. */
+  hookScore: number;
+}
+
+export function analyzeIntro(html: string, keyword: string): IntroAnalysis {
+  const firstP = /<p[^>]*>([\s\S]*?)<\/p>/i.exec(html);
+  let text = firstP ? stripInner(firstP[1] ?? "") : "";
+  // Fallback: first 60 words of body if no <p>.
+  if (!text) {
+    text = stripHtml(html).split(/\s+/).slice(0, 60).join(" ");
+  }
+  const lower = text.toLowerCase();
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  const hasKeyword = !!keyword && lower.includes(keyword.toLowerCase());
+  const hasQuestion = /\?/.test(text);
+  const addressesReader = /\b(je|jij|jouw|jullie|u|uw)\b/i.test(text);
+  const hasNumberHook = /\b\d{1,3}([.,]\d+)?\s?(%|procent|miljoen|miljard|uur|min|seconden)?/.test(text);
+
+  let hookScore = 0;
+  if (hasKeyword) hookScore++;
+  if (hasQuestion || hasNumberHook) hookScore++;
+  if (addressesReader) hookScore++;
+
+  return { text, wordCount, hasKeyword, hasQuestion, addressesReader, hasNumberHook, hookScore };
+}
+
+// ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
@@ -171,4 +364,16 @@ function stripHtml(s: string): string {
 
 function stripInner(s: string): string {
   return s.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
+}
+
+function countOccurrences(haystack: string, needle: string): number {
+  if (!needle) return 0;
+  let i = 0;
+  let count = 0;
+  while (true) {
+    const idx = haystack.indexOf(needle, i);
+    if (idx === -1) return count;
+    count++;
+    i = idx + needle.length;
+  }
 }

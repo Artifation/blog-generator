@@ -10,6 +10,12 @@ import {
   countPassiveVoiceNL,
   estimateReadingTimeMinutes,
   countQuestions,
+  analyzeParagraphs,
+  analyzeKeywordDistribution,
+  analyzeIntro,
+  findPhraseHits,
+  getDefaultAiCliches,
+  type PhraseHit,
 } from "@/pipeline/auditSignals";
 import { fetchSerpResults } from "@/integrations/dataForSeoSerp";
 
@@ -41,6 +47,7 @@ export interface AuditResultView {
     headings: {
       counts: { h1: number; h2: number; h3: number; h4: number };
       issues: string[];
+      outline: { level: number; text: string }[];
     };
     sentences: {
       count: number;
@@ -50,6 +57,33 @@ export interface AuditResultView {
       percentOver25Words: number;
       longSentences: { sentence: string; wordCount: number }[];
     };
+    paragraphs: {
+      count: number;
+      short: number;
+      medium: number;
+      long: number;
+      avgWords: number;
+      lengths: number[];
+    };
+    keywordDistribution: {
+      total: number;
+      inTitle: boolean;
+      inIntro: boolean;
+      inSubheading: boolean;
+      inConclusion: boolean;
+      headingsWithKeyword: string[];
+    };
+    intro: {
+      text: string;
+      wordCount: number;
+      hasKeyword: boolean;
+      hasQuestion: boolean;
+      addressesReader: boolean;
+      hasNumberHook: boolean;
+      hookScore: number;
+    };
+    banlistDetails: PhraseHit[];
+    aiClicheDetails: PhraseHit[];
   };
 }
 
@@ -92,6 +126,11 @@ export async function auditBlogAction(input: {
   const passiveCount = countPassiveVoiceNL(html);
   const readingTime = estimateReadingTimeMinutes(det.word_count);
   const questionCount = countQuestions(html);
+  const paragraphs = analyzeParagraphs(html);
+  const keywordDistribution = analyzeKeywordDistribution(html, input.targetKeyword);
+  const intro = analyzeIntro(html, input.targetKeyword);
+  const banlistDetails = findPhraseHits(html, site.banList, 8);
+  const aiClicheDetails = findPhraseHits(html, getDefaultAiCliches(), 8);
 
   // Optional SERP enrichment when the site has DataForSEO configured. Lets
   // the auditor do real competitive-gap analysis instead of just rubric
@@ -165,7 +204,11 @@ export async function auditBlogAction(input: {
         readingTimeMinutes: readingTime,
         questionCount,
         passiveVoiceCount: passiveCount,
-        headings: { counts: headings.counts, issues: headings.issues },
+        headings: {
+          counts: headings.counts,
+          issues: headings.issues,
+          outline: headings.order,
+        },
         sentences: {
           count: sentences.count,
           avgWords: sentences.avgWords,
@@ -174,6 +217,11 @@ export async function auditBlogAction(input: {
           percentOver25Words: sentences.percentOver25Words,
           longSentences: sentences.longSentences,
         },
+        paragraphs,
+        keywordDistribution,
+        intro,
+        banlistDetails,
+        aiClicheDetails,
       },
     },
   };

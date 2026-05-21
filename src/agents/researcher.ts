@@ -4,19 +4,25 @@ import type { LLMProvider } from "@/llm/types";
 import { resolveAgentModel } from "@/llm/client";
 import { RESEARCHER_SYSTEM_PROMPT } from "./prompts/researcher.ts";
 
+// Limits zijn ruim gezet (was 400/500): LLM's tellen karakters slecht en
+// faalden chronisch op originality_anchor.outcome > 400 ondanks expliciete
+// instructie in de prompt. Een betekenisvolle narratieve outcome heeft
+// makkelijk 600-700 chars. Te scherpe ondergrens zorgde voor harde Zod-failures
+// + 3x retries + alsnog error; ruimer accepteren is goedkoper én geeft betere
+// content. Boven 1000 wordt het wel een wall-of-text — daar trekken we de lijn.
 export const OriginalityAnchorSchema = z.discriminatedUnion("type", [
   z.object({
     type: z.literal("real_case"),
     source_url: z.string().url(),
-    summary: z.string().min(60).max(500),
-    what_makes_it_relevant: z.string().min(30).max(400),
+    summary: z.string().min(60).max(900),
+    what_makes_it_relevant: z.string().min(30).max(800),
   }),
   z.object({
     type: z.literal("hypothetical_scenario"),
     industry: z.string().min(3),
     region: z.string().min(2),
-    situation: z.string().min(60).max(500),
-    outcome: z.string().min(30).max(400),
+    situation: z.string().min(60).max(900),
+    outcome: z.string().min(30).max(800),
   }),
 ]);
 export type OriginalityAnchor = z.infer<typeof OriginalityAnchorSchema>;

@@ -100,10 +100,13 @@ export async function runAuditor(input: AuditorInput, deps: AuditorDeps) {
       systemPrompt: AUDITOR_SYSTEM_PROMPT,
       userPrompt: JSON.stringify(input, null, 2),
       model: "gemini-2.5-pro",
-      // Bumped from 4000 → 8000 because improved_version can carry a full
-      // rewrite of the source post (up to ~3000 words = ~4500 tokens) on top
-      // of the scores + issues + fix_first blocks.
-      maxTokens: 8000,
+      // Bumped from 8000 → 24000: bij user-report stopte Gemini mid-string
+      // op ~15K chars (line 93 col 9655) — improved_version is een full
+      // rewrite van tot 4000 woorden (~6000 tokens), plus 6-15 issues met
+      // quote + suggested_rewrite (~4000-6000 tokens), plus scores + summary
+      // + fix_first. 8000 was te krap; 24000 geeft ruim headroom binnen
+      // Gemini 2.5 Pro's 65K output-limit.
+      maxTokens: 24000,
       temperature: 0.5,
       schema: AuditorOutputSchema,
     },
