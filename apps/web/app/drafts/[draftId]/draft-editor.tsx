@@ -258,10 +258,36 @@ export function DraftEditor({
                   <div className="muted" style={{ fontSize: 11, textTransform: "uppercase", letterSpacing: "0.04em", margin: "16px 0 6px", fontWeight: 600 }}>
                     Hard fails
                   </div>
-                  <div className="row wrap" style={{ gap: 4 }}>
-                    {draft.hardFails.map((f) => (
-                      <span key={f} className="badge b-red">{f}</span>
-                    ))}
+                  <div className="col" style={{ gap: 6 }}>
+                    {draft.hardFails.map((f) => {
+                      // Split factChecker-fixer's "claim\n→ FIX: rewrite"
+                      // zodat de FIX herkenbaar onder de claim staat met een
+                      // copy-knop voor 1-klik plakken in de editor.
+                      const fixIdx = f.indexOf("\n→ FIX: ");
+                      if (fixIdx < 0) {
+                        return <span key={f} className="badge b-red" style={{ alignSelf: "flex-start" }}>{f}</span>;
+                      }
+                      const claim = f.slice(0, fixIdx);
+                      const fix = f.slice(fixIdx + "\n→ FIX: ".length);
+                      return (
+                        <div key={f} style={{ display: "flex", flexDirection: "column", gap: 3, padding: 8, background: "rgba(185,28,28,0.06)", borderRadius: 6, borderLeft: "3px solid rgba(185,28,28,0.5)" }}>
+                          <div style={{ fontSize: 12, lineHeight: 1.4 }}>{claim}</div>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, color: "var(--success, #047857)" }}>
+                            <span style={{ fontWeight: 600 }}>→ FIX:</span>
+                            <span style={{ flex: 1, fontStyle: "italic" }}>{fix}</span>
+                            <button
+                              type="button"
+                              className="btn btn-ghost"
+                              style={{ fontSize: 11, padding: "2px 8px", whiteSpace: "nowrap" }}
+                              onClick={() => navigator.clipboard.writeText(fix)}
+                              title="Kopieer voorgestelde vervanging"
+                            >
+                              Kopieer
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </>
               )}

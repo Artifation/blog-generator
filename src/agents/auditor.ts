@@ -89,24 +89,20 @@ export interface AuditorDeps {
 }
 
 export async function runAuditor(input: AuditorInput, deps: AuditorDeps) {
-  // The auditor is invoked from the webapp where resolveAgentModel isn't
-  // bound to this provider; let the caller (server action) decide the model
-  // by sending the request through the provider. We default to a sensible
-  // model name that Gemini knows. Anthropic callers can override via the
-  // provider — runAgent uses what's passed.
+  // Phase 1 only: scores + issues + summary + fix_first + serp gaps/positioning.
+  // De volledige `improved_version` rewrite zit nu in een aparte rewriter-agent
+  // (src/agents/rewriter.ts) die alleen draait wanneer de gebruiker er expliciet
+  // om vraagt. Reden: één call die ALLES doet liep tegen 24k output-tokens,
+  // ~60s latency en chronische mid-string truncation. Splitsen geeft een snelle
+  // audit (<15s, ~3k output) en een opt-in rewrite zonder de critic-pass te
+  // belasten.
   return runAgent(
     {
       provider: deps.provider,
       systemPrompt: AUDITOR_SYSTEM_PROMPT,
       userPrompt: JSON.stringify(input, null, 2),
       model: "gemini-2.5-pro",
-      // Bumped from 8000 → 24000: bij user-report stopte Gemini mid-string
-      // op ~15K chars (line 93 col 9655) — improved_version is een full
-      // rewrite van tot 4000 woorden (~6000 tokens), plus 6-15 issues met
-      // quote + suggested_rewrite (~4000-6000 tokens), plus scores + summary
-      // + fix_first. 8000 was te krap; 24000 geeft ruim headroom binnen
-      // Gemini 2.5 Pro's 65K output-limit.
-      maxTokens: 24000,
+      maxTokens: 8000,
       temperature: 0.5,
       schema: AuditorOutputSchema,
     },

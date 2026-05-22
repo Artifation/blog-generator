@@ -2,7 +2,8 @@
 
 import { requireSite } from "~/lib/auth";
 import { createProviderRegistry } from "@/llm/client";
-import { runAuditor, type AuditorOutput, type SerpResultForAuditor } from "@/agents/auditor";
+import { runAuditor, type AuditorOutput, type AuditorIssue, type SerpResultForAuditor } from "@/agents/auditor";
+import { runRewriter } from "@/agents/rewriter";
 import { computeDeterministicRubricSignals } from "@/pipeline/rubric";
 import {
   analyzeHeadings,
@@ -229,4 +230,59 @@ export async function auditBlogAction(input: {
 
 function escapeMinimal(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+export interface RewriteResultView {
+  improvedHtml: string;
+  changeLog: string[];
+}
+
+export async function generateRewriteAction(input: {
+  html: string;
+  targetKeyword: string;
+  issues: AuditorIssue[];
+  fixFirst: string[];
+}): Promise<{ ok: true; result: RewriteResultView } | { ok: false; error: string }> {
+  if (!input.html.trim()) {
+    return { ok: false, error: "Geen bron-tekst om te herschrijven." };
+  }
+  if (input.issues.length === 0) {
+    return { ok: false, error: "Geen issues om te adresseren — draai eerst een audit." };
+  }
+
+  const site = await requireSite();
+  const key = site.apiKeys?.gemini ?? site.apiKeys?.anthropic;
+  if (!key) {
+    return { ok: false, error: "API-key ontbreekt — vul Gemini of Anthropic in onder Instellingen." };
+  }
+
+  const env = { ...process.env };
+  if (site.apiKeys?.gemini) env.GEMINI_API_KEY = site.apiKeys.gemini;
+  if (site.apiKeys?.anthropic) env.ANTHROPIC_API_KEY = site.apiKeys.anthropic;
+  const providers = createProviderRegistry(env);
+
+  const html = input.html.trim().startsWith("<") ? input.html : `<article>${escapeMinimal(input.html)}</article>`;
+
+  try {
+    const res = await runRewriter(
+      {
+        html,
+        target_keyword: input.targetKeyword,
+        brand_voice: site.brandVoice,
+        ban_list: site.banList,
+        issues_to_address: input.issues,
+        fix_first: input.fixFirst,
+      },
+      { provider: providers.get(site.apiKeys?.gemini ? "gemini" : "anthropic") }
+    );
+    return {
+      ok: true,
+      result: {
+        improvedHtml: res.parsed.improved_html,
+        changeLog: res.parsed.change_log,
+      },
+    };
+  } catch (err) {
+    return { ok: false, error: `Rewriter mislukte: ${(err as Error).message}` };
+  }
 }

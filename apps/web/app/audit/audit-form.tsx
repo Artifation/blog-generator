@@ -27,8 +27,14 @@ import {
   Heading3,
   Quote,
 } from "lucide-react";
-import { auditBlogAction, type AuditResultView } from "~/lib/actions/audit";
+import { auditBlogAction, generateRewriteAction, type AuditResultView } from "~/lib/actions/audit";
 import { RequiredBadge, FieldHelp } from "~/components/ui/form-help";
+import {
+  scoreColor as sharedScoreColor,
+  scoreColorSoft as sharedScoreColorSoft,
+  verdictLabel as sharedVerdictLabel,
+  clampScore as sharedClampScore,
+} from "@/agents/scoring";
 
 type Severity = "error" | "warning" | "suggestion";
 type Category = AuditResultView["issues"][0]["category"];
@@ -208,6 +214,7 @@ export function AuditForm({ brandVoice, banList }: AuditFormProps) {
           <AuditResultPanel
             result={result}
             content={content}
+            keyword={keyword}
             banList={banList}
             brandVoice={brandVoice}
             onApplyRewrite={applyRewrite}
@@ -239,28 +246,13 @@ async function copyToClipboard(text: string, label: string) {
 // Score helpers
 // ---------------------------------------------------------------------------
 
-function scoreColor(value: number): string {
-  if (value >= 8) return "#047857";
-  if (value >= 6) return "#b45309";
-  return "#b91c1c";
-}
-
-function scoreColorSoft(value: number): string {
-  if (value >= 8) return "rgba(4,120,87,0.10)";
-  if (value >= 6) return "rgba(180,83,9,0.10)";
-  return "rgba(185,28,28,0.10)";
-}
-
-function verdictLabel(total: number): string {
-  if (total >= 8.5) return "Klaar om te publiceren";
-  if (total >= 7) return "Bijna goed — kleine fixes";
-  if (total >= 5) return "Substantiële revisie nodig";
-  return "Herschrijven aanbevolen";
-}
-
-function clampScore(n: number): number {
-  return Math.max(0, Math.min(10, n));
-}
+// Score-utilities komen uit src/agents/scoring.ts (gedeeld met agents +
+// andere UI's). Alleen aliasen zodat de rest van dit bestand z'n bekende
+// naamruimte houdt zonder een grote rename-diff.
+const scoreColor = sharedScoreColor;
+const scoreColorSoft = sharedScoreColorSoft;
+const verdictLabel = sharedVerdictLabel;
+const clampScore = sharedClampScore;
 
 /** Sum estimated_score_lift of fix-first / top-priority issues to project the
  * ceiling if the user actually fixes everything the auditor flagged. */
@@ -278,17 +270,57 @@ type Tab = "overview" | "issues" | "insights" | "rewrite";
 function AuditResultPanel({
   result,
   content,
+  keyword,
   banList,
   brandVoice: _brandVoice,
   onApplyRewrite,
 }: {
   result: AuditResultView;
   content: string;
+  keyword: string;
   banList: string[];
   brandVoice: string;
   onApplyRewrite: (quote: string, rewrite: string) => void;
 }) {
   const [tab, setTab] = React.useState<Tab>("overview");
+  const [rewrite, setRewrite] = React.useState<{ improvedHtml: string; changeLog: string[] } | null>(
+    result.improvedVersion ? { improvedHtml: result.improvedVersion, changeLog: [] } : null
+  );
+  const [rewriteLoading, setRewriteLoading] = React.useState(false);
+
+  React.useEffect(() => {
+    // Reset rewrite-state als de audit-result wisselt (nieuwe audit gedraaid).
+    setRewrite(result.improvedVersion ? { improvedHtml: result.improvedVersion, changeLog: [] } : null);
+    setRewriteLoading(false);
+  }, [result]);
+
+  async function generateRewrite() {
+    if (!content.trim() || !keyword.trim() || result.issues.length === 0) {
+      toast.error("Audit eerst — er zijn nog geen issues om te adresseren.");
+      return;
+    }
+    setRewriteLoading(true);
+    const tid = toast.loading("AI herschrijft je blog op basis van de issues…");
+    try {
+      const res = await generateRewriteAction({
+        html: content,
+        targetKeyword: keyword,
+        issues: result.issues,
+        fixFirst: result.fixFirst,
+      });
+      if (!res.ok) {
+        toast.error(res.error, { duration: 8000 });
+        return;
+      }
+      setRewrite({ improvedHtml: res.result.improvedHtml, changeLog: res.result.changeLog });
+      toast.success("Verbeterde versie klaar");
+    } catch (err) {
+      toast.error(`Herschrijven mislukte: ${(err as Error).message ?? "onbekend"}`, { duration: 10000 });
+    } finally {
+      toast.dismiss(tid);
+      setRewriteLoading(false);
+    }
+  }
 
   return (
     <>
@@ -313,7 +345,6 @@ function AuditResultPanel({
             onClick={() => setTab("rewrite")}
             icon={<FileText size={14} />}
             label="Verbeterde versie"
-            disabled={!result.improvedVersion}
           />
         </div>
         <div className="card-body">
@@ -322,7 +353,14 @@ function AuditResultPanel({
           )}
           {tab === "issues" && <IssuesTab result={result} onApplyRewrite={onApplyRewrite} />}
           {tab === "insights" && <InsightsTab result={result} />}
-          {tab === "rewrite" && <RewriteTab improved={result.improvedVersion} />}
+          {tab === "rewrite" && (
+            <RewriteTab
+              rewrite={rewrite}
+              loading={rewriteLoading}
+              onGenerate={generateRewrite}
+              issuesCount={result.issues.length}
+            />
+          )}
         </div>
       </div>
     </>
@@ -2140,11 +2178,55 @@ function IssueRow({
 // Rewrite tab
 // ---------------------------------------------------------------------------
 
-function RewriteTab({ improved }: { improved: string | null }) {
-  if (!improved) {
+function RewriteTab({
+  rewrite,
+  loading,
+  onGenerate,
+  issuesCount,
+}: {
+  rewrite: { improvedHtml: string; changeLog: string[] } | null;
+  loading: boolean;
+  onGenerate: () => void;
+  issuesCount: number;
+}) {
+  if (!rewrite) {
     return (
-      <div className="muted" style={{ fontSize: 13, padding: 20, textAlign: "center" }}>
-        De AI vond de bron al sterk genoeg dat een volledige herschrijving niet nodig was. Bekijk de issues-tab voor lokale fixes.
+      <div
+        style={{
+          padding: 28,
+          textAlign: "center",
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 12,
+        }}
+      >
+        <Wand2 size={28} style={{ color: "var(--secondary, #3b82f6)", opacity: 0.7 }} />
+        <div style={{ fontSize: 14, fontWeight: 600 }}>
+          Genereer een volledig herschreven versie
+        </div>
+        <div className="muted" style={{ fontSize: 12.5, lineHeight: 1.5, maxWidth: 520 }}>
+          De auditor heeft {issuesCount} {issuesCount === 1 ? "issue" : "issues"} gevonden. Klik
+          hieronder om een aparte rewriter-agent de blog te laten herschrijven op basis van die
+          kritiek + je brand voice + ban list. Dit kost extra LLM-credits (~€0,02) en duurt
+          15-30 seconden.
+        </div>
+        <button
+          type="button"
+          className="btn btn-primary"
+          onClick={onGenerate}
+          disabled={loading || issuesCount === 0}
+        >
+          {loading ? (
+            <>
+              <RefreshCw size={14} className="spin" /> AI herschrijft…
+            </>
+          ) : (
+            <>
+              <Wand2 size={14} /> Genereer verbeterde versie
+            </>
+          )}
+        </button>
       </div>
     );
   }
@@ -2152,16 +2234,54 @@ function RewriteTab({ improved }: { improved: string | null }) {
     <div className="col" style={{ gap: 10 }}>
       <div className="row" style={{ justifyContent: "space-between", alignItems: "center" }}>
         <div className="muted" style={{ fontSize: 12 }}>
-          Volledige herschreven versie die alle errors + meeste warnings adresseert. Plak terug in je editor of WP.
+          Volledige herschreven versie die alle errors + meeste warnings adresseert. Plak terug
+          in je editor of WP.
         </div>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={() => copyToClipboard(improved, "Verbeterde versie")}
-        >
-          <CheckCircle2 size={14} /> Kopieer verbeterde versie
-        </button>
+        <div className="row" style={{ gap: 6 }}>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={onGenerate}
+            disabled={loading}
+            title="Opnieuw genereren (overschrijft huidige versie)"
+          >
+            {loading ? (
+              <>
+                <RefreshCw size={13} className="spin" /> Bezig…
+              </>
+            ) : (
+              <>
+                <RefreshCw size={13} /> Opnieuw
+              </>
+            )}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => copyToClipboard(rewrite.improvedHtml, "Verbeterde versie")}
+          >
+            <CheckCircle2 size={14} /> Kopieer
+          </button>
+        </div>
       </div>
+      {rewrite.changeLog.length > 0 && (
+        <div
+          style={{
+            padding: 10,
+            background: "linear-gradient(135deg, rgba(59,130,246,0.06), rgba(99,102,241,0.05))",
+            border: "1px solid rgba(59,130,246,0.20)",
+            borderRadius: 6,
+            fontSize: 12,
+          }}
+        >
+          <div style={{ fontWeight: 600, marginBottom: 4 }}>Wat is er aangepast</div>
+          <ul style={{ paddingLeft: 18, margin: 0, lineHeight: 1.55 }}>
+            {rewrite.changeLog.map((c, i) => (
+              <li key={i}>{c}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div
         style={{
           whiteSpace: "pre-wrap",
@@ -2174,7 +2294,7 @@ function RewriteTab({ improved }: { improved: string | null }) {
           overflowY: "auto",
         }}
       >
-        {improved}
+        {rewrite.improvedHtml}
       </div>
     </div>
   );

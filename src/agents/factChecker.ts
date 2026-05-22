@@ -6,8 +6,27 @@ import { FACT_CHECKER_SYSTEM_PROMPT } from "./prompts/factChecker.ts";
 
 export const FactCheckerOutputSchema = z.object({
   verified_claims: z.array(z.object({ claim: z.string(), source_url: z.string().url() })),
-  unverifiable_claims: z.array(z.object({ claim: z.string(), reason: z.string() })),
-  fabricated_claims: z.array(z.object({ claim: z.string(), reason: z.string() })),
+  unverifiable_claims: z.array(
+    z.object({
+      claim: z.string(),
+      reason: z.string(),
+      /** Voorgestelde kwalitatieve herformulering die de claim verwijdert of
+       * generaliseert. Optioneel; alleen wanneer een fix mogelijk is zonder
+       * de strekking van de zin te verliezen. */
+      suggested_rewrite: z.string().optional(),
+    })
+  ),
+  fabricated_claims: z.array(
+    z.object({
+      claim: z.string(),
+      reason: z.string(),
+      /** Concrete vervanging zonder verzonnen cijfers/namen — kwalitatieve
+       * frasering die de claim wegneemt. De writer-retry-loop én reject-email
+       * gebruiken dit om de gebruiker / writer te helpen de fout te corrigeren
+       * zonder een nieuwe hallucinatie te introduceren. */
+      suggested_rewrite: z.string().optional(),
+    })
+  ),
   verdict: z.enum(["pass", "fail"]),
 });
 export type FactCheckerOutput = z.infer<typeof FactCheckerOutputSchema>;

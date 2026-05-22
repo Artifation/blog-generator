@@ -53,4 +53,20 @@ describe("parsePreviousFabricatedClaims", () => {
       parsePreviousFabricatedClaims(["fabricated claim: AI-gedreven groei van 47%"])
     ).toEqual(["AI-gedreven groei van 47%"]);
   });
+
+  it("strips the optional '\\n→ FIX: <rewrite>' suffix added by factChecker-fixer", () => {
+    expect(
+      parsePreviousFabricatedClaims([
+        "fabricated claim: 47% van MKB gebruikt AI — niet in key_facts\n→ FIX: Een groeiend deel van het MKB gebruikt AI",
+      ])
+    ).toEqual(["47% van MKB gebruikt AI"]);
+  });
+
+  it("handles FIX-suffix without a reason between claim and FIX", () => {
+    expect(
+      parsePreviousFabricatedClaims([
+        "fabricated claim: 8 op de 10 ondernemers\n→ FIX: De meeste ondernemers",
+      ])
+    ).toEqual(["8 op de 10 ondernemers"]);
+  });
 });
