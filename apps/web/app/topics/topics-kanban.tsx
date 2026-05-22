@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Sparkles, Trash2, X, RefreshCw, ExternalLink, Wand2, Check, Pencil, FileText, AlertTriangle, RotateCcw } from "lucide-react";
+import { Plus, Sparkles, Trash2, X, RefreshCw, ExternalLink, Wand2, Check, Pencil, FileText, AlertTriangle, RotateCcw, Search, ChevronDown, Clock, XCircle, CheckCircle, MoreHorizontal } from "lucide-react";
 import { createTopicAction, deleteTopicAction, updateTopicAction } from "~/lib/actions/topics";
 import { generateForTopicAction } from "~/lib/actions/generate";
 import { suggestTopicsAction, acceptTopicProposalsAction, type TopicProposalView } from "~/lib/actions/suggest-topics";
@@ -72,25 +72,75 @@ function deriveState(t: TopicRow, now: number): EffectiveState {
   return age > STUCK_AFTER_MS ? "stuck" : "running";
 }
 
-function stateToColumn(s: EffectiveState): string {
-  switch (s) {
-    case "queued":
-      return "queued";
-    case "published":
-      return "published";
-    case "rejected":
-      return "rejected";
-    default:
-      return "in_progress";
-  }
-}
+type SectionDef = {
+  state: EffectiveState;
+  label: string;
+  sub: string;
+  iconBg: string;
+  iconColor: string;
+  Icon: React.ComponentType<{ size?: number }>;
+};
 
-const COLUMNS: Array<{ status: string; label: string; tone: string }> = [
-  { status: "queued", label: "Queued", tone: "b-blue" },
-  { status: "in_progress", label: "In de pijplijn", tone: "b-yellow" },
-  { status: "published", label: "Published", tone: "b-green" },
-  { status: "rejected", label: "Rejected", tone: "b-red" },
+const SECTIONS: SectionDef[] = [
+  {
+    state: "awaiting_review",
+    label: "Draft op review",
+    sub: "Pipeline is klaar, wacht op jouw goedkeuring",
+    iconBg: "rgba(59,130,246,0.10)",
+    iconColor: "var(--secondary)",
+    Icon: FileText,
+  },
+  {
+    state: "stuck",
+    label: "Vastgelopen",
+    sub: "In_progress > 1u zonder draft — pipeline is gecrasht of nooit gestart",
+    iconBg: "rgba(220,38,38,0.10)",
+    iconColor: "#b91c1c",
+    Icon: AlertTriangle,
+  },
+  {
+    state: "draft_rejected",
+    label: "Draft afgewezen",
+    sub: "Pipeline heeft draft afgewezen — bekijk in /drafts",
+    iconBg: "rgba(220,38,38,0.10)",
+    iconColor: "#b91c1c",
+    Icon: XCircle,
+  },
+  {
+    state: "running",
+    label: "Pipeline draait",
+    sub: "Generatie loopt op dit moment",
+    iconBg: "var(--warning-bg)",
+    iconColor: "#b45309",
+    Icon: RefreshCw,
+  },
+  {
+    state: "queued",
+    label: "Queued",
+    sub: "Klaar om door de pipeline gepakt te worden",
+    iconBg: "var(--surface-3)",
+    iconColor: "var(--text-muted)",
+    Icon: Clock,
+  },
+  {
+    state: "rejected",
+    label: "Afgewezen",
+    sub: "Topic afgewezen — bewerk of genereer opnieuw",
+    iconBg: "rgba(220,38,38,0.10)",
+    iconColor: "#b91c1c",
+    Icon: XCircle,
+  },
+  {
+    state: "published",
+    label: "Gepubliceerd",
+    sub: "Topic heeft een live post",
+    iconBg: "var(--success-bg)",
+    iconColor: "var(--success)",
+    Icon: CheckCircle,
+  },
 ];
+
+const ROWS_BEFORE_TRUNCATE = 10;
 
 export function TopicsKanban({
   siteSlug,
@@ -111,6 +161,21 @@ export function TopicsKanban({
   // Snapshot once per render — used for stuck detection. Re-renders after any
   // mutation, so age stays current enough for the >1u threshold.
   const now = Date.now();
+
+  const [query, setQuery] = React.useState("");
+  // Active filter: empty = show all sections; non-empty = show only listed
+  const [activeStates, setActiveStates] = React.useState<Set<EffectiveState>>(new Set());
+  const [collapsed, setCollapsed] = React.useState<Set<EffectiveState>>(new Set());
+  const [showAllFor, setShowAllFor] = React.useState<Set<EffectiveState>>(new Set());
+
+  function toggleSet<T>(setter: React.Dispatch<React.SetStateAction<Set<T>>>, value: T) {
+    setter((prev) => {
+      const next = new Set(prev);
+      if (next.has(value)) next.delete(value);
+      else next.add(value);
+      return next;
+    });
+  }
 
   async function resetToQueued(t: TopicRow) {
     const r = await updateTopicAction(t.id, { status: "queued", rejectReason: null });
@@ -201,156 +266,277 @@ export function TopicsKanban({
         </div>
       </div>
 
-      <div className="kanban">
-        {COLUMNS.map((col) => {
-          const rows = topics.filter((t) => stateToColumn(deriveState(t, now)) === col.status);
+      {(() => {
+        const q = query.trim().toLowerCase();
+        const matchesSearch = (t: TopicRow): boolean => {
+          if (!q) return true;
           return (
-            <div key={col.status} className="kcol">
-              <div className="kcol-head">
-                <span className={`kc-title`}>{col.label}</span>
-                <span className="kc-count">{rows.length}</span>
-              </div>
-              <div className="kcol-body">
-                {rows.length === 0 ? (
-                  <p className="muted" style={{ fontSize: 12, padding: 8, margin: 0 }}>
-                    Geen topics.
-                  </p>
-                ) : (
-                  rows.map((t) => {
-                    const pillar = pillars.find((p) => p.slug === t.pillarSlug);
-                    const state = deriveState(t, now);
-                    return (
-                      <div key={t.id} className="tcard">
-                        <div className="tc-title">{t.title}</div>
-                        {state === "rejected" && t.rejectReason && (
-                          <div
-                            style={{
-                              fontSize: 12,
-                              background: "var(--warning-bg)",
-                              color: "#b45309",
-                              padding: "6px 8px",
-                              borderRadius: 6,
-                              border: "1px solid #fde68a",
-                              lineHeight: 1.4,
-                            }}
-                          >
-                            <strong>Afgewezen:</strong> {t.rejectReason}
-                          </div>
-                        )}
-                        <div className="tc-meta">
-                          {pillar && <span className="badge b-navy">{pillar.name}</span>}
-                          <span className="badge b-gray">{t.intent}</span>
-                          <span className="badge b-gray">{t.intendedWordCount}w</span>
-                          {state === "awaiting_review" && (
-                            <span className="badge b-blue" title="Pipeline is klaar, draft wacht op review">
-                              <FileText size={10} style={{ marginRight: 4 }} />
-                              Draft op review
-                            </span>
-                          )}
-                          {state === "draft_rejected" && (
-                            <span className="badge b-red" title="De vorige draft is afgewezen door de pipeline">
-                              Draft afgewezen
-                            </span>
-                          )}
-                          {state === "running" && (
-                            <span className="badge b-yellow" title="Pipeline draait momenteel">
-                              <RefreshCw size={10} className="spin" style={{ marginRight: 4 }} />
-                              Pipeline draait
-                            </span>
-                          )}
-                          {state === "stuck" && (
-                            <span className="badge b-red" title={`Topic staat al >1u op in_progress zonder draft (laatst: ${t.updatedAt})`}>
-                              <AlertTriangle size={10} style={{ marginRight: 4 }} />
-                              Vastgelopen
-                            </span>
-                          )}
-                        </div>
-                        <div className="mono muted" style={{ fontSize: 11 }}>
-                          {t.targetKeyword}
-                        </div>
-                        {t.publishedUrl && (
-                          <a
-                            href={t.publishedUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            style={{
-                              fontSize: 11,
-                              color: "var(--secondary)",
-                              display: "inline-flex",
-                              alignItems: "center",
-                              gap: 4,
-                            }}
-                          >
-                            Bekijk post <ExternalLink size={10} />
-                          </a>
-                        )}
-                        <div className="tc-foot">
-                          {(state === "awaiting_review" || state === "draft_rejected") && t.latestDraft && (
-                            <Link
-                              href={`/drafts/${t.latestDraft.id}`}
-                              className="btn btn-primary btn-sm"
-                            >
-                              <FileText size={11} /> Open draft
-                            </Link>
-                          )}
-                          {state === "stuck" && (
-                            <button
-                              type="button"
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => resetToQueued(t)}
-                              disabled={generating !== null}
-                              title="Zet topic terug op queued zodat pipeline opnieuw kan starten"
-                            >
-                              <RotateCcw size={11} /> Reset
-                            </button>
-                          )}
-                          {(state === "queued" || state === "rejected") && (
-                            <button
-                              type="button"
-                              className="btn btn-primary btn-sm"
-                              onClick={() => generate(t)}
-                              disabled={generating !== null}
-                            >
-                              {generating === t.id ? (
-                                <>
-                                  <RefreshCw size={11} className="spin" /> Draait…
-                                </>
-                              ) : (
-                                <>
-                                  <Sparkles size={11} /> Genereer
-                                </>
-                              )}
-                            </button>
-                          )}
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            onClick={() => setEditing(t)}
-                            disabled={generating !== null}
-                            aria-label="Bewerk topic"
-                            title="Bewerk topic (titel, keyword, custom instructies, status)"
-                          >
-                            <Pencil size={13} />
-                          </button>
-                          <button
-                            type="button"
-                            className="icon-btn"
-                            onClick={() => remove(t)}
-                            disabled={generating !== null}
-                            aria-label="Verwijder"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        </div>
-                      </div>
-                    );
-                  })
+            t.title.toLowerCase().includes(q) ||
+            t.targetKeyword.toLowerCase().includes(q) ||
+            (pillars.find((p) => p.slug === t.pillarSlug)?.name.toLowerCase().includes(q) ?? false)
+          );
+        };
+
+        // Group all topics by state (for chip counts — independent of search/filter)
+        const allByState = new Map<EffectiveState, TopicRow[]>();
+        for (const t of topics) {
+          const s = deriveState(t, now);
+          if (!allByState.has(s)) allByState.set(s, []);
+          allByState.get(s)!.push(t);
+        }
+
+        // Group filtered (search + state filter) topics
+        const filteredByState = new Map<EffectiveState, TopicRow[]>();
+        const stateFilterActive = activeStates.size > 0;
+        for (const t of topics) {
+          if (!matchesSearch(t)) continue;
+          const s = deriveState(t, now);
+          if (stateFilterActive && !activeStates.has(s)) continue;
+          if (!filteredByState.has(s)) filteredByState.set(s, []);
+          filteredByState.get(s)!.push(t);
+        }
+
+        const totalAll = topics.length;
+        const totalShown = Array.from(filteredByState.values()).reduce((a, b) => a + b.length, 0);
+        const sectionsToRender = SECTIONS.filter((s) => (filteredByState.get(s.state)?.length ?? 0) > 0);
+
+        return (
+          <>
+            <div className="topics-toolbar">
+              <div className="topics-search">
+                <Search size={16} />
+                <input
+                  type="text"
+                  placeholder={`Zoek in ${totalAll} topic${totalAll === 1 ? "" : "s"} — titel, keyword, pillar…`}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  aria-label="Zoek topics"
+                />
+                {query && (
+                  <button
+                    type="button"
+                    className="clear-btn"
+                    onClick={() => setQuery("")}
+                    aria-label="Wis zoekopdracht"
+                    title="Wis"
+                  >
+                    <X size={14} />
+                  </button>
                 )}
               </div>
+
+              <div className="topics-filters">
+                <button
+                  type="button"
+                  className={`tfilter${activeStates.size === 0 ? " active" : ""}`}
+                  onClick={() => setActiveStates(new Set())}
+                  title="Toon alle states"
+                >
+                  Alle
+                  <span className="tf-count">{totalAll}</span>
+                </button>
+                {SECTIONS.map((s) => {
+                  const count = allByState.get(s.state)?.length ?? 0;
+                  if (count === 0) return null;
+                  const active = activeStates.has(s.state);
+                  return (
+                    <button
+                      key={s.state}
+                      type="button"
+                      className={`tfilter${active ? " active" : ""}`}
+                      onClick={() => toggleSet(setActiveStates, s.state)}
+                      title={s.sub}
+                    >
+                      <s.Icon size={12} />
+                      {s.label}
+                      <span className="tf-count">{count}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
-          );
-        })}
-      </div>
+
+            {totalShown === 0 ? (
+              <div className="topics-empty">
+                <h3>Geen topics gevonden</h3>
+                <p>
+                  {query
+                    ? `Geen match voor "${query}" in de huidige filters.`
+                    : "Geen topics in de geselecteerde states."}
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => {
+                    setQuery("");
+                    setActiveStates(new Set());
+                  }}
+                >
+                  Reset filters
+                </button>
+              </div>
+            ) : (
+              sectionsToRender.map((sec) => {
+                const rows = filteredByState.get(sec.state)!;
+                const isCollapsed = collapsed.has(sec.state);
+                const showAll = showAllFor.has(sec.state);
+                const visible = showAll ? rows : rows.slice(0, ROWS_BEFORE_TRUNCATE);
+                const hidden = rows.length - visible.length;
+                return (
+                  <section
+                    key={sec.state}
+                    className={`topic-section${isCollapsed ? " collapsed" : ""}`}
+                  >
+                    <header
+                      className="topic-section-head"
+                      onClick={() => toggleSet(setCollapsed, sec.state)}
+                      role="button"
+                      aria-expanded={!isCollapsed}
+                    >
+                      <span
+                        className="ts-icon"
+                        style={{ background: sec.iconBg, color: sec.iconColor }}
+                      >
+                        <sec.Icon size={14} />
+                      </span>
+                      <span className="ts-title">{sec.label}</span>
+                      <span className="ts-count">{rows.length}</span>
+                      <span className="ts-sub">{sec.sub}</span>
+                      <ChevronDown size={16} className="ts-chev" />
+                    </header>
+                    {!isCollapsed && (
+                      <div className="topic-section-body">
+                        {visible.map((t) => {
+                          const pillar = pillars.find((p) => p.slug === t.pillarSlug);
+                          const state = sec.state;
+                          return (
+                            <div key={t.id} className="trow">
+                              <div className="trow-main">
+                                <div className="trow-title" title={t.title}>
+                                  {t.title}
+                                </div>
+                                <div className="trow-meta">
+                                  {pillar && <span className="badge b-navy">{pillar.name}</span>}
+                                  <span className="mono">{t.targetKeyword}</span>
+                                  <span>·</span>
+                                  <span>{t.intendedWordCount}w</span>
+                                  <span>·</span>
+                                  <span>{t.intent}</span>
+                                  {t.priority > 0 && (
+                                    <>
+                                      <span>·</span>
+                                      <span title="Prioriteit">P{t.priority}</span>
+                                    </>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="trow-actions">
+                                {(state === "awaiting_review" || state === "draft_rejected") &&
+                                  t.latestDraft && (
+                                    <Link
+                                      href={`/drafts/${t.latestDraft.id}`}
+                                      className="btn btn-primary btn-sm"
+                                    >
+                                      <FileText size={11} /> Open draft
+                                    </Link>
+                                  )}
+                                {state === "stuck" && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-secondary btn-sm"
+                                    onClick={() => resetToQueued(t)}
+                                    disabled={generating !== null}
+                                    title="Zet topic terug op queued"
+                                  >
+                                    <RotateCcw size={11} /> Reset
+                                  </button>
+                                )}
+                                {(state === "queued" || state === "rejected") && (
+                                  <button
+                                    type="button"
+                                    className="btn btn-primary btn-sm"
+                                    onClick={() => generate(t)}
+                                    disabled={generating !== null}
+                                  >
+                                    {generating === t.id ? (
+                                      <>
+                                        <RefreshCw size={11} className="spin" /> Draait…
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Sparkles size={11} /> Genereer
+                                      </>
+                                    )}
+                                  </button>
+                                )}
+                                {state === "published" && t.publishedUrl && (
+                                  <a
+                                    href={t.publishedUrl}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="btn btn-secondary btn-sm"
+                                  >
+                                    Bekijk <ExternalLink size={11} />
+                                  </a>
+                                )}
+                                <button
+                                  type="button"
+                                  className="icon-btn"
+                                  onClick={() => setEditing(t)}
+                                  disabled={generating !== null}
+                                  aria-label="Bewerk topic"
+                                  title="Bewerken"
+                                >
+                                  <Pencil size={13} />
+                                </button>
+                                <button
+                                  type="button"
+                                  className="icon-btn"
+                                  onClick={() => remove(t)}
+                                  disabled={generating !== null}
+                                  aria-label="Verwijder"
+                                  title="Verwijderen"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              </div>
+                              {state === "rejected" && t.rejectReason && (
+                                <div className="trow-reject-reason">
+                                  <strong>Reden:</strong> {t.rejectReason}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                        {hidden > 0 && (
+                          <div className="topic-section-more">
+                            <button
+                              type="button"
+                              onClick={() => toggleSet(setShowAllFor, sec.state)}
+                            >
+                              Toon alle {rows.length}
+                            </button>
+                          </div>
+                        )}
+                        {showAll && rows.length > ROWS_BEFORE_TRUNCATE && (
+                          <div className="topic-section-more">
+                            <button
+                              type="button"
+                              onClick={() => toggleSet(setShowAllFor, sec.state)}
+                            >
+                              Toon minder
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </section>
+                );
+              })
+            )}
+          </>
+        );
+      })()}
 
       {adding && (
         <AddTopicModal
