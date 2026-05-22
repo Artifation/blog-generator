@@ -52,6 +52,14 @@ export interface StrategistInput {
   /** Top-10 live SERP-resultaten van DataForSEO. Strategist gebruikt deze om
    * outline te baseren op wat feitelijk rankt — niet alleen op LLM-intuïtie. */
   serp_results?: { rank: number; url: string; domain: string; title: string; description: string }[];
+  /** Eigen GSC-feedback uit gepubliceerde posts (zie gscPerformanceInsights).
+   * Strategist gebruikt dit om: (1) outline-secties te plannen die complementair
+   * zijn aan top performers (geen kannibalisatie), (2) gaps te identificeren
+   * tussen wat we al ranken en wat de SERP nog vraagt. */
+  performance_signals?: {
+    top_performers: { url: string; target_keyword: string; clicks_30d: number; note: string }[];
+    ranking_keywords: { query: string; position: number; url: string }[];
+  };
 }
 
 export interface StrategistDeps {

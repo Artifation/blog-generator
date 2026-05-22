@@ -1,0 +1,40 @@
+name: Weekly GSC snapshot
+on:
+  schedule:
+    - cron: "30 6 * * 1"  # Monday 06:30 UTC (vóór content-decay 07:00 zodat decay aan verse data komt)
+  workflow_dispatch:
+    inputs:
+      tenant: { description: "Tenant slug", default: "artifation", required: true }
+
+permissions:
+  contents: write
+concurrency:
+  group: gsc-snapshot-${{ github.event.inputs.tenant || 'artifation' }}
+
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with: { token: '${{ secrets.GITHUB_TOKEN }}' }
+      - uses: actions/setup-node@v4
+        with: { node-version: '20', cache: npm }
+      - run: npm ci
+      - name: Run GSC snapshot
+        env:
+          GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
+        run: npx tsx scripts/gsc-snapshot.ts --tenant=${{ github.event.inputs.tenant || 'artifation' }}
+      - name: Commit snapshot
+        if: success()
+        run: |
+          git config user.name "blog-bot"
+          git config user.email "blog-bot@artifation.nl"
+          git add data/gsc-snapshots/
+          git diff --staged --quiet || git commit -m "chore(state): gsc-snapshot $(date -u +%Y-%m-%d)"
+          git pull --rebase origin main
+          git push
+      - name: Upload snapshot artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: { name: 'gsc-snapshot-${{ github.run_id }}', path: 'data/gsc-snapshots/', retention-days: 365, if-no-files-found: ignore }

@@ -28,10 +28,11 @@ import {
   findUnmappedQueries,
 } from "@/integrations/keywordOpportunities";
 import { runTopicSuggester } from "@/agents/topicSuggester";
-import type { TopicProposal } from "@/agents/topicSuggester";
+import type { TopicProposal, TopicSuggesterInput } from "@/agents/topicSuggester";
 import { createProviderRegistry } from "@/llm/client";
 import { sendEmail } from "@/email/resend";
 import { TopicProposals } from "@/email/templates/TopicProposals";
+import { derivePerformanceInsights, loadLatestSnapshot } from "./gscPerformanceInsights.ts";
 
 export interface TopicSuggesterJobOpts {
   tenantSlug: string;
@@ -281,6 +282,55 @@ export async function runTopicSuggesterJob(opts: TopicSuggesterJobOpts): Promise
   const model = (await import("@/llm/client")).resolveAgentModel("topicSuggester");
   const provider = registry.get(model.provider);
 
+  // 5a. Performance feedback — leest de meest recente gsc-snapshot uit
+  //     data/gsc-snapshots/<tenant>/ (geschreven door de wekelijkse
+  //     gsc-snapshot cron). Voorkomt dat de suggester topics propose't
+  //     waarop wij al ranken (eigen kannibalisatie) + flagt striking-
+  //     distance posts als refresh-kandidaten.
+  let performanceSignals: TopicSuggesterInput["performance_signals"] | undefined;
+  try {
+    const latest = await loadLatestSnapshot(opts.tenantSlug, path.join(baseDir, "..", "data"));
+    if (latest && latest.posts.length > 0) {
+      const ins = derivePerformanceInsights(latest);
+      performanceSignals = {
+        top_performers: ins.top_performers.map((p) => ({
+          url: p.url,
+          target_keyword: p.target_keyword,
+          clicks_30d: p.clicks_30d,
+          impressions_30d: p.impressions_30d,
+          note: p.note,
+        })),
+        underperformers: ins.underperformers.map((p) => ({
+          url: p.url,
+          target_keyword: p.target_keyword,
+          days_live: p.days_live,
+          impressions_30d: p.impressions_30d,
+          note: p.note,
+        })),
+        striking_distance_posts: ins.striking_distance_posts.map((p) => ({
+          url: p.url,
+          target_keyword: p.target_keyword,
+          avg_position: p.avg_position,
+          impressions_30d: p.impressions_30d,
+          note: p.note,
+        })),
+        ranking_keywords: ins.ranking_keywords,
+      };
+      console.log(
+        JSON.stringify({
+          stage: "topic-suggester-perf-signals",
+          snapshotDate: ins.source_snapshot_date,
+          topPerformers: ins.top_performers.length,
+          underperformers: ins.underperformers.length,
+          strikingDistance: ins.striking_distance_posts.length,
+          rankingKeywords: ins.ranking_keywords.length,
+        })
+      );
+    }
+  } catch (err) {
+    console.log(JSON.stringify({ stage: "topic-suggester-perf-signals", warning: (err as Error).message }));
+  }
+
   let proposals: TopicProposal[] = [];
 
   try {
@@ -290,6 +340,7 @@ export async function runTopicSuggesterJob(opts: TopicSuggesterJobOpts): Promise
         candidates,
         pillars: tenant.pillars,
         max_n: cfg.max_proposals_per_week,
+        ...(performanceSignals ? { performance_signals: performanceSignals } : {}),
       },
       { provider }
     );

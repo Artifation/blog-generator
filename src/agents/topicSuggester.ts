@@ -46,6 +46,16 @@ export interface TopicSuggesterInput {
   }[];
   pillars: { id: string; weight: number }[];
   max_n: number;
+  /** Optioneel: GSC-performance feedback uit `gscPerformanceInsights`. Wanneer
+   * aanwezig: de agent moet (1) GEEN nieuwe topics voorstellen voor queries
+   * waar we al top-10 ranken, en (2) striking-distance posts markeren als
+   * refresh-kandidaten i.p.v. nieuwe topics te genereren. */
+  performance_signals?: {
+    top_performers: { url: string; target_keyword: string; clicks_30d: number; impressions_30d: number; note: string }[];
+    underperformers: { url: string; target_keyword: string; days_live: number; impressions_30d: number; note: string }[];
+    striking_distance_posts: { url: string; target_keyword: string; avg_position: number; impressions_30d: number; note: string }[];
+    ranking_keywords: { query: string; position: number; impressions: number; url: string }[];
+  };
 }
 
 export interface TopicSuggesterDeps {

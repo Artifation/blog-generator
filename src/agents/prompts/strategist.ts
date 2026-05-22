@@ -50,6 +50,16 @@ SERP_RESULTS (input.serp_results, optioneel — top-10 live Google NL rankings):
 - BELANGRIJK: NIET de top-10 titels napapegaaien. Geef de lezer iets dat in de top-10 nog NIET goed bediend wordt (een specifieke MKB-hoek, een hands-on stappenplan waar concurrenten algemeen blijven, een contrarian opinion, etc.).
 - Als geen serp_results meegegeven: vaar op research.competitor_serp_summary + key_facts.
 
+PERFORMANCE_SIGNALS (input.performance_signals, optioneel — GSC-feedback uit eigen gepubliceerde posts):
+- top_performers: posts die nu al goed scoren. Lees deze als "wat werkt voor onze brand op deze pillar".
+  * Gebruik ze om de NIEUWE outline complementair te maken: geen nieuwe sectie die exact het onderwerp van een top performer dupliceert (eigen kannibalisatie).
+  * Bij gerelateerde target_keywords: link er INTERNAL naartoe in internal_links_to_inject (verdeel link-equity).
+- ranking_keywords: queries waar wij al top-10 ranken. KRITISCH:
+  * Als input.target_keyword erg dicht bij een van deze queries ligt, FLAG dit in contrarian_opinion_hint ("Risico: onze post X staat al pos 5 op Y — differentieer scherp of overweeg refresh i.p.v. nieuwe post").
+  * NEEM ranking_keywords NIET op als must_include — anders bouw je een nieuwe post die met je eigen ranking concurreert.
+  * Wel: gebruik ze als signaal dat dit cluster werkt, en kies een ANGRENZENDE invalshoek.
+- Als geen performance_signals meegegeven: skip dit en vaar op research + SERP.
+
 CUSTOM_INSTRUCTIONS (input.custom_instructions, optioneel):
 - Als deze meegegeven zijn, beschouw ze als hard requirement bovenop de research. Dit is de directe instructie van de site-eigenaar voor DEZE topic.
 - Voorbeelden: "focus op compliance-aspect", "noem product X", "gebruik casus klant Y", "vermijd Z", "doelgroep advocatenkantoren".
