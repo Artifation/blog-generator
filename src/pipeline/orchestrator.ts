@@ -13,7 +13,9 @@ import { computeRunCost, type UsageEntry } from "./costTracker.ts";
 import { countPublishedThisIsoWeek, markTopicStatus } from "./state.ts";
 import { createProviderRegistry } from "@/llm/client";
 import { runResearcher } from "@/agents/researcher";
-import { runStrategist } from "@/agents/strategist";
+import { runStrategist, type StrategistInput } from "@/agents/strategist";
+import { derivePerformanceInsights, loadLatestSnapshot } from "./gscPerformanceInsights.ts";
+import { applyFactCheckerFixes } from "./applyFactCheckerFixes.ts";
 import { runWriter } from "@/agents/writer";
 import { runSeoEditor } from "@/agents/seoEditor";
 import { runFactChecker } from "@/agents/factChecker";
@@ -260,6 +262,38 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       }
     }
 
+    // Performance-feedback: laad de meest recente GSC-snapshot zodat de
+    // strategist weet welke queries we al ranken (kannibalisatie-preventie)
+    // en welke top performers in deze pillar bestaan. Niet-fataal — bij
+    // ontbrekende snapshot vaart de strategist op research + SERP.
+    let strategistPerformanceSignals: StrategistInput["performance_signals"] | undefined;
+    try {
+      const latest = await loadLatestSnapshot(opts.tenantSlug, dataDir);
+      if (latest && latest.posts.length > 0) {
+        const ins = derivePerformanceInsights(latest);
+        strategistPerformanceSignals = {
+          top_performers: ins.top_performers.map((p) => ({
+            url: p.url,
+            target_keyword: p.target_keyword,
+            clicks_30d: p.clicks_30d,
+            note: p.note,
+          })),
+          ranking_keywords: ins.ranking_keywords.map((k) => ({
+            query: k.query,
+            position: k.position,
+            url: k.url,
+          })),
+        };
+        logStage({
+          stage: "strategist-perf-signals",
+          topPerformers: strategistPerformanceSignals.top_performers.length,
+          rankingKeywords: strategistPerformanceSignals.ranking_keywords.length,
+        });
+      }
+    } catch (err) {
+      logStage({ stage: "strategist-perf-signals", warning: (err as Error).message });
+    }
+
     currentStage = "strategist";
     const outline = await runStrategist(
       {
@@ -270,6 +304,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         intended_word_count_target: next.intended_word_count_target,
         ...(anchorHistory.length > 0 ? { anchor_history: anchorHistory } : {}),
         ...(serpResults && serpResults.length > 0 ? { serp_results: serpResults } : {}),
+        ...(strategistPerformanceSignals ? { performance_signals: strategistPerformanceSignals } : {}),
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );
@@ -321,7 +356,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
     seo.parsed.edited_html = postProcessDraftHtml(seo.parsed.edited_html);
 
     currentStage = "factChecker";
-    const fc = await runFactChecker(
+    let fc = await runFactChecker(
       { edited_html: seo.parsed.edited_html, key_facts: research.parsed.key_facts },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );
@@ -331,6 +366,51 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       inputTokens: fc.raw.inputTokens,
       outputTokens: fc.raw.outputTokens,
     });
+
+    // AUTO-FIX LOOP (bounded: 1 retry). Zie runForSite.ts voor rationale.
+    // Wordt vóór de short-circuit factcheck-fail uitgevoerd zodat een
+    // succesvolle auto-fix de email-reject voorkomt.
+    if (fc.parsed.verdict === "fail" && fc.parsed.fabricated_claims.some((c) => c.suggested_rewrite)) {
+      const fixResult = applyFactCheckerFixes({
+        html: seo.parsed.edited_html,
+        fixes: fc.parsed.fabricated_claims,
+      });
+      if (fixResult.applied.length > 0) {
+        seo.parsed.edited_html = fixResult.patched_html;
+        logStage({
+          stage: "factCheckerAutoFix",
+          topicId: next.id,
+          applied: fixResult.applied.length,
+          skipped: fixResult.skipped.length,
+        });
+        currentStage = "factCheckerRecheck";
+        const fc2 = await runFactChecker(
+          { edited_html: seo.parsed.edited_html, key_facts: research.parsed.key_facts },
+          { provider: providers.get("anthropic"), sleepImpl: sleep }
+        );
+        usage.push({
+          provider: "anthropic",
+          model: fc2.raw.model,
+          inputTokens: fc2.raw.inputTokens,
+          outputTokens: fc2.raw.outputTokens,
+        });
+        fc = fc2;
+        logStage({
+          stage: "factCheckerRecheck",
+          topicId: next.id,
+          verdict: fc.parsed.verdict,
+          remainingFabricated: fc.parsed.fabricated_claims.length,
+        });
+      } else {
+        logStage({
+          stage: "factCheckerAutoFix",
+          topicId: next.id,
+          applied: 0,
+          skipped: fixResult.skipped.length,
+          note: "geen fixes toepasbaar — door naar reject",
+        });
+      }
+    }
 
     // Pre-build schema JSON-LD before Quality Judge zodat de seo_schema rubric-signal
     // het kan zien. We hebben de finale image-URL nog niet (image-gen komt later),

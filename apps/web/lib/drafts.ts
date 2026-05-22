@@ -196,6 +196,34 @@ export async function listPublishedPostsForSite(siteId: string): Promise<Publish
     .orderBy(desc(publishedPosts.publishedAt));
 }
 
+/**
+ * Aantal posts gepubliceerd in de huidige ISO-week (maandag-zondag UTC) voor
+ * deze site. Gebruikt door de cap-check in runForSite om dure LLM-runs te
+ * voorkomen wanneer de site al z'n week-cap heeft bereikt.
+ */
+export async function countPublishedThisIsoWeekForSite(
+  siteId: string,
+  now: Date = new Date()
+): Promise<number> {
+  await ensureSchema();
+  const db = getDb();
+  const weekStart = startOfIsoWeekUtc(now).toISOString();
+  const weekEnd = new Date(startOfIsoWeekUtc(now).getTime() + 7 * 86_400_000).toISOString();
+  const all = await db
+    .select()
+    .from(publishedPosts)
+    .where(eq(publishedPosts.siteId, siteId));
+  return all.filter((p) => p.publishedAt >= weekStart && p.publishedAt < weekEnd).length;
+}
+
+function startOfIsoWeekUtc(d: Date): Date {
+  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = date.getUTCDay() || 7; // Zondag = 7
+  date.setUTCDate(date.getUTCDate() - (day - 1));
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+}
+
 export async function getPublishedPostBySlug(
   siteId: string,
   slug: string

@@ -1,3 +1,4 @@
+import * as React from "react";
 import fs from "node:fs/promises";
 import path from "node:path";
 
@@ -22,15 +23,55 @@ import { checkCitations, enrichSignalsWithCitationCheck } from "@/pipeline/citat
 import { filterDeadResearchUrls } from "@/pipeline/researchUrlFilter";
 import { extractExternalHrefs, stripDeadLinks, filterDefinitivelyDead } from "@/pipeline/stripDeadLinks";
 import { computeRunCost, type UsageEntry } from "@/pipeline/costTracker";
+import { derivePerformanceInsights, loadLatestSnapshot } from "@/pipeline/gscPerformanceInsights";
+import { applyFactCheckerFixes } from "@/pipeline/applyFactCheckerFixes";
+import type { StrategistInput } from "@/agents/strategist";
 
 import type { Site, Topic, Pillar, Draft } from "~/lib/db/schema";
 import { createDraft, getLatestRejectedDraftForTopic } from "~/lib/drafts";
 import { startRun, finishRun } from "~/lib/runs";
 import { updateTopic } from "~/lib/topics";
-import { listPublishedPostsForSite } from "~/lib/drafts";
+import { listPublishedPostsForSite, countPublishedThisIsoWeekForSite } from "~/lib/drafts";
 import { getDb } from "~/lib/db/client";
 import { sites } from "~/lib/db/schema";
 import { eq } from "drizzle-orm";
+import { sendEmail } from "@/email/resend";
+import { render } from "@react-email/render";
+import { Success } from "@/email/templates/Success";
+import { Reject } from "@/email/templates/Reject";
+
+/**
+ * Verstuurt een Resend-email als de site emailConfig.enabled = true heeft en
+ * de Resend API-key in apiKeys staat. Faalt stil (logt warning) zodat een
+ * email-issue de pipeline niet ophoudt.
+ */
+async function notifySiteEmail(
+  site: Site,
+  input: { subject: string; html: string; attachments?: { filename: string; content: Buffer }[] }
+): Promise<void> {
+  const cfg = site.emailConfig;
+  if (!cfg?.enabled) return;
+  const apiKey = site.apiKeys?.resend;
+  const to = cfg.to;
+  const from = cfg.from ?? "onboarding@resend.dev";
+  if (!apiKey || !to) {
+    console.warn(JSON.stringify({ stage: "notify-skip", reason: "missing resend key or to-address", siteSlug: site.slug }));
+    return;
+  }
+  try {
+    await sendEmail({
+      apiKey,
+      from,
+      to,
+      replyTo: cfg.replyTo ?? to,
+      subject: input.subject,
+      html: input.html,
+      attachments: input.attachments,
+    });
+  } catch (err) {
+    console.warn(JSON.stringify({ stage: "notify-failed", siteSlug: site.slug, error: (err as Error).message }));
+  }
+}
 
 export interface RunForSiteResult {
   runId: string;
@@ -52,6 +93,31 @@ export async function runForSite(
   site: Site & { pillars: Pillar[] },
   topic: Topic
 ): Promise<RunForSiteResult> {
+  // CAP-CHECK vóór de eerste LLM-call. Voorkomt ~€0.15 verspild aan
+  // researcher/writer/judge wanneer de site al z'n weekcap heeft bereikt.
+  // Markeert het topic als cap_deferred zodat het volgende week opnieuw
+  // geprobeerd wordt, en finished de run zonder kosten te maken.
+  const publishedThisWeek = await countPublishedThisIsoWeekForSite(site.id);
+  if (publishedThisWeek >= site.maxPostsPerWeek) {
+    const run = await startRun(site.id, topic.id);
+    const reason = `weekcap bereikt (${publishedThisWeek}/${site.maxPostsPerWeek})`;
+    await updateTopic(topic.id, { status: "cap_deferred", rejectReason: reason });
+    const finalRun = await finishRun(run.id, {
+      verdict: "cap_deferred",
+      reason,
+      stages: [{ stage: "cap-check-early", ms: 0, ok: true }],
+    });
+    return {
+      runId: finalRun.id,
+      draftId: null,
+      verdict: "rejected",
+      weightedTotal: null,
+      hardFails: [],
+      reason,
+      costUsd: 0,
+    };
+  }
+
   const run = await startRun(site.id, topic.id);
   const stages: Array<{ stage: string; ms: number; ok: boolean }> = [];
   const usage: UsageEntry[] = [];
@@ -155,6 +221,39 @@ export async function runForSite(
       );
     }
 
+    // Performance-feedback: leest meest recente GSC-snapshot. Path werkt
+    // vanuit apps/web/ (cwd) zodat het de repo-root data/-dir vindt.
+    let strategistPerformanceSignals: StrategistInput["performance_signals"] | undefined;
+    try {
+      const snapshotDataDir = path.resolve(process.cwd(), "../../data");
+      const latest = await loadLatestSnapshot(site.slug, snapshotDataDir);
+      if (latest && latest.posts.length > 0) {
+        const ins = derivePerformanceInsights(latest);
+        strategistPerformanceSignals = {
+          top_performers: ins.top_performers.map((p) => ({
+            url: p.url,
+            target_keyword: p.target_keyword,
+            clicks_30d: p.clicks_30d,
+            note: p.note,
+          })),
+          ranking_keywords: ins.ranking_keywords.map((k) => ({
+            query: k.query,
+            position: k.position,
+            url: k.url,
+          })),
+        };
+        console.log(
+          JSON.stringify({
+            stage: "strategist-perf-signals",
+            topPerformers: strategistPerformanceSignals.top_performers.length,
+            rankingKeywords: strategistPerformanceSignals.ranking_keywords.length,
+          })
+        );
+      }
+    } catch (err) {
+      console.log(JSON.stringify({ stage: "strategist-perf-signals", warning: (err as Error).message }));
+    }
+
     // Strategist
     endStage = startStage("strategist");
     const outline = await runStrategist(
@@ -165,6 +264,7 @@ export async function runForSite(
         intent: topic.intent,
         intended_word_count_target: topic.intendedWordCount,
         custom_instructions: combinedInstructions,
+        ...(strategistPerformanceSignals ? { performance_signals: strategistPerformanceSignals } : {}),
       },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );
@@ -261,12 +361,64 @@ export async function runForSite(
 
     // Fact-check
     endStage = startStage("factChecker");
-    const fc = await runFactChecker(
+    let fc = await runFactChecker(
       { edited_html: seo.parsed.edited_html, key_facts: research.parsed.key_facts },
       { provider: providers.get("anthropic"), sleepImpl: sleep }
     );
     endStage(true);
     usage.push({ provider: "anthropic", model: fc.raw.model, inputTokens: fc.raw.inputTokens, outputTokens: fc.raw.outputTokens });
+
+    // AUTO-FIX LOOP (bounded: 1 retry max). Wanneer factChecker fail-verdict
+    // gaf MAAR de fabricated_claims hebben suggested_rewrites, probeer ze
+    // automatisch toe te passen en her-checken. Dit voorkomt dat ~30% van
+    // de rejects (waar de fix triviaal was) een handmatige rewrite-cyclus
+    // veroorzaken. Cost: 1 extra factChecker-call (~€0.02). Bounded zodat
+    // we niet eindeloos vechten tegen een writer die blijft hallucineren.
+    if (fc.parsed.verdict === "fail" && fc.parsed.fabricated_claims.some((c) => c.suggested_rewrite)) {
+      endStage = startStage("factCheckerAutoFix");
+      const fixResult = applyFactCheckerFixes({
+        html: seo.parsed.edited_html,
+        fixes: fc.parsed.fabricated_claims,
+      });
+      if (fixResult.applied.length > 0) {
+        seo.parsed.edited_html = fixResult.patched_html;
+        console.log(
+          JSON.stringify({
+            stage: "factCheckerAutoFix",
+            applied: fixResult.applied.length,
+            skipped: fixResult.skipped.length,
+            skipReasons: fixResult.skipped.map((s) => s.reason),
+          })
+        );
+        // Re-check tegen dezelfde key_facts. Als nog steeds fail → reject pad
+        // pakt het op met de NIEUWE fabricated_claims (kan minder zijn dan
+        // de eerste run als auto-fix gedeeltelijk werkte).
+        const fc2 = await runFactChecker(
+          { edited_html: seo.parsed.edited_html, key_facts: research.parsed.key_facts },
+          { provider: providers.get("anthropic"), sleepImpl: sleep }
+        );
+        usage.push({ provider: "anthropic", model: fc2.raw.model, inputTokens: fc2.raw.inputTokens, outputTokens: fc2.raw.outputTokens });
+        fc = fc2;
+        endStage(true);
+        console.log(
+          JSON.stringify({
+            stage: "factCheckerRecheck",
+            verdict: fc.parsed.verdict,
+            remainingFabricated: fc.parsed.fabricated_claims.length,
+          })
+        );
+      } else {
+        endStage(false);
+        console.log(
+          JSON.stringify({
+            stage: "factCheckerAutoFix",
+            applied: 0,
+            skipped: fixResult.skipped.length,
+            note: "geen fixes toepasbaar — overslaan naar reject",
+          })
+        );
+      }
+    }
 
     // Build JSON-LD schemas (BlogPosting + BreadcrumbList — author Person is
     // nested in BlogPosting) BEFORE quality judge so the seo_schema rubric
@@ -344,9 +496,14 @@ export async function runForSite(
       // descriptive without being too long.
       const rejectHardFails = [
         ...judge.parsed.hard_fails,
-        ...fc.parsed.fabricated_claims.map(
-          (c) => `fabricated claim: ${c.claim}${c.reason ? ` — ${c.reason}` : ""}`
-        ),
+        ...fc.parsed.fabricated_claims.map((c) => {
+          // Houdt het bestaande "fabricated claim: <claim> — <reason>" formaat
+          // intact (parsePreviousFabricatedClaims rekent er op). Wanneer de
+          // factChecker een rewrite voorstelde, hangen we die er achter zodat
+          // de Drafts-UI de fix toont en de gebruiker hem 1-klik kan plakken.
+          const base = `fabricated claim: ${c.claim}${c.reason ? ` — ${c.reason}` : ""}`;
+          return c.suggested_rewrite ? `${base}\n→ FIX: ${c.suggested_rewrite}` : base;
+        }),
       ];
       const rejectedDraft = await createDraft({
         siteId: site.id,
@@ -377,6 +534,30 @@ export async function runForSite(
         costUsd: cost.totalUsd,
         stages,
       });
+
+      // Email-notificatie (opt-in via site.emailConfig.enabled). Faalt stil.
+      try {
+        const html = await render(
+          React.createElement(Reject, {
+            title: outline.parsed.outline.h1_suggestion,
+            weightedTotal: judge.parsed.weighted_total,
+            scoreBreakdown: judge.parsed.scores,
+            hardFails: rejectHardFails,
+            reasoning: judge.parsed.reasoning,
+            improvementSuggestions: judge.parsed.improvement_suggestions,
+          })
+        );
+        await notifySiteEmail(site, {
+          subject: `[${site.name}] Reject: ${outline.parsed.outline.h1_suggestion} — score ${judge.parsed.weighted_total.toFixed(1)}`,
+          html,
+          attachments: [
+            { filename: "draft.html", content: Buffer.from(seo.parsed.edited_html, "utf-8") },
+          ],
+        });
+      } catch (err) {
+        console.warn(JSON.stringify({ stage: "notify-reject", warning: (err as Error).message }));
+      }
+
       return {
         runId: finalRun.id,
         draftId: rejectedDraft.id,
@@ -460,6 +641,32 @@ export async function runForSite(
     // Touch site.updatedAt so the dashboard "last activity" reflects this
     const db = getDb();
     await db.update(sites).set({ updatedAt: new Date().toISOString() }).where(eq(sites.id, site.id));
+
+    // Email-notificatie bij succesvol concept (opt-in via site.emailConfig.enabled).
+    // "Published" hier betekent: draft is opgeslagen in onze DB voor review. De
+    // daadwerkelijke push naar WordPress/markdown gebeurt apart via publishDraft
+    // wanneer de gebruiker (of auto-publish) groen licht geeft.
+    try {
+      const html = await render(
+        React.createElement(Success, {
+          title: outline.parsed.outline.h1_suggestion,
+          weightedTotal: judge.parsed.weighted_total,
+          scoreBreakdown: judge.parsed.scores,
+          tldr: outline.parsed.outline.tldr_one_liner,
+          imageUrl: imagePath ? `/${imagePath}` : "",
+          editUrl: `/drafts/${draft.id}`,
+          previewUrl: `/drafts/${draft.id}`,
+          targetKeyword: topic.targetKeyword,
+          internalLinksUsed: outline.parsed.outline.internal_links_to_inject,
+        })
+      );
+      await notifySiteEmail(site, {
+        subject: `[${site.name}] Concept klaar: ${outline.parsed.outline.h1_suggestion} — score ${judge.parsed.weighted_total.toFixed(1)}`,
+        html,
+      });
+    } catch (err) {
+      console.warn(JSON.stringify({ stage: "notify-publish", warning: (err as Error).message }));
+    }
 
     return {
       runId: finalRun.id,
