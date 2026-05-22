@@ -165,6 +165,26 @@ export async function ensureSchema(): Promise<void> {
     await safeAddColumn(db, "published_posts", "repurposed TEXT");
     await safeAddColumn(db, "topics", "custom_instructions TEXT");
 
+    // Post refreshes — tracks the lifecycle of every refresh job so we can
+    // (a) enforce a cooldown window per post, (b) compute before/after lift,
+    // (c) surface refresh history in the UI.
+    await db.run(`CREATE TABLE IF NOT EXISTS post_refreshes (
+      id TEXT PRIMARY KEY,
+      site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+      published_post_id TEXT NOT NULL REFERENCES published_posts(id) ON DELETE CASCADE,
+      draft_id TEXT REFERENCES drafts(id) ON DELETE SET NULL,
+      category TEXT NOT NULL,
+      status TEXT NOT NULL DEFAULT 'queued',
+      rationale TEXT,
+      before_snapshot TEXT,
+      triggered_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+      completed_at TEXT,
+      error_message TEXT,
+      cost_usd REAL
+    )`);
+    await db.run(`CREATE INDEX IF NOT EXISTS post_refreshes_site_post_idx ON post_refreshes(site_id, published_post_id)`);
+    await db.run(`CREATE INDEX IF NOT EXISTS post_refreshes_site_triggered_idx ON post_refreshes(site_id, triggered_at)`);
+
     // Users table for multi-user/team support
     await db.run(`CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,

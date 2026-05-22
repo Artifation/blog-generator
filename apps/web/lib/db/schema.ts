@@ -279,6 +279,41 @@ export const settings = sqliteTable("settings", {
   value: text("value").notNull(),
 });
 
+export const postRefreshes = sqliteTable(
+  "post_refreshes",
+  {
+    id: text("id").primaryKey(),
+    siteId: text("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+    publishedPostId: text("published_post_id").notNull().references(() => publishedPosts.id, { onDelete: "cascade" }),
+    draftId: text("draft_id").references(() => drafts.id, { onDelete: "set null" }),
+    category: text("category", {
+      enum: ["decaying", "striking_distance", "stagnant_evergreen", "freshness_overdue"],
+    }).notNull(),
+    status: text("status", {
+      enum: ["queued", "running", "drafted", "failed"],
+    }).notNull().default("queued"),
+    rationale: text("rationale"),
+    // Snapshot of GSC metrics at trigger time so we can compute lift later
+    beforeSnapshot: text("before_snapshot", { mode: "json" }).$type<{
+      clicks_30d?: number;
+      impressions_30d?: number;
+      avg_position?: number;
+      top_queries?: string[];
+    } | null>(),
+    triggeredAt: text("triggered_at").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
+    completedAt: text("completed_at"),
+    errorMessage: text("error_message"),
+    costUsd: real("cost_usd"),
+  },
+  (t) => ({
+    sitePostIdx: index("post_refreshes_site_post_idx").on(t.siteId, t.publishedPostId),
+    siteTriggeredIdx: index("post_refreshes_site_triggered_idx").on(t.siteId, t.triggeredAt),
+  })
+);
+
+export type PostRefresh = typeof postRefreshes.$inferSelect;
+export type NewPostRefresh = typeof postRefreshes.$inferInsert;
+
 export type Site = typeof sites.$inferSelect;
 export type NewSite = typeof sites.$inferInsert;
 export type Pillar = typeof pillars.$inferSelect;
