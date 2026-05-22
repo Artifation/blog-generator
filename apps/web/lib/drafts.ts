@@ -20,6 +20,29 @@ export async function getDraft(id: string): Promise<Draft | null> {
 }
 
 /**
+ * Map topicId → most recent draft for that topic, scoped to the site. Used by
+ * /topics to show — per card — whether a draft is already waiting for review,
+ * so the user is not left guessing what "in progress" actually means.
+ */
+export async function listLatestDraftsByTopicForSite(
+  siteId: string
+): Promise<Map<string, Draft>> {
+  await ensureSchema();
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(drafts)
+    .where(eq(drafts.siteId, siteId))
+    .orderBy(desc(drafts.createdAt));
+  const map = new Map<string, Draft>();
+  for (const d of rows) {
+    if (!d.topicId) continue;
+    if (!map.has(d.topicId)) map.set(d.topicId, d);
+  }
+  return map;
+}
+
+/**
  * Most recent rejected draft for the given topic, or null. Used by the
  * pipeline's retry-feedback loop so the writer can see which specific
  * claims the factChecker flagged on the previous attempt and avoid them.

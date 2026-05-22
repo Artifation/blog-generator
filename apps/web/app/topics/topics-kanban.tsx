@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Sparkles, Trash2, X, RefreshCw, ExternalLink, Wand2, Check, Pencil } from "lucide-react";
+import { Plus, Sparkles, Trash2, X, RefreshCw, ExternalLink, Wand2, Check, Pencil, FileText, AlertTriangle, RotateCcw } from "lucide-react";
 import { createTopicAction, deleteTopicAction, updateTopicAction } from "~/lib/actions/topics";
 import { generateForTopicAction } from "~/lib/actions/generate";
 import { suggestTopicsAction, acceptTopicProposalsAction, type TopicProposalView } from "~/lib/actions/suggest-topics";
@@ -42,11 +42,52 @@ interface TopicRow {
   rejectReason: string | null;
   publishedUrl: string | null;
   customInstructions: string | null;
+  updatedAt: string;
+  latestDraft: { id: string; status: string; createdAt: string } | null;
+}
+
+const STUCK_AFTER_MS = 60 * 60 * 1000; // 1 uur
+
+type EffectiveState =
+  | "queued"
+  | "running"
+  | "awaiting_review"
+  | "draft_rejected"
+  | "stuck"
+  | "published"
+  | "rejected";
+
+function deriveState(t: TopicRow, now: number): EffectiveState {
+  if (t.status === "rejected") return "rejected";
+  if (t.status === "published") return "published";
+  if (t.status === "queued") return "queued";
+  // status === "in_progress"
+  if (t.latestDraft) {
+    if (t.latestDraft.status === "published") return "published";
+    if (t.latestDraft.status === "pending_review") return "awaiting_review";
+    if (t.latestDraft.status === "rejected") return "draft_rejected";
+    return "running";
+  }
+  const age = now - new Date(t.updatedAt).getTime();
+  return age > STUCK_AFTER_MS ? "stuck" : "running";
+}
+
+function stateToColumn(s: EffectiveState): string {
+  switch (s) {
+    case "queued":
+      return "queued";
+    case "published":
+      return "published";
+    case "rejected":
+      return "rejected";
+    default:
+      return "in_progress";
+  }
 }
 
 const COLUMNS: Array<{ status: string; label: string; tone: string }> = [
   { status: "queued", label: "Queued", tone: "b-blue" },
-  { status: "in_progress", label: "In progress", tone: "b-yellow" },
+  { status: "in_progress", label: "In de pijplijn", tone: "b-yellow" },
   { status: "published", label: "Published", tone: "b-green" },
   { status: "rejected", label: "Rejected", tone: "b-red" },
 ];
@@ -67,6 +108,19 @@ export function TopicsKanban({
   const [suggestions, setSuggestions] = React.useState<TopicProposalView[] | null>(null);
   const [suggesting, setSuggesting] = React.useState(false);
   const [suggestDialogOpen, setSuggestDialogOpen] = React.useState(false);
+  // Snapshot once per render — used for stuck detection. Re-renders after any
+  // mutation, so age stays current enough for the >1u threshold.
+  const now = Date.now();
+
+  async function resetToQueued(t: TopicRow) {
+    const r = await updateTopicAction(t.id, { status: "queued", rejectReason: null });
+    if (r.ok) {
+      toast.success("Topic teruggezet op queued");
+      router.refresh();
+    } else {
+      toast.error(r.error);
+    }
+  }
 
   async function suggestWithPrompt(customPrompt: string) {
     setSuggestDialogOpen(false);
@@ -149,7 +203,7 @@ export function TopicsKanban({
 
       <div className="kanban">
         {COLUMNS.map((col) => {
-          const rows = topics.filter((t) => t.status === col.status);
+          const rows = topics.filter((t) => stateToColumn(deriveState(t, now)) === col.status);
           return (
             <div key={col.status} className="kcol">
               <div className="kcol-head">
@@ -164,31 +218,56 @@ export function TopicsKanban({
                 ) : (
                   rows.map((t) => {
                     const pillar = pillars.find((p) => p.slug === t.pillarSlug);
+                    const state = deriveState(t, now);
                     return (
                       <div key={t.id} className="tcard">
                         <div className="tc-title">{t.title}</div>
-                        <div className="tc-meta">
-                          {pillar && <span className="badge b-navy">{pillar.name}</span>}
-                          <span className="badge b-gray">{t.intent}</span>
-                          <span className="badge b-gray">{t.intendedWordCount}w</span>
-                        </div>
-                        <div className="mono muted" style={{ fontSize: 11 }}>
-                          {t.targetKeyword}
-                        </div>
-                        {t.rejectReason && (
+                        {state === "rejected" && t.rejectReason && (
                           <div
                             style={{
-                              fontSize: 11,
+                              fontSize: 12,
                               background: "var(--warning-bg)",
                               color: "#b45309",
                               padding: "6px 8px",
                               borderRadius: 6,
                               border: "1px solid #fde68a",
+                              lineHeight: 1.4,
                             }}
                           >
-                            {t.rejectReason}
+                            <strong>Afgewezen:</strong> {t.rejectReason}
                           </div>
                         )}
+                        <div className="tc-meta">
+                          {pillar && <span className="badge b-navy">{pillar.name}</span>}
+                          <span className="badge b-gray">{t.intent}</span>
+                          <span className="badge b-gray">{t.intendedWordCount}w</span>
+                          {state === "awaiting_review" && (
+                            <span className="badge b-blue" title="Pipeline is klaar, draft wacht op review">
+                              <FileText size={10} style={{ marginRight: 4 }} />
+                              Draft op review
+                            </span>
+                          )}
+                          {state === "draft_rejected" && (
+                            <span className="badge b-red" title="De vorige draft is afgewezen door de pipeline">
+                              Draft afgewezen
+                            </span>
+                          )}
+                          {state === "running" && (
+                            <span className="badge b-yellow" title="Pipeline draait momenteel">
+                              <RefreshCw size={10} className="spin" style={{ marginRight: 4 }} />
+                              Pipeline draait
+                            </span>
+                          )}
+                          {state === "stuck" && (
+                            <span className="badge b-red" title={`Topic staat al >1u op in_progress zonder draft (laatst: ${t.updatedAt})`}>
+                              <AlertTriangle size={10} style={{ marginRight: 4 }} />
+                              Vastgelopen
+                            </span>
+                          )}
+                        </div>
+                        <div className="mono muted" style={{ fontSize: 11 }}>
+                          {t.targetKeyword}
+                        </div>
                         {t.publishedUrl && (
                           <a
                             href={t.publishedUrl}
@@ -206,7 +285,26 @@ export function TopicsKanban({
                           </a>
                         )}
                         <div className="tc-foot">
-                          {(t.status === "queued" || t.status === "rejected") && (
+                          {(state === "awaiting_review" || state === "draft_rejected") && t.latestDraft && (
+                            <Link
+                              href={`/drafts/${t.latestDraft.id}`}
+                              className="btn btn-primary btn-sm"
+                            >
+                              <FileText size={11} /> Open draft
+                            </Link>
+                          )}
+                          {state === "stuck" && (
+                            <button
+                              type="button"
+                              className="btn btn-secondary btn-sm"
+                              onClick={() => resetToQueued(t)}
+                              disabled={generating !== null}
+                              title="Zet topic terug op queued zodat pipeline opnieuw kan starten"
+                            >
+                              <RotateCcw size={11} /> Reset
+                            </button>
+                          )}
+                          {(state === "queued" || state === "rejected") && (
                             <button
                               type="button"
                               className="btn btn-primary btn-sm"

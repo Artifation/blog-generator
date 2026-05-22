@@ -1,15 +1,18 @@
 import { requireSite } from "~/lib/auth";
 import { AdminShell } from "~/components/layout/app-shell";
 import { listTopicsForSite } from "~/lib/topics";
-import { listDraftsForSite } from "~/lib/drafts";
+import { listDraftsForSite, listLatestDraftsByTopicForSite } from "~/lib/drafts";
 import { TopicsKanban } from "./topics-kanban";
 
 export const dynamic = "force-dynamic";
 
 export default async function TopicsPage() {
   const site = await requireSite();
-  const topics = await listTopicsForSite(site.id);
-  const pendingDrafts = await listDraftsForSite(site.id, "pending_review");
+  const [topics, pendingDrafts, draftsByTopic] = await Promise.all([
+    listTopicsForSite(site.id),
+    listDraftsForSite(site.id, "pending_review"),
+    listLatestDraftsByTopicForSite(site.id),
+  ]);
   const queued = topics.filter((t) => t.status === "queued").length;
 
   return (
@@ -22,19 +25,26 @@ export default async function TopicsPage() {
       <TopicsKanban
         siteSlug={site.slug}
         pillars={site.pillars.map((p) => ({ slug: p.slug, name: p.name }))}
-        topics={topics.map((t) => ({
-          id: t.id,
-          title: t.title,
-          targetKeyword: t.targetKeyword,
-          pillarSlug: t.pillarSlug,
-          intent: t.intent,
-          status: t.status,
-          intendedWordCount: t.intendedWordCount,
-          priority: t.priority,
-          rejectReason: t.rejectReason,
-          publishedUrl: t.publishedUrl,
-          customInstructions: t.customInstructions,
-        }))}
+        topics={topics.map((t) => {
+          const d = draftsByTopic.get(t.id);
+          return {
+            id: t.id,
+            title: t.title,
+            targetKeyword: t.targetKeyword,
+            pillarSlug: t.pillarSlug,
+            intent: t.intent,
+            status: t.status,
+            intendedWordCount: t.intendedWordCount,
+            priority: t.priority,
+            rejectReason: t.rejectReason,
+            publishedUrl: t.publishedUrl,
+            customInstructions: t.customInstructions,
+            updatedAt: t.updatedAt,
+            latestDraft: d
+              ? { id: d.id, status: d.status, createdAt: d.createdAt }
+              : null,
+          };
+        })}
       />
     </AdminShell>
   );
