@@ -1,0 +1,33 @@
+; Triggert blogtool-cron@<siteSlug>.service op een vast schema.
+;
+; Default = elke 15 minuten — fijn-granulair genoeg dat een per-site
+; scheduleCron van bv. "0 9 * * 1" (maandag 9u) binnen 15 min na 09:00
+; afgevuurd wordt door het cron-endpoint, terwijl het CRON_TOKEN-endpoint
+; zelf controleert of er werk te doen valt (queued topics, weekcap, etc.).
+;
+; Per-site enablen:
+;   sudo systemctl enable --now blogtool-cron@artifation.timer
+;   sudo systemctl enable --now blogtool-cron@klant-b.timer
+;
+; LET OP: de granulariteit hier is "hoe vaak we checken", niet "wanneer de
+; pipeline draait". De daadwerkelijke schedule per site bepaal je via
+; site.scheduleCron + de in-process scheduler. Wie systemd verkiest boven
+; in-process zet `DISABLE_INPROCESS_SCHEDULER=true` op de webapp en
+; reguleert het tempo via OnCalendar hieronder.
+
+[Unit]
+Description=Periodieke trigger voor blogtool site %i
+Requires=blogtool-cron@%i.service
+
+[Timer]
+; Elke 15 minuten op het kwartier. Pas aan naar smaak — bijv. "hourly" of
+; "Mon..Fri *-*-* 09,12,15:00:00" voor kantooruren.
+OnCalendar=*:0/15
+; Voorkomt dat een gemiste tick (laptop dicht, server reboot) overgeslagen
+; wordt — bij hervatten direct uitvoeren.
+Persistent=true
+AccuracySec=30s
+Unit=blogtool-cron@%i.service
+
+[Install]
+WantedBy=timers.target

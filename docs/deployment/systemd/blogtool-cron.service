@@ -1,0 +1,26 @@
+; Oneshot service die de blog-pipeline triggert voor één site via het
+; cron-endpoint. Gebruikt met blogtool-cron.timer (zie naast dit bestand).
+;
+; Vereist twee EnvironmentFile waarden:
+;   BLOGTOOL_BASE_URL  bv. https://blog.example.com   (zonder trailing slash)
+;   CRON_TOKEN         dezelfde waarde als in de webapp z'n .env
+;
+; En één template-argument: de site-slug. De timer roept de service aan als
+; blogtool-cron@<siteSlug>.service zodat één timer meerdere sites kan
+; bedienen door per-site een symlink/instance te enablen.
+
+[Unit]
+Description=Blogtool pipeline trigger voor site %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=/etc/blogtool/cron.env
+ExecStart=/usr/bin/curl --fail --silent --show-error --max-time 600 \
+  "${BLOGTOOL_BASE_URL}/api/cron/%i?token=${CRON_TOKEN}"
+; Geen Restart= — als 't faalt mag de volgende timer-tick 'm opnieuw doen.
+; Logs gaan via journalctl -u blogtool-cron@<siteSlug>.
+
+[Install]
+WantedBy=multi-user.target
