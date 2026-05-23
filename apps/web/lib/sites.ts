@@ -3,6 +3,11 @@ import { getDb, ensureSchema } from "./db/client";
 import { sites, pillars, topics, drafts, runs, publishedPosts, type Site, type Pillar } from "./db/schema";
 import { newId } from "./db/ids";
 import { slugify } from "./utils";
+import {
+  sealApiKeys,
+  sealWordpressConfig,
+  openSiteSecrets,
+} from "./sites/secrets";
 
 export interface SiteWithPillars extends Site {
   pillars: Pillar[];
@@ -23,7 +28,8 @@ export interface SiteSummary extends Site {
 export async function listSitesWithStats(): Promise<SiteSummary[]> {
   await ensureSchema();
   const db = getDb();
-  const allSites = await db.select().from(sites).orderBy(sites.createdAt);
+  const allSitesRaw = await db.select().from(sites).orderBy(sites.createdAt);
+  const allSites = allSitesRaw.map((s) => openSiteSecrets(s));
   const out: SiteSummary[] = [];
   for (const s of allSites) {
     const sitePillars = await db
@@ -82,8 +88,9 @@ export async function getSiteBySlug(slug: string): Promise<SiteWithPillars | nul
   await ensureSchema();
   const db = getDb();
   const rows = await db.select().from(sites).where(eq(sites.slug, slug)).limit(1);
-  const s = rows[0];
-  if (!s) return null;
+  const raw = rows[0];
+  if (!raw) return null;
+  const s = openSiteSecrets(raw);
   const sitePillars = await db
     .select()
     .from(pillars)
@@ -96,8 +103,9 @@ export async function getSiteById(id: string): Promise<SiteWithPillars | null> {
   await ensureSchema();
   const db = getDb();
   const rows = await db.select().from(sites).where(eq(sites.id, id)).limit(1);
-  const s = rows[0];
-  if (!s) return null;
+  const raw = rows[0];
+  if (!raw) return null;
+  const s = openSiteSecrets(raw);
   const sitePillars = await db
     .select()
     .from(pillars)
@@ -152,9 +160,9 @@ export async function createSite(input: CreateSiteInput): Promise<SiteWithPillar
     maxPostsPerWeek: input.maxPostsPerWeek ?? 2,
     scheduleCron: input.scheduleCron ?? "0 6 * * 1,3,5",
     publishDestination: input.publishDestination ?? "built_in",
-    wordpressConfig: input.wordpressConfig ?? null,
+    wordpressConfig: sealWordpressConfig(input.wordpressConfig ?? null),
     author: input.author,
-    apiKeys: input.apiKeys ?? {},
+    apiKeys: sealApiKeys(input.apiKeys ?? {}),
   });
 
   for (let i = 0; i < normalized.length; i++) {
@@ -196,9 +204,9 @@ export async function updateSite(id: string, input: UpdateSiteInput): Promise<Si
   if (input.maxPostsPerWeek !== undefined) patch.maxPostsPerWeek = input.maxPostsPerWeek;
   if (input.scheduleCron !== undefined) patch.scheduleCron = input.scheduleCron;
   if (input.publishDestination !== undefined) patch.publishDestination = input.publishDestination;
-  if (input.wordpressConfig !== undefined) patch.wordpressConfig = input.wordpressConfig;
+  if (input.wordpressConfig !== undefined) patch.wordpressConfig = sealWordpressConfig(input.wordpressConfig);
   if (input.author !== undefined) patch.author = input.author;
-  if (input.apiKeys !== undefined) patch.apiKeys = input.apiKeys;
+  if (input.apiKeys !== undefined) patch.apiKeys = sealApiKeys(input.apiKeys);
   if (input.features !== undefined) patch.features = input.features;
 
   await db.update(sites).set(patch).where(eq(sites.id, id));

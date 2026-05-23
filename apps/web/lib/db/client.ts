@@ -1,8 +1,14 @@
 import { createClient } from "@libsql/client";
 import { drizzle } from "drizzle-orm/libsql";
+import { sql } from "drizzle-orm";
 import path from "node:path";
 import fs from "node:fs";
 import * as schema from "./schema";
+import {
+  encryptString,
+  isEncrypted,
+  isEncryptionAvailable,
+} from "../security/crypto";
 
 const DB_PATH =
   process.env.DATABASE_FILE ??
@@ -198,6 +204,11 @@ export async function ensureSchema(): Promise<void> {
       last_login_at TEXT
     )`);
     await db.run(`CREATE UNIQUE INDEX IF NOT EXISTS users_email_site_idx ON users(site_id, email)`);
+
+    // Migrate any plaintext secrets (api keys + WordPress passwords) sitting
+    // in `sites` rows from earlier deploys. Idempotent — uses isEncrypted()
+    // to skip rows that are already done.
+    await migratePlaintextSiteSecrets(db);
   })();
   return _initPromise;
 }
@@ -224,4 +235,123 @@ async function safeAddColumn(db: LibsqlDb, table: string, columnDef: string): Pr
       throw err;
     }
   }
+}
+
+/**
+ * One-shot, idempotent migration: walks every `sites` row, encrypts plaintext
+ * leaf values in `api_keys` JSON and `wordpress_config.appPassword`, writes
+ * back. Detects already-encrypted values via `isEncrypted()` and skips them,
+ * so this is safe to re-run on every boot.
+ *
+ * Behaviour when `APP_ENCRYPTION_KEY` is not configured:
+ *   - In production (NODE_ENV=production): throw — refuses to start so secrets
+ *     never land on a prod disk in plaintext silently.
+ *   - In dev: log a one-line warning and skip the migration. The app keeps
+ *     running with plaintext secrets so onboarding stays unblocked.
+ */
+async function migratePlaintextSiteSecrets(db: LibsqlDb): Promise<void> {
+  if (!isEncryptionAvailable()) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error(
+        "[db/client] APP_ENCRYPTION_KEY is required in production but is " +
+          "missing or invalid. Generate one with `npx tsx apps/web/scripts/generate-encryption-key.ts` " +
+          "and add it to your env before starting the app.",
+      );
+    }
+    // eslint-disable-next-line no-console
+    console.warn(
+      "\n[security] APP_ENCRYPTION_KEY is not set — secrets in the SQLite DB are stored as PLAINTEXT.\n" +
+        "          Generate a key:\n" +
+        "            npx tsx apps/web/scripts/generate-encryption-key.ts\n" +
+        "          and add it to apps/web/.env. The app will then encrypt existing rows on next boot.\n",
+    );
+    return;
+  }
+
+  type Row = {
+    id: string;
+    api_keys: string | null;
+    wordpress_config: string | null;
+  };
+  const result = await db.run(
+    `SELECT id, api_keys, wordpress_config FROM sites`,
+  );
+  const rows = (result.rows ?? []) as unknown as Row[];
+
+  let migrated = 0;
+  for (const row of rows) {
+    let nextApiKeys: string | null = row.api_keys;
+    let nextWpConfig: string | null = row.wordpress_config;
+    let changed = false;
+
+    if (row.api_keys) {
+      const sealed = sealApiKeysJsonBlob(row.api_keys);
+      if (sealed !== row.api_keys) {
+        nextApiKeys = sealed;
+        changed = true;
+      }
+    }
+    if (row.wordpress_config) {
+      const sealed = sealWordpressConfigJsonBlob(row.wordpress_config);
+      if (sealed !== row.wordpress_config) {
+        nextWpConfig = sealed;
+        changed = true;
+      }
+    }
+
+    if (changed) {
+      await db.run(
+        sql`UPDATE sites SET api_keys = ${nextApiKeys ?? "{}"}, wordpress_config = ${nextWpConfig} WHERE id = ${row.id}`,
+      );
+      migrated++;
+    }
+  }
+
+  if (migrated > 0) {
+    // eslint-disable-next-line no-console
+    console.info(
+      `[security] Encrypted plaintext secrets in ${migrated} site row(s) at boot.`,
+    );
+  }
+}
+
+function sealApiKeysJsonBlob(jsonStr: string): string {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+  } catch {
+    // Malformed JSON — leave alone, ensureSchema isn't the place to recover.
+    return jsonStr;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return jsonStr;
+  }
+  let changed = false;
+  const next: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(parsed)) {
+    if (typeof v === "string" && v !== "" && !isEncrypted(v)) {
+      next[k] = encryptString(v);
+      changed = true;
+    } else {
+      next[k] = v;
+    }
+  }
+  return changed ? JSON.stringify(next) : jsonStr;
+}
+
+function sealWordpressConfigJsonBlob(jsonStr: string): string {
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(jsonStr) as Record<string, unknown>;
+  } catch {
+    return jsonStr;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    return jsonStr;
+  }
+  const pw = parsed.appPassword;
+  if (typeof pw !== "string" || pw === "" || isEncrypted(pw)) {
+    return jsonStr;
+  }
+  return JSON.stringify({ ...parsed, appPassword: encryptString(pw) });
 }
