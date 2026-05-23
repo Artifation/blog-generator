@@ -205,9 +205,9 @@
   intended_word_count: 1800
   status: cap_deferred
   priority: 58
-  intent: commercial
-  retry_after: '2026-05-18T04:15:00.000Z'
   last_attempted: '2026-05-15T09:12:37.444Z'
+  retry_after: '2026-05-18T04:15:00.000Z'
+  intent: commercial
 - id: ai-voor-horeca
   title: 'AI voor horeca: van reserveringen tot voorraadbeheer'
   pillar: sector-extensie
@@ -272,9 +272,12 @@
   pillar: ai-act
   target_keyword: AI Act high-risk systemen
   intended_word_count: 1500
-  status: queued
+  status: rejected
   priority: 78
   intent: informational
+  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
+  retry_after: '2026-05-30T06:47:30.837Z'
+  last_attempted: '2026-05-23T06:47:30.837Z'
 - id: ai-act-transparantieplicht
   title: 'Transparantieplicht AI Act: wat MKB moet vertellen aan klanten'
   pillar: ai-act
@@ -292,7 +295,7 @@
   priority: 66
   intent: informational
 - id: ai-act-verboden-praktijken
-  title: 'Verboden AI-praktijken onder de AI Act die je MKB moet kennen'
+  title: Verboden AI-praktijken onder de AI Act die je MKB moet kennen
   pillar: ai-act
   target_keyword: verboden AI-praktijken AI Act
   intended_word_count: 1500
