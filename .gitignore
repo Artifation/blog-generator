@@ -15,6 +15,12 @@ data/score-history.jsonl
 # Generated images cached locally
 data/images/
 
+# Markdown exports written by the publish adapter (per-site, per-post)
+data/exports/
+
+# Database backups produced by scripts/backup.sh
+data/backups/
+
 # SQLite database (per-machine runtime state)
 data/*.db
 data/*.db-journal

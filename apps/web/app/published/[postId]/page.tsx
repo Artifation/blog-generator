@@ -8,7 +8,9 @@ import { publishedPosts } from "~/lib/db/schema";
 import { listDraftsForSite } from "~/lib/drafts";
 import { listTopicsForSite } from "~/lib/topics";
 import { formatRelative } from "~/lib/utils";
+import { getPostRankingForSite } from "~/lib/ranking";
 import { RepurposePanel } from "./repurpose-panel";
+import { RankingPanel } from "./ranking-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -31,6 +33,7 @@ export default async function PublishedPostPage({
 
   const pending = await listDraftsForSite(site.id, "pending_review");
   const topics = await listTopicsForSite(site.id);
+  const ranking = await getPostRankingForSite({ site, post });
 
   const viewUrl = post.externalUrl ?? `/blog/${site.slug}/${post.slug}`;
 
@@ -63,12 +66,15 @@ export default async function PublishedPostPage({
       </div>
 
       <div style={{ display: "grid", gridTemplateColumns: "1fr 380px", gap: 20 }}>
-        <div className="card">
-          <div className="card-header">
-            <h3>Inhoud</h3>
-          </div>
-          <div className="card-body">
-            <article className="prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
+        <div className="col" style={{ gap: 20 }}>
+          <RankingPanel result={ranking} />
+          <div className="card">
+            <div className="card-header">
+              <h3>Inhoud</h3>
+            </div>
+            <div className="card-body">
+              <article className="prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
+            </div>
           </div>
         </div>
 
