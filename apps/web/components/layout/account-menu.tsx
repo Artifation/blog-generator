@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { User, Tag, Settings, AlertCircle, ArrowLeft, MoreHorizontal } from "lucide-react";
+import { User, Tag, Settings, ShieldCheck, AlertCircle, ArrowLeft, MoreHorizontal } from "lucide-react";
 import { logoutAction } from "~/lib/actions/auth";
 
 export function AccountMenu({ name, email }: { name: string; email: string }) {
@@ -41,6 +41,9 @@ export function AccountMenu({ name, email }: { name: string; email: string }) {
           </Link>
           <Link href="/account" className="acct-menu-item" onClick={() => setOpen(false)}>
             <Tag size={14} /> Abonnement & facturatie
+          </Link>
+          <Link href="/account/security" className="acct-menu-item" onClick={() => setOpen(false)}>
+            <ShieldCheck size={14} /> Wachtwoord & beveiliging
           </Link>
           <Link href="/settings" className="acct-menu-item" onClick={() => setOpen(false)}>
             <Settings size={14} /> Instellingen

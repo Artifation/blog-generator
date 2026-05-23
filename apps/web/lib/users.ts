@@ -24,6 +24,22 @@ export async function findUserById(id: string): Promise<User | null> {
   return rows[0] ?? null;
 }
 
+/**
+ * Find a user across all sites by email. Used by the password-login flow,
+ * which doesn't know the site upfront — the cookie is set from the found
+ * user's siteId.
+ */
+export async function findUserAnyEmail(email: string): Promise<User | null> {
+  await ensureSchema();
+  const db = getDb();
+  const rows = await db
+    .select()
+    .from(users)
+    .where(eq(users.email, email.toLowerCase()))
+    .limit(1);
+  return rows[0] ?? null;
+}
+
 export async function listUsersForSite(siteId: string): Promise<User[]> {
   await ensureSchema();
   const db = getDb();
