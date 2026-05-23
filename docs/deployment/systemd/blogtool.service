@@ -1,0 +1,52 @@
+[Unit]
+Description=Blog Studio (Next.js + agent pipeline)
+Documentation=https://github.com/Artifation/blog-generator
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=blogtool
+Group=blogtool
+WorkingDirectory=/opt/blogtool/apps/web
+
+# Loads NODE_ENV, PORT, DATABASE_FILE, API keys, etc. See .env.example for the
+# full list. Path is relative to /etc — make sure root owns it 0600.
+EnvironmentFile=/etc/blogtool/blogtool.env
+
+# Hardcoded fallbacks in case the env file omits them.
+Environment=NODE_ENV=production
+Environment=PORT=3000
+Environment=HOSTNAME=127.0.0.1
+Environment=NEXT_TELEMETRY_DISABLED=1
+
+# Bare-metal users: run `npm run build` once after every `git pull` (see
+# docs/deployment/vps.md, Option B). This unit starts the production server
+# that build emits.
+ExecStart=/usr/bin/npm --prefix /opt/blogtool/apps/web run start
+
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=20s
+KillSignal=SIGTERM
+
+# Logs to journal — `journalctl -u blogtool -f` to tail.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=blogtool
+
+# Hardening — these are conservative defaults; loosen if you bind <1024 etc.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+# The pipeline writes to /opt/blogtool/data — ProtectSystem=full already
+# leaves /opt writable, so no extra ReadWritePaths needed.
+
+[Install]
+WantedBy=multi-user.target

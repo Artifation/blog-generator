@@ -1,0 +1,42 @@
+# Example Caddyfile for Blog Studio.
+#
+# Caddy handles TLS automatically via Let's Encrypt — just point your DNS at
+# this host and Caddy will mint + renew certs on first request.
+#
+# Used by the (commented-out) `caddy` service in docker-compose.yml. The
+# `BLOGTOOL_DOMAIN` env var is substituted at container start.
+#
+# Bare-metal users: drop this in /etc/caddy/Caddyfile, replace {$BLOGTOOL_DOMAIN}
+# with your actual domain, then `sudo systemctl reload caddy`.
+
+{$BLOGTOOL_DOMAIN} {
+	encode zstd gzip
+
+	# When this Caddy runs inside docker-compose alongside `blogtool`, the
+	# service name resolves over the compose network.
+	reverse_proxy blogtool:3000 {
+		# Pass real client IP so logs / rate-limits make sense.
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	# Sensible defaults.
+	header {
+		# HSTS — turn on once you've confirmed TLS works end-to-end.
+		# Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "SAMEORIGIN"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Block the cron endpoint from the public internet; only allow loopback or
+	# the host your scheduler runs from. Drop / adjust to taste.
+	@cron path /api/cron/*
+	# handle @cron {
+	# 	@allowed remote_ip 127.0.0.1 ::1
+	# 	handle @allowed { reverse_proxy blogtool:3000 }
+	# 	respond 403
+	# }
+}

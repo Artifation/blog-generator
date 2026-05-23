@@ -1,0 +1,93 @@
+# Blog Studio — production compose file.
+#
+# Usage:
+#   cp .env.example .env       # then edit with your real values
+#   docker compose up -d --build
+#   docker compose logs -f blogtool
+#
+# State persistence: the SQLite database, generated images, exports, backups
+# and GSC snapshots all live under /app/data inside the container, which is
+# mounted to the named volume `blogtool_data`. Back this up — see
+# docs/deployment/vps.md.
+
+services:
+  blogtool:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: blogtool:latest
+    container_name: blogtool
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # These override .env so the runtime always knows where the DB lives,
+      # regardless of how the user filled in .env.
+      NODE_ENV: production
+      PORT: 3000
+      HOSTNAME: 0.0.0.0
+      DATABASE_FILE: /app/data/app.db
+    ports:
+      # Bind to localhost so a reverse proxy (Caddy/Traefik/nginx) terminates
+      # TLS in front. Change to "3000:3000" if you expose Next directly.
+      - "127.0.0.1:${BLOGTOOL_PORT:-3000}:3000"
+    volumes:
+      - blogtool_data:/app/data
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+    # Tighten the runtime surface a bit. Comment out if your host is older.
+    security_opt:
+      - no-new-privileges:true
+
+  # -------------------------------------------------------------------------
+  # Optional: Caddy reverse proxy with automatic Let's Encrypt SSL.
+  # Uncomment and set BLOGTOOL_DOMAIN in .env, then `docker compose up -d`.
+  # See docs/deployment/vps.md for the matching Caddyfile.
+  # -------------------------------------------------------------------------
+  # caddy:
+  #   image: caddy:2-alpine
+  #   container_name: blogtool-caddy
+  #   restart: unless-stopped
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   environment:
+  #     BLOGTOOL_DOMAIN: ${BLOGTOOL_DOMAIN}
+  #   volumes:
+  #     - ./docs/deployment/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy_data:/data
+  #     - caddy_config:/config
+  #   depends_on:
+  #     - blogtool
+
+  # -------------------------------------------------------------------------
+  # Alternative: Traefik (uncomment if you already run Traefik elsewhere).
+  # -------------------------------------------------------------------------
+  # traefik:
+  #   image: traefik:v3
+  #   container_name: blogtool-traefik
+  #   restart: unless-stopped
+  #   command:
+  #     - --providers.docker=true
+  #     - --entrypoints.web.address=:80
+  #     - --entrypoints.websecure.address=:443
+  #     - --certificatesresolvers.le.acme.email=${ACME_EMAIL}
+  #     - --certificatesresolvers.le.acme.storage=/letsencrypt/acme.json
+  #     - --certificatesresolvers.le.acme.tlschallenge=true
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - /var/run/docker.sock:/var/run/docker.sock:ro
+  #     - traefik_letsencrypt:/letsencrypt
+
+volumes:
+  blogtool_data:
+    driver: local
+  # caddy_data:
+  # caddy_config:
+  # traefik_letsencrypt:

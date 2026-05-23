@@ -1,0 +1,41 @@
+**/node_modules
+**/.next
+**/.turbo
+**/dist
+**/build
+**/out
+**/coverage
+**/.vitest-cache
+
+# Local env files — never bake secrets into images.
+.env
+.env.*
+!.env.example
+
+# VCS / editor
+.git
+.gitignore
+.vscode
+.idea
+*.swp
+
+# Runtime state — must come from the mounted volume, not the image.
+data/app.db
+data/app.db-journal
+data/app.db-wal
+data/app.db-shm
+data/runs/
+data/images/
+data/backups/
+data/exports/
+data/gsc-snapshots/
+data/cost-counter.json
+data/score-history.jsonl
+
+# Local logs / tsbuild caches
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# Docs / deploy assets — not needed inside the image.
+docs/

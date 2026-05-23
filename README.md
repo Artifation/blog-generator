@@ -78,5 +78,26 @@ npm run test:watch      # watch-mode
 npm run typecheck       # tsc --noEmit
 ```
 
+## Production deployment
+
+Voor het draaien van Blog Studio (de webapp + agent-pipeline) op een eigen VPS:
+
+```bash
+git clone https://github.com/Artifation/blog-generator.git /opt/blogtool
+cd /opt/blogtool
+cp .env.example .env && $EDITOR .env
+docker compose up -d --build
+```
+
+Volledige walkthrough — Docker Compose én bare-metal+systemd, met backups,
+reverse proxy (Caddy/nginx), updates, scheduling en logs — staat in
+[`docs/deployment/vps.md`](docs/deployment/vps.md).
+
+Korte cheat-sheets:
+- Systemd unit + install: [`docs/deployment/systemd/`](docs/deployment/systemd/)
+- Caddyfile voorbeeld:    [`docs/deployment/caddy/Caddyfile`](docs/deployment/caddy/Caddyfile)
+- SQLite backup script:   [`scripts/backup.sh`](scripts/backup.sh)
+- Health endpoint:        `GET /api/health` -> `200 {"ok":true,...}`
+
 ## Kosten
 ±€0,17 per gepubliceerde post. ±€2-3/maand bij 3 published/week + 4/week reject.
