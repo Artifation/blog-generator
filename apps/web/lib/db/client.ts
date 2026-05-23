@@ -10,6 +10,7 @@ import {
   isEncryptionAvailable,
 } from "../security/crypto";
 import { ensureAuthSchema } from "../auth/ensure-schema";
+import { ensureErrorSchema } from "../errors/ensure-schema";
 
 const DB_PATH =
   process.env.DATABASE_FILE ??
@@ -207,6 +208,7 @@ export async function ensureSchema(): Promise<void> {
     await db.run(`CREATE UNIQUE INDEX IF NOT EXISTS users_email_site_idx ON users(site_id, email)`);
 
     await ensureAuthSchema(db);
+    await ensureErrorSchema(db);
 
     // Migrate any plaintext secrets (api keys + WordPress passwords) sitting
     // in `sites` rows from earlier deploys. Idempotent — uses isEncrypted()

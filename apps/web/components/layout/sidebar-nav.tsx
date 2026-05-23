@@ -15,17 +15,34 @@ import {
   ScanSearch,
   BookOpen,
   Wand2,
+  AlertTriangle,
 } from "lucide-react";
 
 interface SidebarNavProps {
   pendingDrafts: number;
   queuedTopics: number;
   siteSlug: string;
+  /** Aantal unresolved errors. >0 toont een rode badge bij "Errors". */
+  unresolvedErrors?: number;
 }
 
-export function SidebarNav({ pendingDrafts, queuedTopics, siteSlug }: SidebarNavProps) {
+type NavItem = {
+  href: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  icon: any;
+  label: string;
+  badge?: number | null;
+  badgeVariant?: "default" | "danger";
+};
+
+export function SidebarNav({
+  pendingDrafts,
+  queuedTopics,
+  siteSlug,
+  unresolvedErrors = 0,
+}: SidebarNavProps) {
   const pathname = usePathname() ?? "";
-  const items = [
+  const items: NavItem[] = [
     { href: "/dashboard", icon: Home, label: "Overzicht" },
     { href: "/topics", icon: Layers, label: "Topics", badge: queuedTopics > 0 ? queuedTopics : null },
     { href: "/drafts", icon: Inbox, label: "Drafts", badge: pendingDrafts > 0 ? pendingDrafts : null },
@@ -33,6 +50,13 @@ export function SidebarNav({ pendingDrafts, queuedTopics, siteSlug }: SidebarNav
     { href: "/refreshes", icon: Wand2, label: "Refreshes" },
     { href: "/audit", icon: ScanSearch, label: "Blog-audit" },
     { href: "/runs", icon: Activity, label: "Runs" },
+    {
+      href: "/errors",
+      icon: AlertTriangle,
+      label: "Errors",
+      badge: unresolvedErrors > 0 ? unresolvedErrors : null,
+      badgeVariant: "danger",
+    },
     { href: "/costs", icon: Wallet, label: "Kosten" },
     { href: "/wiki", icon: BookOpen, label: "Wiki" },
     { href: "/settings", icon: Settings, label: "Instellingen" },
@@ -40,13 +64,15 @@ export function SidebarNav({ pendingDrafts, queuedTopics, siteSlug }: SidebarNav
 
   return (
     <nav className="sidebar-nav">
-      {items.map(({ href, icon: Icon, label, badge }) => {
+      {items.map(({ href, icon: Icon, label, badge, badgeVariant }) => {
         const active = pathname === href || pathname.startsWith(href + "/");
+        const badgeClass =
+          badgeVariant === "danger" ? "nav-badge nav-badge-danger" : "nav-badge";
         return (
           <Link key={href} href={href} className={`nav-item ${active ? "active" : ""}`}>
             <Icon size={16} className="nav-icon" />
             <span className="nav-label">{label}</span>
-            {badge != null && <span className="nav-badge">{badge}</span>}
+            {badge != null && <span className={badgeClass}>{badge}</span>}
           </Link>
         );
       })}

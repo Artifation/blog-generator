@@ -37,6 +37,7 @@ import type { ScheduledTask } from "node-cron";
 
 import { getDb, ensureSchema } from "~/lib/db/client";
 import { sites } from "~/lib/db/schema";
+import { recordError } from "~/lib/errors/store";
 
 // node-cron is een CommonJS module. We laden 'm lazy zodat dit bestand
 // zonder runtime-side-effects gewoon getypecheckt kan worden (bij build of
@@ -106,6 +107,13 @@ export async function startScheduler(): Promise<void> {
       console.warn(
         JSON.stringify({ stage: "scheduler-poll-failed", error: (err as Error).message })
       );
+      void recordError({
+        source: "scheduler",
+        severity: "error",
+        message: `Scheduler poll failed: ${(err as Error).message}`,
+        stack: (err as Error).stack,
+        context: { stage: "scheduler-poll-failed" },
+      });
     });
   }, pollMs);
   // Niet meetellen voor "het proces moet open blijven" — laat Next zelf bepalen.
@@ -217,6 +225,13 @@ async function syncScheduledJobs(): Promise<void> {
           cron: cronExpr,
         })
       );
+      void recordError({
+        siteId: row.id,
+        source: "scheduler",
+        severity: "warn",
+        message: `Invalid cron expression for site ${row.slug}: "${cronExpr}"`,
+        context: { siteSlug: row.slug, cron: cronExpr, stage: "scheduler-invalid-cron" },
+      });
       continue;
     }
 
@@ -406,14 +421,29 @@ async function triggerSiteRun(siteId: string, siteSlug: string): Promise<void> {
     // runForSite vangt zijn eigen errors normaal gesproken (zie het finally-
     // achtige try/catch onderin de pipeline), maar als hier toch iets door
     // breekt, mag het de scheduler NIET kapot maken.
+    const errObj = err as Error;
     console.error(
       JSON.stringify({
         stage: "scheduler-run-failed",
         siteId,
         siteSlug,
-        error: (err as Error).message,
+        error: errObj.message,
       })
     );
+    // Dit is fatal omdat het betekent dat zelfs het pipeline-try/catch faalde —
+    // de operator moet hier z.s.m. naar kijken. Triggert e-mail (rate-limited).
+    void recordError({
+      siteId,
+      source: "scheduler",
+      severity: "fatal",
+      message: `Scheduler trigger for ${siteSlug} crashed outside pipeline: ${errObj.message}`,
+      stack: errObj.stack,
+      context: {
+        siteSlug,
+        durationMs: Date.now() - startedAt,
+        stage: "scheduler-run-failed",
+      },
+    });
   } finally {
     runningSiteIds.delete(siteId);
   }
@@ -426,4 +456,49 @@ export function _getScheduledSnapshot(): Array<{ siteId: string; siteSlug: strin
     siteSlug: e.siteSlug,
     cron: e.cron,
   }));
+}
+
+/**
+ * Test-only: directly invoke the per-site trigger so we can assert mutex
+ * behaviour without spinning up node-cron and waiting for ticks. The
+ * production path goes through node-cron → `triggerSiteRun`; this hook
+ * exposes the same function with the same mutex.
+ */
+export function _triggerSiteRunForTest(siteId: string, siteSlug: string): Promise<void> {
+  return triggerSiteRun(siteId, siteSlug);
+}
+
+/** Test-only: force-resync without requiring startScheduler() to have run. */
+export function _syncScheduledJobsForTest(): Promise<void> {
+  return syncScheduledJobs();
+}
+
+/** Test-only: wipe in-memory scheduler state. */
+export function _resetSchedulerForTest(): void {
+  for (const [, entry] of scheduledBySiteId) {
+    try {
+      entry.task.stop();
+    } catch {
+      /* ignore */
+    }
+  }
+  scheduledBySiteId.clear();
+  runningSiteIds.clear();
+  if (pollTimer) {
+    clearInterval(pollTimer);
+    pollTimer = null;
+  }
+  started = false;
+  stopping = false;
+}
+
+/** Test-only: directly poke the mutex set so tests can simulate an in-flight run. */
+export function _setRunningSiteIdsForTest(ids: string[]): void {
+  runningSiteIds.clear();
+  for (const id of ids) runningSiteIds.add(id);
+}
+
+/** Test-only: read the mutex set. */
+export function _getRunningSiteIdsForTest(): string[] {
+  return Array.from(runningSiteIds);
 }

@@ -39,6 +39,7 @@ import { sendEmail } from "@/email/resend";
 import { render } from "@react-email/render";
 import { Success } from "@/email/templates/Success";
 import { Reject } from "@/email/templates/Reject";
+import { recordError } from "~/lib/errors/store";
 
 /**
  * Verstuurt een Resend-email als de site emailConfig.enabled = true heeft en
@@ -677,7 +678,30 @@ export async function runForSite(
       costUsd: cost.totalUsd,
     };
   } catch (err) {
-    const message = (err as Error).message;
+    const errObj = err as Error;
+    const message = errObj.message;
+    // Capture in the central error-store BEFORE finishRun so the operator
+    // can correlate the error_event with the run row. Last-completed stage
+    // is the most actionable single field; we keep the full stage history
+    // in context too so the detail-view has the timeline.
+    const lastStage = stages.length > 0 ? stages[stages.length - 1] : null;
+    void recordError({
+      siteId: site.id,
+      source: "pipeline",
+      severity: "error",
+      message,
+      stack: errObj.stack,
+      context: {
+        runId: run.id,
+        topicId: topic.id,
+        topicTitle: topic.title,
+        siteSlug: site.slug,
+        lastStage: lastStage?.stage ?? null,
+        lastStageOk: lastStage?.ok ?? null,
+        stagesCompleted: stages.length,
+        stages,
+      },
+    });
     await finishRun(run.id, {
       verdict: "error",
       reason: message,

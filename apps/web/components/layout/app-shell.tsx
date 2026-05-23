@@ -10,6 +10,8 @@ interface AdminShellProps {
   site: Site;
   pendingDrafts: number;
   queuedTopics: number;
+  /** Optioneel — als gezet en >0, toont sidebar een rode badge bij "Errors". */
+  unresolvedErrors?: number;
   crumbs: Array<{ label: string; href?: string }>;
   topActions?: React.ReactNode;
   children: React.ReactNode;
@@ -19,6 +21,7 @@ export function AdminShell({
   site,
   pendingDrafts,
   queuedTopics,
+  unresolvedErrors,
   crumbs,
   topActions,
   children,
@@ -45,7 +48,12 @@ export function AdminShell({
           <ExternalLink size={12} style={{ opacity: 0.5 }} />
         </Link>
 
-        <SidebarNav pendingDrafts={pendingDrafts} queuedTopics={queuedTopics} siteSlug={site.slug} />
+        <SidebarNav
+          pendingDrafts={pendingDrafts}
+          queuedTopics={queuedTopics}
+          siteSlug={site.slug}
+          unresolvedErrors={unresolvedErrors ?? 0}
+        />
 
         <AccountMenu
           name={(site.author as { name?: string })?.name ?? "Account"}

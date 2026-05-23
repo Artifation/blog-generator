@@ -17,6 +17,7 @@ import { createDraft } from "~/lib/drafts";
 import { getDb } from "~/lib/db/client";
 import { publishedPosts as publishedPostsTable } from "~/lib/db/schema";
 import { createRefresh, markRefreshDrafted, markRefreshFailed } from "~/lib/refreshes";
+import { recordError } from "~/lib/errors/store";
 
 export interface RefreshForSiteDeps {
   /** Override the rewriter runner — tests pass a mock. */
@@ -144,7 +145,22 @@ export async function refreshForSite(
       costUsd: cost.totalUsd,
     };
   } catch (err) {
-    await markFailedFn(refresh.id, (err as Error).message);
+    const errObj = err as Error;
+    void recordError({
+      siteId: site.id,
+      source: "refresh",
+      severity: "error",
+      message: errObj.message,
+      stack: errObj.stack,
+      context: {
+        refreshId: refresh.id,
+        publishedPostId: post.id,
+        publishedPostSlug: post.slug,
+        category: opportunity.category,
+        siteSlug: site.slug,
+      },
+    });
+    await markFailedFn(refresh.id, errObj.message);
     throw err;
   }
 }
