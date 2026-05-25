@@ -309,10 +309,10 @@
   intended_word_count: 1800
   status: rejected
   priority: 76
-  intent: informational
-  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
-  retry_after: '2026-06-01T08:40:59.968Z'
   last_attempted: '2026-05-25T08:40:59.968Z'
+  retry_after: '2026-06-01T08:40:59.968Z'
+  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
+  intent: informational
 - id: ai-voor-bouw
   title: 'AI in de bouw: planning, calculatie en kwaliteitscontrole'
   pillar: sector-extensie
