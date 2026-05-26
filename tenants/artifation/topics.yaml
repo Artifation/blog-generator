@@ -232,9 +232,12 @@
   pillar: ai-per-afdeling
   target_keyword: AI in administratie MKB
   intended_word_count: 1500
-  status: queued
+  status: rejected
   priority: 75
   intent: commercial
+  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
+  retry_after: '2026-06-02T08:02:31.228Z'
+  last_attempted: '2026-05-26T08:02:31.228Z'
 - id: ai-in-it-support
   title: 'AI voor IT-support en helpdesk: tickets sneller oplossen'
   pillar: ai-per-afdeling
