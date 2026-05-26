@@ -60,6 +60,9 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
+# Next.js + tsc + sharp combined push past Node's default 2GB heap on small
+# VPSes. 4GB is comfortable for `next build` even on a 4GB VPS (with swap).
+ENV NODE_OPTIONS=--max-old-space-size=4096
 
 # Build the Next.js app. Outputs:
 #   apps/web/.next/standalone/        — self-contained server.js + minimal node_modules
