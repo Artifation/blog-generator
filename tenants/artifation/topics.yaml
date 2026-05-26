@@ -205,9 +205,9 @@
   intended_word_count: 1800
   status: cap_deferred
   priority: 58
-  intent: commercial
-  retry_after: '2026-05-18T04:15:00.000Z'
   last_attempted: '2026-05-15T09:12:37.444Z'
+  retry_after: '2026-05-18T04:15:00.000Z'
+  intent: commercial
 - id: ai-voor-horeca
   title: 'AI voor horeca: van reserveringen tot voorraadbeheer'
   pillar: sector-extensie
@@ -232,9 +232,12 @@
   pillar: ai-per-afdeling
   target_keyword: AI in administratie MKB
   intended_word_count: 1500
-  status: queued
+  status: rejected
   priority: 75
   intent: commercial
+  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
+  retry_after: '2026-06-02T08:02:31.228Z'
+  last_attempted: '2026-05-26T08:02:31.228Z'
 - id: ai-in-it-support
   title: 'AI voor IT-support en helpdesk: tickets sneller oplossen'
   pillar: ai-per-afdeling
@@ -272,8 +275,11 @@
   pillar: ai-act
   target_keyword: AI Act high-risk systemen
   intended_word_count: 1500
-  status: queued
+  status: rejected
   priority: 78
+  last_attempted: '2026-05-23T06:47:30.837Z'
+  retry_after: '2026-05-30T06:47:30.837Z'
+  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
   intent: informational
 - id: ai-act-transparantieplicht
   title: 'Transparantieplicht AI Act: wat MKB moet vertellen aan klanten'
@@ -292,7 +298,7 @@
   priority: 66
   intent: informational
 - id: ai-act-verboden-praktijken
-  title: 'Verboden AI-praktijken onder de AI Act die je MKB moet kennen'
+  title: Verboden AI-praktijken onder de AI Act die je MKB moet kennen
   pillar: ai-act
   target_keyword: verboden AI-praktijken AI Act
   intended_word_count: 1500
@@ -304,8 +310,11 @@
   pillar: ai-act
   target_keyword: AI Act vs AVG MKB
   intended_word_count: 1800
-  status: queued
+  status: rejected
   priority: 76
+  last_attempted: '2026-05-25T08:40:59.968Z'
+  retry_after: '2026-06-01T08:40:59.968Z'
+  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
   intent: informational
 - id: ai-voor-bouw
   title: 'AI in de bouw: planning, calculatie en kwaliteitscontrole'
