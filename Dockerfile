@@ -41,6 +41,14 @@ RUN --mount=type=cache,target=/root/.npm \
 RUN --mount=type=cache,target=/root/.npm \
     cd apps/web && npm ci --no-audit --no-fund
 
+# libsql's native binary for Alpine (musl) isn't always in package-lock when
+# the lock was generated on a non-Linux dev machine — install it explicitly
+# so the runtime can require('@libsql/linux-x64-musl') successfully.
+RUN --mount=type=cache,target=/root/.npm \
+    cd apps/web && \
+    LIBSQL_VER=$(node -p "require('./node_modules/libsql/package.json').version") && \
+    npm install --no-save --no-audit --no-fund "@libsql/linux-x64-musl@${LIBSQL_VER}"
+
 # ===========================================================================
 # Stage 2: builder — compile Next.js (standalone output)
 # ===========================================================================
