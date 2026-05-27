@@ -4,9 +4,7 @@ export function AuthSide() {
   return (
     <div className="auth-side">
       <div className="auth-brand">
-        <span style={{ color: "var(--secondary)" }}>
-          <LogoMark size={28} />
-        </span>
+        <LogoMark size={28} variant="light" />
         <span>
           Artifation{" "}
           <span style={{ color: "rgba(255,255,255,0.5)", fontWeight: 400 }}>· Blog</span>
