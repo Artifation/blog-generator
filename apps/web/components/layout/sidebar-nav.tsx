@@ -9,8 +9,6 @@ import {
   Send,
   Activity,
   Settings,
-  Globe,
-  ExternalLink,
   Wallet,
   ScanSearch,
   BookOpen,
@@ -38,7 +36,6 @@ type NavItem = {
 export function SidebarNav({
   pendingDrafts,
   queuedTopics,
-  siteSlug,
   unresolvedErrors = 0,
 }: SidebarNavProps) {
   const pathname = usePathname() ?? "";
@@ -76,13 +73,6 @@ export function SidebarNav({
           </Link>
         );
       })}
-
-      <div className="nav-section-label">Publieke blog</div>
-      <Link href={`/blog/${siteSlug}`} target="_blank" className="nav-item">
-        <Globe size={16} className="nav-icon" />
-        <span className="nav-label">Bekijk live blog</span>
-        <ExternalLink size={12} />
-      </Link>
     </nav>
   );
 }
