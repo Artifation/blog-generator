@@ -86,7 +86,12 @@ export async function refreshForSite(
     if (deps.skipProviderRegistry) {
       providerInst = undefined as never;
     } else {
+      // Global keys are onboarding-only — the pipeline uses the site's own
+      // keys, never the operator's. Strip the inherited globals first so a
+      // site without keys errors clearly instead of spending our quota.
       const env = { ...process.env };
+      delete env.GEMINI_API_KEY;
+      delete env.ANTHROPIC_API_KEY;
       if (site.apiKeys?.gemini) env.GEMINI_API_KEY = site.apiKeys.gemini;
       if (site.apiKeys?.anthropic) env.ANTHROPIC_API_KEY = site.apiKeys.anthropic;
       const providers = createProviderRegistry(env);
