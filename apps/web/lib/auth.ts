@@ -42,6 +42,12 @@ export const INVITE_CODES: Record<string, InviteCodeInfo> = {
     plan: "pro",
     domain: "noordzee.digital",
   },
+  // Generieke codes om uit te delen. Lege velden = de klant vult zelf
+  // bedrijf/email/naam/domein in tijdens onboarding (de activate-form toont
+  // bewerkbare velden zodra email leeg is).
+  "ARTI-2026-ZFF2": { company: "", email: "", name: "", plan: "pro", domain: "" },
+  "ARTI-2026-27F6": { company: "", email: "", name: "", plan: "pro", domain: "" },
+  "ARTI-2026-HA7X": { company: "", email: "", name: "", plan: "pro", domain: "" },
 };
 
 export interface InviteCodeInfo {
