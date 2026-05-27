@@ -58,11 +58,31 @@ export interface InviteCodeInfo {
   domain: string;
 }
 
+/**
+ * Whether to set the `Secure` flag on session cookies. Secure cookies are
+ * ONLY sent/stored over HTTPS — on a plain-HTTP deployment (e.g. an IP-only
+ * VPS without a reverse proxy yet) the browser silently drops them, which
+ * breaks the session and bounces the user back to /login.
+ *
+ *   SESSION_COOKIE_SECURE=false  → never set Secure (HTTP deployments)
+ *   SESSION_COOKIE_SECURE=true   → always set Secure
+ *   (unset)                      → Secure in production, plain in dev
+ *
+ * Once you put the app behind HTTPS (Caddy/Traefik), drop the override so it
+ * defaults back to Secure in production.
+ */
+function cookieSecure(): boolean {
+  const flag = process.env.SESSION_COOKIE_SECURE;
+  if (flag === "false") return false;
+  if (flag === "true") return true;
+  return process.env.NODE_ENV === "production";
+}
+
 function cookieOptions() {
   return {
     httpOnly: true,
     sameSite: "lax" as const,
-    secure: process.env.NODE_ENV === "production",
+    secure: cookieSecure(),
     path: "/",
     maxAge: SESSION_MAX_AGE,
   };
