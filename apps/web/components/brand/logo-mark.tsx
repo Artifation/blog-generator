@@ -1,23 +1,24 @@
 /**
- * Het echte Artifation-logo (icon-only variant). Op donkere achtergrond
- * (auth-side, sidebar) ziet de "wit"-variant beter uit; op lichte
- * achtergronden de transparante variant. Pass `variant="light"` om de
- * witte uit /public/logo-icon-wit.svg te gebruiken.
+ * Het echte Artifation-logo (icon-only, transparante achtergrond). De blauwe
+ * icon is zichtbaar op zowel donkere als lichte achtergronden, dus we
+ * gebruiken overal dezelfde transparante variant. (De "wit"-variant had een
+ * wit vierkant ingebakken — gaf een lelijke witte box op donkere panels.)
+ *
+ * `variant` wordt genegeerd maar blijft als prop voor backwards-compat met
+ * bestaande call-sites.
  */
 export function LogoMark({
   size = 28,
   className,
-  variant = "dark",
 }: {
   size?: number;
   className?: string;
   variant?: "dark" | "light";
 }) {
-  const src = variant === "light" ? "/logo-icon-wit.svg" : "/logo-icon.svg";
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
-      src={src}
+      src="/logo-icon.svg"
       width={size}
       height={size}
       alt="Artifation"
