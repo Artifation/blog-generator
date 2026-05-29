@@ -243,9 +243,12 @@
   pillar: ai-per-afdeling
   target_keyword: AI voor IT-support MKB
   intended_word_count: 1500
-  status: queued
+  status: rejected
   priority: 70
   intent: commercial
+  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
+  retry_after: '2026-06-05T08:10:30.839Z'
+  last_attempted: '2026-05-29T08:10:30.839Z'
 - id: ai-in-recruitment
   title: 'AI in recruitment: van CV-scan tot pre-screening'
   pillar: ai-per-afdeling
@@ -253,10 +256,10 @@
   intended_word_count: 1500
   status: rejected
   priority: 72
-  intent: commercial
-  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
-  retry_after: '2026-06-04T08:13:01.882Z'
   last_attempted: '2026-05-28T08:13:01.882Z'
+  retry_after: '2026-06-04T08:13:01.882Z'
+  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
+  intent: commercial
 - id: ai-in-projectmanagement
   title: 'AI in projectmanagement: planning, risico en voortgang'
   pillar: ai-per-afdeling
