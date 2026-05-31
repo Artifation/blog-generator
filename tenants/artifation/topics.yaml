@@ -313,7 +313,7 @@
   intended_word_count: 1500
   status: published
   priority: 68
-  intent: informational
+  last_attempted: '2026-05-30T07:21:23.157Z'
   wp_post_id: 2856
   wp_post_url: https://artifation.nl/?p=2856
   key_entities:
@@ -329,7 +329,7 @@
     - Autoriteit Persoonsgegevens (AP)
     - Europese Commissie
     - MKB (Midden- en Kleinbedrijf)
-  last_attempted: '2026-05-30T07:21:23.157Z'
+  intent: informational
 - id: ai-act-vs-avg
   title: 'AI Act vs AVG: overlap, verschillen en MKB-compliance'
   pillar: ai-act
@@ -378,6 +378,9 @@
   pillar: sector-extensie
   target_keyword: AI voor zorg MKB
   intended_word_count: 1800
-  status: queued
+  status: rejected
   priority: 67
   intent: commercial
+  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
+  retry_after: '2026-06-07T07:53:14.678Z'
+  last_attempted: '2026-05-31T07:53:14.678Z'
