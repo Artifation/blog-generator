@@ -305,10 +305,10 @@
   intended_word_count: 1500
   status: rejected
   priority: 66
-  intent: informational
-  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
-  retry_after: '2026-06-08T09:36:27.455Z'
   last_attempted: '2026-06-01T09:36:27.455Z'
+  retry_after: '2026-06-08T09:36:27.455Z'
+  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
+  intent: informational
 - id: ai-act-verboden-praktijken
   title: Verboden AI-praktijken onder de AI Act die je MKB moet kennen
   pillar: ai-act
@@ -387,3 +387,16 @@
   retry_after: '2026-06-07T07:53:14.678Z'
   reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
   intent: commercial
+- id: 20240521-ai-voor-woningcorporaties
+  title: 'AI voor woningcorporaties: efficiëntie in beheer en onderhoud'
+  pillar: sector-extensie
+  target_keyword: AI voor woningcorporaties
+  intended_word_count: 1800
+  status: proposed
+  priority: 4
+  intent: informational
+  proposed_at: '2026-06-01T13:40:44.364Z'
+  proposal_source: competitor_sitemap
+  proposal_rationale: >-
+    Een concurrent heeft dit recent gepubliceerd, wat duidt op relevantie. Dit vult een gat in onze sector-specifieke
+    content en is nog niet behandeld.
