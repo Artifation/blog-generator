@@ -12,7 +12,6 @@
 
 import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import path from "node:path";
-import os from "node:os";
 
 export interface EditorialLogEntry {
   post_id: number;
@@ -73,8 +72,12 @@ export async function appendEditorialLogEntry(
 
   entries.push(entry);
 
-  // Atomic-ish write: write to tmp file then rename
-  const tmpFile = path.join(os.tmpdir(), `editorial-log-${Date.now()}-${Math.random().toString(36).slice(2)}.json`);
+  // Atomic write: tmp file MUST live in the same directory as the target so
+  // `rename` stays intra-filesystem. Using os.tmpdir() throws EXDEV
+  // ("cross-device link not permitted") whenever /tmp is a different mount than
+  // data/ (common on a VPS/Docker), which previously aborted the whole publish
+  // run after the WordPress post was already created.
+  const tmpFile = path.join(logDir, `.${year}.json.tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   await writeFile(tmpFile, JSON.stringify(entries, null, 2) + "\n", "utf-8");
   await rename(tmpFile, logFile);
 }
