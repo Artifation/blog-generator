@@ -24,7 +24,10 @@ export const StrategistOutputSchema = z.object({
       )
       .min(5)
       .max(9),
-    internal_links_to_inject: z.array(z.object({ url: z.string().url(), anchor: z.string() })).min(3),
+    // Floor is 5: the writer prompt + the deterministic publish gate both
+    // require ≥5 internal links, so a schema-legal 3 left the pipeline unable to
+    // satisfy its own requirement. The researcher already returns 5–8 targets.
+    internal_links_to_inject: z.array(z.object({ url: z.string().url(), anchor: z.string() })).min(5),
     external_links_to_cite: z.array(z.string().url()),
     schema_choices: z.array(z.string()).min(1),
     faq_block: z.array(z.object({ q: z.string(), a_short: z.string() })).max(5),

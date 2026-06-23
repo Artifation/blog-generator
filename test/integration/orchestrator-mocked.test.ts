@@ -140,6 +140,8 @@ const STRATEGIST_RESPONSE = JSON.stringify({
       { url: "https://artifation.nl/ai-scan/", anchor: "AI Scan" },
       { url: "https://artifation.nl/contact/", anchor: "neem contact op" },
       { url: "https://artifation.nl/ai-consultancy/", anchor: "consultancy" },
+      { url: "https://artifation.nl/cases/", anchor: "klantcases" },
+      { url: "https://artifation.nl/blog/", anchor: "ons blog" },
     ],
     external_links_to_cite: ["https://rvo.nl"],
     schema_choices: ["BlogPosting"],
