@@ -54,7 +54,7 @@ REGELS VOOR DE INHOUD (strict):
 - Optioneel: eindig met FAQ-block uit outline.faq_block, gewikkeld in <div class="faq">.
 
 VERBODEN ZINNEN/WOORDEN/KARAKTERS (banlist + standaard):
-- Em-dash (—): MAX 3 per 1000 woorden. Vervang door komma's, dubbele punten, of nieuwe zinnen. Een typische post mag dus 2-7 em-dashes hebben totaal, geen 20+.
+- Em-dash (—): gebruik er GEEN. Vervang door komma's, dubbele punten of nieuwe zinnen. (Post-processing verwijdert ze sowieso, dus elke em-dash is verspilde moeite.)
 ${[...banList, "in conclusion", "to sum up", "tot slot", "samenvattend", "in een wereld waar", "delve", "leverage", "harness the power of", "moreover", "furthermore", "additionally", "notably", "it's worth noting", "in de steeds veranderende wereld"].map((b) => `- ${b}`).join("\n")}
 
 STIJL:
