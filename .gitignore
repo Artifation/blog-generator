@@ -1,7 +1,9 @@
 node_modules/
 dist/
+# Ignore every env variant except the committed template.
 .env
-.env.local
+.env.*
+!.env.example
 *.log
 .DS_Store
 .vitest-cache/
@@ -20,6 +22,16 @@ data/exports/
 
 # Database backups produced by scripts/backup.sh
 data/backups/
+
+# Per-tenant business intelligence (GSC analytics, competitor crawls, run logs).
+# Keep out of local/VPS commits. NOTE: the GitHub Actions cron deployment still
+# commits these back as its persistence mechanism — moving that to a volume or
+# private object storage is a pending decision (see audit).
+data/gsc-snapshots/
+data/competitor-snapshots/
+data/internal-linker-runs/
+data/content-decay-runs/
+data/cwv-runs/
 
 # SQLite database (per-machine runtime state)
 data/*.db
