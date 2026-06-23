@@ -2,7 +2,7 @@ import * as React from "react";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { createProviderRegistry } from "@/llm/client";
+import { createProviderRegistry, resolveAgentModel } from "@/llm/client";
 import { runResearcher } from "@/agents/researcher";
 import { runStrategist } from "@/agents/strategist";
 import { runWriter } from "@/agents/writer";
@@ -125,22 +125,7 @@ export async function runForSite(
 
   // Build an env-like object from the site's apiKeys so the existing
   // provider registry can pick them up without leaking to process.env.
-  //
-  // IMPORTANT: the server's *global* API keys (in .env) are reserved for
-  // onboarding only (the domain-scrape in lib/actions/scrape.ts). The
-  // pipeline must use each site's OWN keys — never silently fall back to
-  // the operator's global keys, or the operator pays for every site's runs.
-  // So we strip the billing keys from the inherited env first, then set
-  // only the per-site ones. A site without its own key gets a clear
-  // "no API key configured" error instead of quietly spending our quota.
   const env = { ...process.env };
-  delete env.ANTHROPIC_API_KEY;
-  delete env.GEMINI_API_KEY;
-  delete env.GROQ_API_KEY;
-  delete env.FAL_API_KEY;
-  delete env.RESEND_API_KEY;
-  delete env.CF_ACCOUNT_ID;
-  delete env.CF_API_TOKEN;
   if (site.apiKeys?.anthropic) env.ANTHROPIC_API_KEY = site.apiKeys.anthropic;
   if (site.apiKeys?.gemini) env.GEMINI_API_KEY = site.apiKeys.gemini;
   if (site.apiKeys?.groq) env.GROQ_API_KEY = site.apiKeys.groq;
@@ -190,6 +175,7 @@ export async function runForSite(
 
     // Researcher
     endStage = startStage("researcher");
+    const researcherModel = resolveAgentModel("researcher", providers);
     const research = await runResearcher(
       {
         target_keyword: topic.targetKeyword,
@@ -197,10 +183,10 @@ export async function runForSite(
         pillar: topic.pillarSlug,
         existing_site_urls: existingUrls,
       },
-      { provider: providers.get("gemini"), sleepImpl: sleep }
+      { provider: providers.get(researcherModel.provider), model: researcherModel, sleepImpl: sleep }
     );
     endStage(true);
-    usage.push({ provider: "gemini", model: research.raw.model, inputTokens: research.raw.inputTokens, outputTokens: research.raw.outputTokens });
+    usage.push({ provider: researcherModel.provider, model: research.raw.model, inputTokens: research.raw.inputTokens, outputTokens: research.raw.outputTokens });
 
     // URL self-verification
     endStage = startStage("urlVerify");
@@ -272,6 +258,7 @@ export async function runForSite(
 
     // Strategist
     endStage = startStage("strategist");
+    const strategistModel = resolveAgentModel("strategist", providers);
     const outline = await runStrategist(
       {
         research: research.parsed,
@@ -282,10 +269,10 @@ export async function runForSite(
         custom_instructions: combinedInstructions,
         ...(strategistPerformanceSignals ? { performance_signals: strategistPerformanceSignals } : {}),
       },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      { provider: providers.get(strategistModel.provider), model: strategistModel, sleepImpl: sleep }
     );
     endStage(true);
-    usage.push({ provider: "anthropic", model: outline.raw.model, inputTokens: outline.raw.inputTokens, outputTokens: outline.raw.outputTokens });
+    usage.push({ provider: strategistModel.provider, model: outline.raw.model, inputTokens: outline.raw.inputTokens, outputTokens: outline.raw.outputTokens });
 
     // Retry-feedback loop: if this topic was rejected before, read the
     // factChecker's fabricated_claims out of the previous rejected draft and
@@ -307,6 +294,7 @@ export async function runForSite(
 
     // Writer
     endStage = startStage("writer");
+    const writerModel = resolveAgentModel("writer", providers);
     const writer = await runWriter(
       {
         outline: outline.parsed.outline,
@@ -319,13 +307,14 @@ export async function runForSite(
         previous_fabricated_claims:
           previousFabricatedClaims.length > 0 ? previousFabricatedClaims : undefined,
       },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      { provider: providers.get(writerModel.provider), model: writerModel, sleepImpl: sleep }
     );
     endStage(true);
-    usage.push({ provider: "anthropic", model: "claude-sonnet-4-6", inputTokens: writer.totalInputTokens, outputTokens: writer.totalOutputTokens });
+    usage.push({ provider: writerModel.provider, model: writerModel.model, inputTokens: writer.totalInputTokens, outputTokens: writer.totalOutputTokens });
 
     // SEO editor
     endStage = startStage("seoEditor");
+    const seoEditorModel = resolveAgentModel("seoEditor", providers);
     const seo = await runSeoEditor(
       {
         draft_html: writer.parsed.draft_html,
@@ -333,11 +322,11 @@ export async function runForSite(
         internal_links_target_list: outline.parsed.outline.internal_links_to_inject,
         ban_list: site.banList,
       },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      { provider: providers.get(seoEditorModel.provider), model: seoEditorModel, sleepImpl: sleep }
     );
     endStage(true);
     seo.parsed.edited_html = postProcessDraftHtml(seo.parsed.edited_html);
-    usage.push({ provider: "anthropic", model: seo.raw.model, inputTokens: seo.raw.inputTokens, outputTokens: seo.raw.outputTokens });
+    usage.push({ provider: seoEditorModel.provider, model: seo.raw.model, inputTokens: seo.raw.inputTokens, outputTokens: seo.raw.outputTokens });
 
     // Final dead-link scrub on the SEO-edited HTML. researchUrlFilter only
     // caught dead source URLs in research output; the writer / seoEditor can
@@ -375,14 +364,21 @@ export async function runForSite(
       endStage(false);
     }
 
-    // Fact-check
+    // Fact-check — pass originality_anchor so the checker recognises
+    // researcher-supplied hypothetical-scenario specifics as legitimate
+    // (otherwise it flags them as fabricated and forces NO-GO).
     endStage = startStage("factChecker");
+    const factCheckerModel = resolveAgentModel("factChecker", providers);
     let fc = await runFactChecker(
-      { edited_html: seo.parsed.edited_html, key_facts: research.parsed.key_facts },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      {
+        edited_html: seo.parsed.edited_html,
+        key_facts: research.parsed.key_facts,
+        originality_anchor: research.parsed.originality_anchor,
+      },
+      { provider: providers.get(factCheckerModel.provider), model: factCheckerModel, sleepImpl: sleep }
     );
     endStage(true);
-    usage.push({ provider: "anthropic", model: fc.raw.model, inputTokens: fc.raw.inputTokens, outputTokens: fc.raw.outputTokens });
+    usage.push({ provider: factCheckerModel.provider, model: fc.raw.model, inputTokens: fc.raw.inputTokens, outputTokens: fc.raw.outputTokens });
 
     // AUTO-FIX LOOP (bounded: 1 retry max). Wanneer factChecker fail-verdict
     // gaf MAAR de fabricated_claims hebben suggested_rewrites, probeer ze
@@ -410,10 +406,14 @@ export async function runForSite(
         // pakt het op met de NIEUWE fabricated_claims (kan minder zijn dan
         // de eerste run als auto-fix gedeeltelijk werkte).
         const fc2 = await runFactChecker(
-          { edited_html: seo.parsed.edited_html, key_facts: research.parsed.key_facts },
-          { provider: providers.get("anthropic"), sleepImpl: sleep }
+          {
+            edited_html: seo.parsed.edited_html,
+            key_facts: research.parsed.key_facts,
+            originality_anchor: research.parsed.originality_anchor,
+          },
+          { provider: providers.get(factCheckerModel.provider), model: factCheckerModel, sleepImpl: sleep }
         );
-        usage.push({ provider: "anthropic", model: fc2.raw.model, inputTokens: fc2.raw.inputTokens, outputTokens: fc2.raw.outputTokens });
+        usage.push({ provider: factCheckerModel.provider, model: fc2.raw.model, inputTokens: fc2.raw.inputTokens, outputTokens: fc2.raw.outputTokens });
         fc = fc2;
         endStage(true);
         console.log(
@@ -478,6 +478,7 @@ export async function runForSite(
 
     // Quality judge
     endStage = startStage("qualityJudge");
+    const qualityJudgeModel = resolveAgentModel("qualityJudge", providers);
     const judge = await runQualityJudge(
       {
         edited_html: seo.parsed.edited_html,
@@ -492,10 +493,10 @@ export async function runForSite(
           alt_texts: seo.parsed.alt_texts_per_image_placeholder,
         },
       },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      { provider: providers.get(qualityJudgeModel.provider), model: qualityJudgeModel, sleepImpl: sleep }
     );
     endStage(true);
-    usage.push({ provider: "anthropic", model: judge.raw.model, inputTokens: judge.raw.inputTokens, outputTokens: judge.raw.outputTokens });
+    usage.push({ provider: qualityJudgeModel.provider, model: judge.raw.model, inputTokens: judge.raw.inputTokens, outputTokens: judge.raw.outputTokens });
 
     const cost = computeRunCost(usage);
 
@@ -587,6 +588,7 @@ export async function runForSite(
 
     // Image generation
     endStage = startStage("imagePrompter");
+    const imagePrompterModel = resolveAgentModel("imagePrompter", providers);
     const ip = await runImagePrompter(
       {
         title: outline.parsed.outline.h1_suggestion,
@@ -596,10 +598,10 @@ export async function runForSite(
         target_keyword: topic.targetKeyword,
         key_entities: research.parsed.key_entities.slice(0, 5),
       },
-      { provider: providers.get("groq"), sleepImpl: sleep }
+      { provider: providers.get(imagePrompterModel.provider), model: imagePrompterModel, sleepImpl: sleep }
     );
     endStage(true);
-    usage.push({ provider: "groq", model: ip.raw.model, inputTokens: ip.raw.inputTokens, outputTokens: ip.raw.outputTokens });
+    usage.push({ provider: imagePrompterModel.provider, model: ip.raw.model, inputTokens: ip.raw.inputTokens, outputTokens: ip.raw.outputTokens });
 
     endStage = startStage("imageGen");
     let imagePath: string | null = null;
@@ -607,7 +609,8 @@ export async function runForSite(
       const image = await generateBlogImage(
         { prompt: ip.parsed.prompt, negative_prompt: ip.parsed.negative_prompt },
         {
-          FAL_API_KEY: env.FAL_API_KEY ?? "",
+          FAL_API_KEY: env.FAL_API_KEY,
+          GEMINI_API_KEY: env.GEMINI_API_KEY,
           CF_ACCOUNT_ID: env.CF_ACCOUNT_ID,
           CF_API_TOKEN: env.CF_API_TOKEN,
         }
@@ -615,9 +618,10 @@ export async function runForSite(
       const optimized = await optimizeForWeb({ pngBytes: image.bytes });
       const imgDir = path.resolve(process.cwd(), "../../data/images", site.slug);
       await fs.mkdir(imgDir, { recursive: true });
-      const file = path.join(imgDir, `${seo.parsed.slug}.avif`);
-      await fs.writeFile(file, optimized.avifBytes);
-      imagePath = `data/images/${site.slug}/${seo.parsed.slug}.avif`;
+      const ext = optimized.contentType === "image/avif" ? "avif" : "png";
+      const file = path.join(imgDir, `${seo.parsed.slug}.${ext}`);
+      await fs.writeFile(file, optimized.bytes);
+      imagePath = `data/images/${site.slug}/${seo.parsed.slug}.${ext}`;
       endStage(true);
     } catch (err) {
       endStage(false);

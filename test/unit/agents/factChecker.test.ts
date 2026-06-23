@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runFactChecker } from "@/agents/factChecker";
 import type { LLMProvider } from "@/llm/types";
+import { resolveAgentModel } from "@/llm/client";
 
 const passOut = JSON.stringify({
   verified_claims: [{ claim: "X", source_url: "https://rvo.nl" }],
@@ -30,7 +31,7 @@ describe("runFactChecker", () => {
     };
     const r = await runFactChecker(
       { edited_html: "x", key_facts: [{ claim: "X", source_url: "https://rvo.nl" }] },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("factChecker"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.verdict).toBe("pass");
   });
@@ -48,7 +49,7 @@ describe("runFactChecker", () => {
     };
     const r = await runFactChecker(
       { edited_html: "x", key_facts: [] },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("factChecker"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.verdict).toBe("fail");
   });

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runStrategist } from "@/agents/strategist";
 import type { LLMProvider } from "@/llm/types";
+import { resolveAgentModel } from "@/llm/client";
 
 const out = {
   outline: {
@@ -43,7 +44,7 @@ describe("runStrategist", () => {
   it("returns parsed outline", async () => {
     const r = await runStrategist(
       { research: {} as any, brand_voice: "informeel", target_keyword: "AI in HR" },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("strategist"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.outline.h2_chunks).toHaveLength(5);
   });
@@ -57,7 +58,7 @@ describe("runStrategist", () => {
         intent: "commercial",
         intended_word_count_target: 900,
       },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("strategist"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.outline.h2_chunks).toHaveLength(5);
   });
@@ -76,7 +77,7 @@ describe("runStrategist", () => {
           },
         ],
       },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("strategist"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.outline.h2_chunks).toHaveLength(5);
   });

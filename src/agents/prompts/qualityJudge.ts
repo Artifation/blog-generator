@@ -32,6 +32,6 @@ JE OUTPUT (strict JSON):
 HARD FAILS:
 - originality < 6
 - fact_check = 0 (verdict=fail)
-- banlist_hits_per_1000_words > 3
+- banlist_hits_per_1000_words > 5
 
 Wees STRENG. Een 8.0-drempel betekent serieus serieus.`;

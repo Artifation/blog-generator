@@ -264,4 +264,53 @@ describe("runAgent", () => {
       expect(durations[0]!).toBeGreaterThanOrEqual(60_000);
     });
   });
+
+  describe("JSON repair", () => {
+    it("repairs unquoted property names (Claude long-output failure mode)", async () => {
+      // Simulates Claude losing JSON discipline halfway through a long output:
+      // it started with quoted keys, then slipped into JS-object syntax mid-way.
+      const broken = `{
+  "greeting": "hi",
+  count: 3
+}`;
+      const r = await runAgent(
+        {
+          provider: makeProvider(broken),
+          systemPrompt: "s",
+          userPrompt: "u",
+          model: "x",
+          schema: z.object({ greeting: z.string(), count: z.number() }),
+          maxTokens: 100,
+        },
+        noSleep
+      );
+      expect(r.parsed.greeting).toBe("hi");
+      expect(r.parsed.count).toBe(3);
+    });
+
+    it("repairs multiple unquoted property names in nested objects", async () => {
+      const broken = `{
+  "outline": {
+    h1: "Test heading",
+    "body": "ok",
+    count: 5
+  }
+}`;
+      const r = await runAgent(
+        {
+          provider: makeProvider(broken),
+          systemPrompt: "s",
+          userPrompt: "u",
+          model: "x",
+          schema: z.object({
+            outline: z.object({ h1: z.string(), body: z.string(), count: z.number() }),
+          }),
+          maxTokens: 100,
+        },
+        noSleep
+      );
+      expect(r.parsed.outline.h1).toBe("Test heading");
+      expect(r.parsed.outline.count).toBe(5);
+    });
+  });
 });

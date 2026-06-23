@@ -21,9 +21,6 @@ export function ActivateForm({ codes }: { codes: Array<{ code: string; company: 
   const [info, setInfo] = React.useState<InviteInfo | null>(null);
   const [pw1, setPw1] = React.useState("");
   const [pw2, setPw2] = React.useState("");
-  // For generic codes (empty info.email) the user types their own email + name.
-  const [email, setEmail] = React.useState("");
-  const [name, setName] = React.useState("");
   const [error, setError] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
@@ -55,13 +52,6 @@ export function ActivateForm({ codes }: { codes: Array<{ code: string; company: 
   }
 
   function setPassword() {
-    const isGeneric = !info?.email;
-    const effectiveEmail = (isGeneric ? email : info?.email ?? "").trim();
-    const effectiveName = (isGeneric ? name : info?.name ?? "").trim();
-    if (isGeneric && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(effectiveEmail)) {
-      setError("Vul een geldig e-mailadres in.");
-      return;
-    }
     if (pw1.length < 6) {
       setError("Wachtwoord moet minimaal 6 tekens zijn.");
       return;
@@ -73,11 +63,10 @@ export function ActivateForm({ codes }: { codes: Array<{ code: string; company: 
     setError("");
     setBusy(true);
     // Stash invite info + password in sessionStorage so the onboarding wizard can
-    // pre-fill and finalize the owner-user creation at the end. For generic
-    // codes we override the (empty) email/name with what the user just typed.
+    // pre-fill and finalize the owner-user creation at the end.
     sessionStorage.setItem(
       "artifation_invite",
-      JSON.stringify({ ...info, email: effectiveEmail, name: effectiveName, code, password: pw1 })
+      JSON.stringify({ ...info, code, password: pw1 })
     );
     setTimeout(() => {
       router.push("/onboarding");
@@ -101,54 +90,24 @@ export function ActivateForm({ codes }: { codes: Array<{ code: string; company: 
         >
           <CheckCircle size={18} />
           <div style={{ flex: 1, fontSize: 13 }}>
-            {info.name ? (
-              <>Code geldig — welkom <strong>{info.name}</strong></>
-            ) : (
-              <>Code geldig — maak je account aan</>
-            )}
+            Code geldig — welkom <strong>{info.name}</strong>
           </div>
         </div>
 
-        <h1>Stel je account in</h1>
+        <h1>Stel je wachtwoord in</h1>
         <div className="auth-sub">Hierna kun je je blog inrichten.</div>
 
         <div className="auth-form">
-          {info.email ? (
-            <div className="field">
-              <label>E-mail</label>
-              <input
-                className="input"
-                value={info.email}
-                disabled
-                style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}
-              />
-              <div className="hint">Gekoppeld aan code {code}</div>
-            </div>
-          ) : (
-            <>
-              <div className="field">
-                <label>Naam</label>
-                <input
-                  className="input"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="Voor- en achternaam"
-                  autoFocus
-                />
-              </div>
-              <div className="field">
-                <label>E-mail</label>
-                <input
-                  className="input"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="jij@bedrijf.nl"
-                />
-                <div className="hint">Hiermee log je straks in.</div>
-              </div>
-            </>
-          )}
+          <div className="field">
+            <label>E-mail</label>
+            <input
+              className="input"
+              value={info.email}
+              disabled
+              style={{ background: "var(--surface-2)", color: "var(--text-muted)" }}
+            />
+            <div className="hint">Gekoppeld aan code {code}</div>
+          </div>
           <div className="field">
             <label>Nieuw wachtwoord</label>
             <input
@@ -262,47 +221,43 @@ export function ActivateForm({ codes }: { codes: Array<{ code: string; company: 
         </button>
       </div>
 
-      {codes.length > 0 && (
-        <>
-          <div className="auth-divider">of</div>
+      <div className="auth-divider">of</div>
 
-          <div className="auth-demo">
-            <div className="auth-demo-h">
-              <Key size={11} /> Demo-codes (klik om in te vullen)
-            </div>
-            <div className="col" style={{ gap: 2 }}>
-              {codes.map(({ code: c, company, plan }) => (
-                <button
-                  key={c}
-                  type="button"
-                  className="auth-demo-row"
-                  onClick={() => {
-                    setCode(c);
-                    setError("");
-                  }}
-                  style={{ background: "transparent", border: "none", width: "100%" }}
+      <div className="auth-demo">
+        <div className="auth-demo-h">
+          <Key size={11} /> Demo-codes (klik om in te vullen)
+        </div>
+        <div className="col" style={{ gap: 2 }}>
+          {codes.map(({ code: c, company, plan }) => (
+            <button
+              key={c}
+              type="button"
+              className="auth-demo-row"
+              onClick={() => {
+                setCode(c);
+                setError("");
+              }}
+              style={{ background: "transparent", border: "none", width: "100%" }}
+            >
+              <div className="auth-demo-avatar" style={{ background: "var(--accent)" }}>
+                <Key size={12} />
+              </div>
+              <div className="auth-demo-meta">
+                <div
+                  className="auth-demo-name mono"
+                  style={{ fontSize: 12, letterSpacing: "0.04em" }}
                 >
-                  <div className="auth-demo-avatar" style={{ background: "var(--accent)" }}>
-                    <Key size={12} />
-                  </div>
-                  <div className="auth-demo-meta">
-                    <div
-                      className="auth-demo-name mono"
-                      style={{ fontSize: 12, letterSpacing: "0.04em" }}
-                    >
-                      {c}
-                    </div>
-                    <div className="auth-demo-domain">
-                      {company} · {plan}
-                    </div>
-                  </div>
-                  <ArrowRight size={13} style={{ color: "var(--text-muted)" }} />
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
-      )}
+                  {c}
+                </div>
+                <div className="auth-demo-domain">
+                  {company} · {plan}
+                </div>
+              </div>
+              <ArrowRight size={13} style={{ color: "var(--text-muted)" }} />
+            </button>
+          ))}
+        </div>
+      </div>
 
       <div className="auth-foot">
         Heb je al een account? <Link href="/login">Log in</Link>

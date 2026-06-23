@@ -9,8 +9,11 @@ export async function runInternalLinkerAction(): Promise<
   | { ok: false; error: string }
 > {
   const site = await requireSite();
-  if (!site.apiKeys?.anthropic) {
-    return { ok: false, error: "Anthropic API-key ontbreekt — vul die in onder Instellingen." };
+  // Internal-linker falls back to Gemini in the pipeline if Anthropic isn't
+  // configured, so only the Gemini key is strictly required.
+  const geminiKey = site.apiKeys?.gemini ?? process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    return { ok: false, error: "Gemini API-key vereist. Ga naar Instellingen → Integraties." };
   }
   try {
     const result = await runBuiltInInternalLinker(site);

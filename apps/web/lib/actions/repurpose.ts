@@ -5,7 +5,7 @@ import { eq, and } from "drizzle-orm";
 import { requireSite } from "~/lib/auth";
 import { getDb, ensureSchema } from "~/lib/db/client";
 import { publishedPosts } from "~/lib/db/schema";
-import { createProviderRegistry } from "@/llm/client";
+import { createProviderRegistry, resolveAgentModel } from "@/llm/client";
 import {
   runRepurposerLinkedIn,
   runRepurposerNewsletter,
@@ -24,8 +24,11 @@ export async function repurposePostAction(
   formats: Array<"linkedin" | "newsletter" | "xthread">
 ): Promise<RepurposeResult | { ok: false; error: string }> {
   const site = await requireSite();
-  if (!site.apiKeys?.anthropic) {
-    return { ok: false, error: "Anthropic API-key ontbreekt." };
+  // Gemini is the only hard requirement — pipeline falls back gracefully to
+  // Gemini for the LLM rollen if Anthropic isn't set.
+  const geminiKey = site.apiKeys?.gemini ?? process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    return { ok: false, error: "Gemini API-key vereist. Ga naar Instellingen → Integraties." };
   }
   if (formats.length === 0) {
     return { ok: false, error: "Kies minstens één format." };
@@ -41,7 +44,9 @@ export async function repurposePostAction(
   const post = rows[0];
   if (!post) return { ok: false, error: "Post niet gevonden." };
 
-  const env = { ...process.env, ANTHROPIC_API_KEY: site.apiKeys.anthropic };
+  const env = { ...process.env };
+  if (site.apiKeys?.anthropic) env.ANTHROPIC_API_KEY = site.apiKeys.anthropic;
+  if (site.apiKeys?.gemini) env.GEMINI_API_KEY = site.apiKeys.gemini;
   const providers = createProviderRegistry(env);
 
   const url = post.externalUrl ?? `https://${site.domain}/blog/${site.slug}/${post.slug}`;
@@ -55,13 +60,21 @@ export async function repurposePostAction(
 
   const out: RepurposeResult = { ok: true };
 
+  // Same model used for all three repurpose flavours — registry picks the
+  // right provider (Anthropic when its key is set, else Gemini fallback).
+  const repurposerModel = resolveAgentModel("repurposer", providers);
+  const repurposerDeps = {
+    provider: providers.get(repurposerModel.provider),
+    model: repurposerModel,
+  };
+
   try {
     const tasks: Array<Promise<void>> = [];
     if (formats.includes("linkedin")) {
       tasks.push(
         runRepurposerLinkedIn(
           { blog, brand_voice: site.brandVoice },
-          { provider: providers.get("anthropic") }
+          repurposerDeps
         ).then((r) => {
           out.linkedin = r.parsed;
         })
@@ -71,7 +84,7 @@ export async function repurposePostAction(
       tasks.push(
         runRepurposerNewsletter(
           { blog, brand_voice: site.brandVoice },
-          { provider: providers.get("anthropic") }
+          repurposerDeps
         ).then((r) => {
           out.newsletter = r.parsed;
         })
@@ -81,7 +94,7 @@ export async function repurposePostAction(
       tasks.push(
         runRepurposerXThread(
           { blog, brand_voice: site.brandVoice },
-          { provider: providers.get("anthropic") }
+          repurposerDeps
         ).then((r) => {
           out.xthread = r.parsed;
         })

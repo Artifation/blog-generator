@@ -36,3 +36,21 @@ export async function deleteSiteAction(id: string): Promise<void> {
   revalidatePath("/sites");
   redirect("/sites");
 }
+
+/**
+ * Partial site update — used by the settings page auto-save hook to save
+ * one card-worth of fields at a time. Intentionally skips revalidatePath
+ * calls because the user is on /settings; the new value is already in
+ * React state and other routes don't need invalidation per keystroke.
+ */
+export async function patchSiteAction(
+  id: string,
+  partial: UpdateSiteInput
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    await updateSite(id, partial);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, error: (err as Error).message };
+  }
+}

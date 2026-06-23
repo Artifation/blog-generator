@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runWriter } from "@/agents/writer";
 import type { LLMProvider } from "@/llm/types";
+import { resolveAgentModel } from "@/llm/client";
 
 const draftPass = JSON.stringify({
   draft_html: "<div class='tldr'>...</div><h2>x</h2>" + "p ".repeat(2000),
@@ -28,7 +29,7 @@ describe("runWriter", () => {
     };
     const r = await runWriter(
       { outline: {} as any, brand_voice: "x", ban_list: [], contrarian_hint: "", key_facts: [] },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("writer"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.iterations).toBe(1);
     expect(provider.call).toHaveBeenCalledTimes(1);
@@ -49,7 +50,7 @@ describe("runWriter", () => {
     };
     const r = await runWriter(
       { outline: {} as any, brand_voice: "x", ban_list: [], contrarian_hint: "", key_facts: [] },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("writer"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.iterations).toBe(3);
     expect(provider.call).toHaveBeenCalledTimes(3);
@@ -68,7 +69,7 @@ describe("runWriter", () => {
     };
     const r = await runWriter(
       { outline: {} as any, brand_voice: "x", ban_list: [], contrarian_hint: "", key_facts: [] },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("writer"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.iterations).toBe(3);
     expect(provider.call).toHaveBeenCalledTimes(3);

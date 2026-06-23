@@ -22,8 +22,8 @@ describe("optimizeForWeb", () => {
     expect(r.contentType).toBe("image/avif");
     expect(r.width).toBe(200);
     expect(r.height).toBe(150);
-    expect(r.avifBytes).toBeInstanceOf(Buffer);
-    expect(r.avifBytes.length).toBeGreaterThan(0);
+    expect(r.bytes).toBeInstanceOf(Buffer);
+    expect(r.bytes.length).toBeGreaterThan(0);
   });
 
   it("AVIF output is smaller than the input PNG for non-trivial content", async () => {
@@ -36,7 +36,7 @@ describe("optimizeForWeb", () => {
     const r = await optimizeForWeb({ pngBytes: png });
     // For a solid-color image, AVIF should be at least competitive with PNG.
     // We don't strictly require smaller — but we DO require it succeeds.
-    expect(r.avifBytes.length).toBeGreaterThan(0);
+    expect(r.bytes.length).toBeGreaterThan(0);
   });
 
   it("strips EXIF metadata from output", async () => {
@@ -44,7 +44,7 @@ describe("optimizeForWeb", () => {
     // sharp's .withMetadata({}) wipes everything — confirm via re-reading metadata.
     const png = await makeTestPng();
     const r = await optimizeForWeb({ pngBytes: png });
-    const meta = await sharp(r.avifBytes).metadata();
+    const meta = await sharp(r.bytes).metadata();
     // After strip, EXIF/IPTC/XMP fields should be absent or empty.
     expect(meta.exif).toBeUndefined();
     expect(meta.iptc).toBeUndefined();
@@ -56,6 +56,6 @@ describe("optimizeForWeb", () => {
     const lowQ = await optimizeForWeb({ pngBytes: png, quality: 30 });
     const highQ = await optimizeForWeb({ pngBytes: png, quality: 90 });
     // Higher quality should produce equal or larger output.
-    expect(highQ.avifBytes.length).toBeGreaterThanOrEqual(lowQ.avifBytes.length);
+    expect(highQ.bytes.length).toBeGreaterThanOrEqual(lowQ.bytes.length);
   });
 });

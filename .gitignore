@@ -29,3 +29,6 @@ data/*.db-shm
 
 # TypeScript incremental build info (machine-local)
 *.tsbuildinfo
+
+# Superpowers brainstorm/runtime scratch state (machine-local)
+.superpowers/

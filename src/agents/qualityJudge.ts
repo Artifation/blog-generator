@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { runAgent } from "@/llm/runAgent";
-import { resolveAgentModel } from "@/llm/client";
+import type { AgentModelChoice } from "@/llm/client";
 import type { LLMProvider } from "@/llm/types";
 import type { RubricSignals } from "@/pipeline/rubric";
 import { QUALITY_JUDGE_SYSTEM_PROMPT } from "./prompts/qualityJudge.ts";
@@ -45,18 +45,18 @@ export interface QualityJudgeInput {
 
 export interface QualityJudgeDeps {
   provider: LLMProvider;
+  model: AgentModelChoice;
   sleepImpl?: (ms: number) => Promise<void>;
 }
 
 export async function runQualityJudge(input: QualityJudgeInput, deps: QualityJudgeDeps) {
-  const model = resolveAgentModel("qualityJudge");
   return runAgent(
     {
       provider: deps.provider,
       systemPrompt: QUALITY_JUDGE_SYSTEM_PROMPT,
       userPrompt: JSON.stringify(input, null, 2),
-      model: model.model,
-      maxTokens: model.maxTokens,
+      model: deps.model.model,
+      maxTokens: deps.model.maxTokens,
       schema: QualityJudgeOutputSchema,
     },
     deps.sleepImpl

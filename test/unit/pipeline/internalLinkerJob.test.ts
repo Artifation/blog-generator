@@ -49,6 +49,7 @@ vi.mock("@/llm/client", async () => {
   return {
     ...actual,
     createProviderRegistry: () => ({
+      has: () => true,
       get: () => ({
         name: "anthropic" as const,
         call: vi.fn(async () => {

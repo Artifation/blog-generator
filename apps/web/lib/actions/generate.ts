@@ -19,11 +19,14 @@ export async function generateForTopicAction(
   if (!topic || topic.siteId !== site.id)
     return { ok: false, error: "Topic niet gevonden voor deze site" };
 
-  if (!site.apiKeys?.anthropic || !site.apiKeys?.gemini || !site.apiKeys?.groq) {
+  // Alleen Gemini is écht verplicht — andere providers worden gegraciously
+  // overgeslagen via resolveAgentModel(role, registry) in de pipeline.
+  const geminiKey = site.apiKeys?.gemini ?? process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
     return {
       ok: false,
       error:
-        "Mist verplichte API-keys (Anthropic, Gemini, Groq). Vul ze in onder Instellingen → API-keys.",
+        "Gemini API-key vereist. Vul 'm in onder Instellingen → Integraties.",
     };
   }
 

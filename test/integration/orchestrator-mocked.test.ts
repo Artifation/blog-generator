@@ -60,10 +60,11 @@ vi.mock("@/image", () => ({
 
 vi.mock("@/image/optimize", () => ({
   optimizeForWeb: vi.fn(async () => ({
-    avifBytes: Buffer.from("avif-mock"),
+    bytes: Buffer.from("avif-mock"),
     contentType: "image/avif",
     width: 1024,
     height: 1024,
+    fallbackUsed: false,
   })),
 }));
 
@@ -78,6 +79,7 @@ vi.mock("@/llm/client", async () => {
   return {
     ...actual,
     createProviderRegistry: () => ({
+      has: () => true,
       get: () => ({
         name: "anthropic" as const,
         call: vi.fn(async () => {

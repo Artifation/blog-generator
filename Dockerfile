@@ -41,13 +41,20 @@ RUN --mount=type=cache,target=/root/.npm \
 RUN --mount=type=cache,target=/root/.npm \
     cd apps/web && npm ci --no-audit --no-fund
 
-# libsql's native binary for Alpine (musl) isn't always in package-lock when
-# the lock was generated on a non-Linux dev machine — install it explicitly
-# so the runtime can require('@libsql/linux-x64-musl') successfully.
+# Sharp's prebuilt binary is shipped via platform-specific optional deps
+# (e.g. @img/sharp-linuxmusl-x64). `npm ci` only installs the optional deps
+# that are recorded in package-lock.json — and lockfiles generated on
+# Win/macOS only record those platforms. Force the Alpine binary explicitly
+# for both the root and the apps/web install so the runtime image can load
+# sharp without 500-ing every server-action chunk that transitively imports
+# it (see src/image/optimize.ts).
 RUN --mount=type=cache,target=/root/.npm \
-    cd apps/web && \
-    LIBSQL_VER=$(node -p "require('./node_modules/libsql/package.json').version") && \
-    npm install --no-save --no-audit --no-fund "@libsql/linux-x64-musl@${LIBSQL_VER}"
+    npm install --no-save --include=optional \
+      --os=linux --libc=musl --cpu=x64 \
+      sharp \
+ && cd apps/web && npm install --no-save --include=optional \
+      --os=linux --libc=musl --cpu=x64 \
+      sharp
 
 # ===========================================================================
 # Stage 2: builder — compile Next.js (standalone output)
@@ -68,9 +75,10 @@ COPY . .
 
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV NODE_ENV=production
-# Next.js + tsc + sharp combined push past Node's default 2GB heap on small
-# VPSes. 4GB is comfortable for `next build` even on a 4GB VPS (with swap).
-ENV NODE_OPTIONS=--max-old-space-size=4096
+# Next.js build can OOM on small VPSes (default Node heap ~2GB). Bump to 4GB
+# for the build step so subsystems like the type-checker and bundle compiler
+# don't trigger "JavaScript heap out of memory".
+ENV NODE_OPTIONS="--max-old-space-size=4096"
 
 # Build the Next.js app. Outputs:
 #   apps/web/.next/standalone/        — self-contained server.js + minimal node_modules
