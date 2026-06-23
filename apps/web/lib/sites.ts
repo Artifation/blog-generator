@@ -25,6 +25,25 @@ export interface SiteSummary extends Site {
   };
 }
 
+type WpConfig = { baseUrl: string; user: string; appPassword: string } | null | undefined;
+
+/**
+ * Merge an incoming WordPress config with the stored one. A blank/absent
+ * incoming appPassword preserves the stored password — the settings UI masks
+ * the password and only sends a value when the user actually retypes it.
+ */
+function mergeWordpressConfig(
+  current: WpConfig,
+  incoming: WpConfig,
+): { baseUrl: string; user: string; appPassword: string } | null {
+  if (!incoming) return null;
+  const appPassword =
+    incoming.appPassword && incoming.appPassword.length > 0
+      ? incoming.appPassword
+      : current?.appPassword ?? "";
+  return { baseUrl: incoming.baseUrl, user: incoming.user, appPassword };
+}
+
 export async function listSitesWithStats(): Promise<SiteSummary[]> {
   await ensureSchema();
   const db = getDb();
@@ -204,9 +223,19 @@ export async function updateSite(id: string, input: UpdateSiteInput): Promise<Si
   if (input.maxPostsPerWeek !== undefined) patch.maxPostsPerWeek = input.maxPostsPerWeek;
   if (input.scheduleCron !== undefined) patch.scheduleCron = input.scheduleCron;
   if (input.publishDestination !== undefined) patch.publishDestination = input.publishDestination;
-  if (input.wordpressConfig !== undefined) patch.wordpressConfig = sealWordpressConfig(input.wordpressConfig);
+  if (input.wordpressConfig !== undefined) {
+    // Merge: a blank incoming appPassword preserves the stored one (the
+    // settings UI masks it and only sends a value when the user retypes it).
+    patch.wordpressConfig = sealWordpressConfig(
+      mergeWordpressConfig(current.wordpressConfig, input.wordpressConfig),
+    );
+  }
   if (input.author !== undefined) patch.author = input.author;
-  if (input.apiKeys !== undefined) patch.apiKeys = sealApiKeys(input.apiKeys);
+  if (input.apiKeys !== undefined) {
+    // Merge with the current (decrypted) keys so a partial/masked save from one
+    // settings card preserves every other key instead of wiping them.
+    patch.apiKeys = sealApiKeys({ ...(current.apiKeys ?? {}), ...input.apiKeys });
+  }
   if (input.features !== undefined) patch.features = input.features;
 
   await db.update(sites).set(patch).where(eq(sites.id, id));
