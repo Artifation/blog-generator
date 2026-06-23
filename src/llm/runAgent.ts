@@ -90,7 +90,10 @@ function extractJson(text: string): unknown {
   const begin =
     start === -1 ? startArr : startArr === -1 ? start : Math.min(start, startArr);
   if (begin === -1) throw new Error("No JSON found in response");
-  const slice = candidate.slice(begin);
+  // Slice to the END of the matching container, not the end of the string, so
+  // trailing prose ("…here is the result {…}. Let me know!") doesn't force a
+  // parse failure + full retry. This is common with Gemini grounding output.
+  const slice = extractBalanced(candidate, begin) ?? candidate.slice(begin);
   try {
     return JSON.parse(slice);
   } catch (originalErr) {
@@ -102,6 +105,36 @@ function extractJson(text: string): unknown {
       throw originalErr;
     }
   }
+}
+
+/**
+ * Return the substring from `begin` (a `{` or `[`) to its matching close,
+ * tracking depth while respecting string/escape state. Returns null when the
+ * container is unbalanced (caller then falls back to the raw slice).
+ */
+function extractBalanced(s: string, begin: number): string | null {
+  const open = s[begin];
+  if (open !== "{" && open !== "[") return null;
+  const close = open === "{" ? "}" : "]";
+  let depth = 0;
+  let inStr = false;
+  let escaped = false;
+  for (let i = begin; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === open) depth++;
+    else if (ch === close) {
+      depth--;
+      if (depth === 0) return s.slice(begin, i + 1);
+    }
+  }
+  return null;
 }
 
 /**

@@ -51,6 +51,36 @@ describe("runAgent", () => {
     expect(r.parsed.greeting).toBe("hello");
   });
 
+  it("parses an unfenced object followed by trailing prose (Gemini grounding)", async () => {
+    const r = await runAgent(
+      {
+        provider: makeProvider('Here is the result: {"greeting":"hi"}. Let me know if you need more!'),
+        systemPrompt: "s",
+        userPrompt: "u",
+        model: "x",
+        schema,
+        maxTokens: 100,
+      },
+      noSleep
+    );
+    expect(r.parsed.greeting).toBe("hi");
+  });
+
+  it("ignores braces inside string values when extracting the object", async () => {
+    const r = await runAgent(
+      {
+        provider: makeProvider('{"greeting":"a } b { c"}  …and some trailing note'),
+        systemPrompt: "s",
+        userPrompt: "u",
+        model: "x",
+        schema,
+        maxTokens: 100,
+      },
+      noSleep
+    );
+    expect(r.parsed.greeting).toBe("a } b { c");
+  });
+
   it("retries on parse failure (max 3 attempts)", async () => {
     const calls = ["bad", "still bad", '{"greeting":"ok"}'];
     let i = 0;
