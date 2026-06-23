@@ -20,6 +20,7 @@ import { runWriter } from "@/agents/writer";
 import { runSeoEditor } from "@/agents/seoEditor";
 import { runFactChecker } from "@/agents/factChecker";
 import { runQualityJudge } from "@/agents/qualityJudge";
+import { judgeWeightedTotal, JUDGE_GO_THRESHOLD } from "@/agents/scoring";
 import { runImagePrompter } from "@/agents/imagePrompter";
 import { generateBlogImage } from "@/image";
 import { optimizeForWeb } from "@/image/optimize";
@@ -560,14 +561,38 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       outputTokens: judge.raw.outputTokens,
     });
 
+    // Deterministic publish gate — NEVER trust the model's own arithmetic or
+    // verdict (LLMs are unreliable at weighting 8 terms in their head). Recompute
+    // the weighted total from its scores, re-derive the hard fails from
+    // scores + deterministic signals, and decide GO/NO-GO in code. The model's
+    // `scores`, `reasoning` and `improvement_suggestions` are still used as-is.
+    const recomputedWeightedTotal = judgeWeightedTotal(judge.parsed.scores);
+    const recomputedHardFails: string[] = [];
+    if (judge.parsed.scores.originality < 6) recomputedHardFails.push("originality < 6");
+    // NB: a failed fact-check already short-circuits earlier (the topic is
+    // rejected before the judge runs), so fact_check is always "pass" here —
+    // no need to re-check it as a hard fail.
+    const judgeWordCount = signals.word_count || 0;
+    const banlistPer1000 = judgeWordCount > 0 ? (signals.banlist_hits / judgeWordCount) * 1000 : 0;
+    if (banlistPer1000 > 5) recomputedHardFails.push("banlist_hits_per_1000_words > 5");
+    const goThreshold = tenant.quality_threshold ?? JUDGE_GO_THRESHOLD;
+    const recomputedVerdict: "GO" | "NO-GO" =
+      recomputedWeightedTotal < goThreshold || recomputedHardFails.length > 0 ? "NO-GO" : "GO";
+    const judgeResult = {
+      ...judge.parsed,
+      weighted_total: recomputedWeightedTotal,
+      hard_fails: recomputedHardFails,
+      verdict: recomputedVerdict,
+    };
+
     // Volledige judge-uitkomst in GH Actions log — geen email nodig om scores te zien.
     logStage({
       stage: "judge",
       topicId: next.id,
-      verdict: judge.parsed.verdict,
-      weighted_total: judge.parsed.weighted_total,
+      verdict: judgeResult.verdict,
+      weighted_total: judgeResult.weighted_total,
       scores: judge.parsed.scores,
-      hard_fails: judge.parsed.hard_fails,
+      hard_fails: judgeResult.hard_fails,
       signals: {
         internal_link_count: signals.internal_link_count,
         external_link_count: signals.external_link_count,
@@ -579,13 +604,13 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
     });
 
-    if (judge.parsed.verdict === "NO-GO") {
+    if (judgeResult.verdict === "NO-GO") {
       const html = await render(
         React.createElement(Reject, {
           title: outline.parsed.outline.h1_suggestion,
-          weightedTotal: judge.parsed.weighted_total,
+          weightedTotal: judgeResult.weighted_total,
           scoreBreakdown: judge.parsed.scores,
-          hardFails: judge.parsed.hard_fails,
+          hardFails: judgeResult.hard_fails,
           reasoning: judge.parsed.reasoning,
           improvementSuggestions: judge.parsed.improvement_suggestions,
         })
@@ -595,7 +620,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         from: tenant.email.from,
         to: tenant.email.to,
         replyTo: tenant.email.reply_to,
-        subject: `[${tenant.brand.name}] Reject: ${outline.parsed.outline.h1_suggestion} — score ${judge.parsed.weighted_total.toFixed(1)}`,
+        subject: `[${tenant.brand.name}] Reject: ${outline.parsed.outline.h1_suggestion} — score ${judgeResult.weighted_total.toFixed(1)}`,
         html,
         attachments: [
           { filename: "draft.html", content: Buffer.from(seo.parsed.edited_html, "utf-8") },
@@ -606,15 +631,15 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         ],
       });
       topics = markTopicStatus(topics, next.id, "rejected", now, {
-        reject_reason: judge.parsed.hard_fails.join("; ") || "score < threshold",
+        reject_reason: judgeResult.hard_fails.join("; ") || "score < threshold",
         retry_after: new Date(now.getTime() + 7 * 86400_000).toISOString(),
       });
       await saveTopics(topics, opts.tenantSlug, baseDir);
       await persistRunSummary(
         buildSummary({
           runId, tenantSlug: opts.tenantSlug, topic: next, startedAt, now,
-          verdict: "rejected", judge: judge.parsed, signals,
-          reason: judge.parsed.hard_fails.join("; ") || "score < threshold",
+          verdict: "rejected", judge: judgeResult, signals,
+          reason: judgeResult.hard_fails.join("; ") || "score < threshold",
         }),
         dataDir
       );
@@ -734,7 +759,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
     const html = await render(
       React.createElement(Success, {
         title: outline.parsed.outline.h1_suggestion,
-        weightedTotal: judge.parsed.weighted_total,
+        weightedTotal: judgeResult.weighted_total,
         scoreBreakdown: judge.parsed.scores,
         tldr: outline.parsed.outline.tldr_one_liner,
         imageUrl: media.source_url,
@@ -749,7 +774,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       from: tenant.email.from,
       to: tenant.email.to,
       replyTo: tenant.email.reply_to,
-      subject: `[${tenant.brand.name}] Concept klaar: ${outline.parsed.outline.h1_suggestion} — score ${judge.parsed.weighted_total.toFixed(1)}`,
+      subject: `[${tenant.brand.name}] Concept klaar: ${outline.parsed.outline.h1_suggestion} — score ${judgeResult.weighted_total.toFixed(1)}`,
       html,
     });
 
@@ -763,7 +788,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         approved_at: now.toISOString(),
         ai_models_used: [...new Set(usage.map((u) => u.model))],
         pipeline_version: env.GITHUB_SHA?.slice(0, 7) ?? "local",
-        rubric_total: judge.parsed.weighted_total,
+        rubric_total: judgeResult.weighted_total,
         topic_id: next.id,
       },
       { tenant_slug: opts.tenantSlug, baseDir, now }
@@ -828,12 +853,12 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       topicId: next.id,
       postId: post.id,
       costUsd: cost.totalUsd,
-      score: judge.parsed.weighted_total,
+      score: judgeResult.weighted_total,
     });
     await persistRunSummary(
       buildSummary({
         runId, tenantSlug: opts.tenantSlug, topic: next, startedAt, now,
-        verdict: "published", judge: judge.parsed, signals,
+        verdict: "published", judge: judgeResult, signals,
         wpPostId: post.id, costUsd: cost.totalUsd,
       }),
       dataDir

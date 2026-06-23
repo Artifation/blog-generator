@@ -99,3 +99,34 @@ export function weightedTotalFromScores(scores: Record<AuditorDimension, number>
   }
   return total;
 }
+
+/**
+ * Gewichten van de qualityJudge (8-dim publish-gate). MOET overeenkomen met de
+ * formule in src/agents/prompts/qualityJudge.ts. Som = 1.0. We berekenen het
+ * gewogen totaal in code (i.p.v. de LLM het in z'n hoofd te laten doen), zodat
+ * de publish/reject-beslissing deterministisch en auditbaar is.
+ */
+export const JUDGE_WEIGHTS = {
+  semantic_completeness: 0.20,
+  originality: 0.25,
+  anti_ai_cliche: 0.15,
+  fact_check: 0.15,
+  seo_meta: 0.05,
+  seo_schema: 0.05,
+  brand_voice: 0.10,
+  readability: 0.05,
+} as const;
+
+export type JudgeDimension = keyof typeof JUDGE_WEIGHTS;
+
+/** Default GO-drempel (komt overeen met de prompt). Per-tenant override mogelijk. */
+export const JUDGE_GO_THRESHOLD = 8.0;
+
+export function judgeWeightedTotal(scores: Record<JudgeDimension, number>): number {
+  let total = 0;
+  for (const [k, w] of Object.entries(JUDGE_WEIGHTS) as [JudgeDimension, number][]) {
+    total += clampScore(scores[k] ?? 0) * w;
+  }
+  // Rond af op 2 decimalen — vermijdt drijvende-komma ruis in de gate.
+  return Math.round(total * 100) / 100;
+}
