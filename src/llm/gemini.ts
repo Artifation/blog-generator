@@ -44,10 +44,16 @@ export function createGeminiProvider(apiKey: string): LLMProvider {
         if (uri) groundedUrls.push(uri);
       }
 
+      // Gemini 2.5 bills "thinking" tokens at the output rate but reports them
+      // separately from candidatesTokenCount — include them so cost tracking
+      // isn't undercounted.
+      const usageMeta = res.usageMetadata as
+        | { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number }
+        | undefined;
       return {
         text: res.text ?? "",
-        inputTokens: res.usageMetadata?.promptTokenCount ?? 0,
-        outputTokens: res.usageMetadata?.candidatesTokenCount ?? 0,
+        inputTokens: usageMeta?.promptTokenCount ?? 0,
+        outputTokens: (usageMeta?.candidatesTokenCount ?? 0) + (usageMeta?.thoughtsTokenCount ?? 0),
         model: req.model,
         provider: "gemini",
         groundedUrls: groundedUrls.length > 0 ? groundedUrls : undefined,
