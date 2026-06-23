@@ -230,6 +230,9 @@ export async function inviteUserAction(
 ): Promise<{ ok: true; tempPassword: string } | { ok: false; error: string }> {
   const site = await requireSite();
   const inviter = await requireUser();
+  if (inviter.role !== "owner") {
+    return { ok: false, error: "Alleen eigenaren kunnen teamleden uitnodigen." };
+  }
   if (!email || !email.includes("@")) return { ok: false, error: "Ongeldig e-mailadres." };
   if (tempPassword.length < 6) return { ok: false, error: "Tijdelijk wachtwoord min. 6 tekens." };
   const existing = await findUserByEmail(site.id, email);
@@ -252,7 +255,10 @@ export async function inviteUserAction(
 export async function removeUserAction(userId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const site = await requireSite();
   const me = await getCurrentUser();
-  if (me?.id === userId) return { ok: false, error: "Je kunt jezelf niet verwijderen." };
+  if (!me || me.role !== "owner") {
+    return { ok: false, error: "Alleen eigenaren kunnen gebruikers verwijderen." };
+  }
+  if (me.id === userId) return { ok: false, error: "Je kunt jezelf niet verwijderen." };
   const users = await listUsersForSite(site.id);
   const target = users.find((u) => u.id === userId);
   if (!target) return { ok: false, error: "Gebruiker niet gevonden." };

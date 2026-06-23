@@ -3,10 +3,30 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSite, updateSite, deleteSite, type CreateSiteInput, type UpdateSiteInput } from "~/lib/sites";
+import { requireSite, getCurrentUser } from "~/lib/auth";
+import { roleAtLeast } from "~/lib/auth/roles";
+
+/**
+ * Writing integration secrets (API keys / WordPress credentials) is an
+ * owner-only action. Returns an error string when the patch touches secrets
+ * and the current user is not an owner, null otherwise.
+ */
+async function ownerGuardForSecrets(patch: UpdateSiteInput): Promise<string | null> {
+  if (patch.apiKeys === undefined && patch.wordpressConfig === undefined) return null;
+  const me = await getCurrentUser();
+  if (!roleAtLeast(me?.role, "owner")) {
+    return "Alleen eigenaren kunnen integraties en sleutels wijzigen.";
+  }
+  return null;
+}
 
 export async function createSiteAction(
   input: CreateSiteInput
 ): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
+  // NOTE: createSiteAction runs during onboarding, before a session exists, so
+  // it cannot require a session. Its abuse vector (anonymous mass site
+  // creation) is gated by the single-use invite-code system — see
+  // createSiteWithInviteAction / the onboarding flow.
   try {
     const site = await createSite(input);
     revalidatePath("/sites");
@@ -20,6 +40,12 @@ export async function updateSiteAction(
   id: string,
   input: UpdateSiteInput
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Ownership: the session is bound to exactly one site. Never trust the
+  // client-supplied id — it must match the session's site.
+  const current = await requireSite();
+  if (current.id !== id) return { ok: false, error: "Geen toegang tot deze site." };
+  const secErr = await ownerGuardForSecrets(input);
+  if (secErr) return { ok: false, error: secErr };
   try {
     const site = await updateSite(id, input);
     revalidatePath("/sites");
@@ -32,6 +58,12 @@ export async function updateSiteAction(
 }
 
 export async function deleteSiteAction(id: string): Promise<void> {
+  // Destructive + cross-tenant: require the session to own this site AND to be
+  // an owner of it.
+  const current = await requireSite();
+  if (current.id !== id) redirect("/settings");
+  const me = await getCurrentUser();
+  if (!roleAtLeast(me?.role, "owner")) redirect("/settings");
   await deleteSite(id);
   revalidatePath("/sites");
   redirect("/sites");
@@ -47,6 +79,10 @@ export async function patchSiteAction(
   id: string,
   partial: UpdateSiteInput
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  const current = await requireSite();
+  if (current.id !== id) return { ok: false, error: "Geen toegang tot deze site." };
+  const secErr = await ownerGuardForSecrets(partial);
+  if (secErr) return { ok: false, error: secErr };
   try {
     await updateSite(id, partial);
     return { ok: true };
