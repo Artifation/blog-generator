@@ -1,23 +1,37 @@
 /**
  * Cron-runner endpoint.
  *
- *   GET /api/cron/[siteSlug]?token=<CRON_TOKEN>
+ *   GET /api/cron/[siteSlug]
+ *   Authorization: Bearer <CRON_TOKEN>     (preferred — keeps the token out of
+ *                                           access logs / process lists)
+ *   or header  X-Cron-Token: <CRON_TOKEN>
+ *   or (deprecated) ?token=<CRON_TOKEN>     (still accepted for compatibility)
  *
  * Hook this up to an external scheduler (Vercel cron, GitHub Actions, system
  * cron, EasyCron, etc.). It picks the highest-priority queued topic for the
  * site, runs the multi-agent pipeline, and returns a JSON summary.
  *
- * Auth: query-param `?token=` must equal env CRON_TOKEN. Without that env var
- * the endpoint refuses to serve to prevent open invocations.
+ * Auth: the supplied token must equal env CRON_TOKEN (constant-time compare).
+ * Without that env var the endpoint refuses to serve to prevent open
+ * invocations.
  *
  * Auto-publish: if the site has autoPublish=true, an approved draft is
  * immediately pushed to its destination. Otherwise it lands as pending_review
  * for human approval.
  */
 
+import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getSiteBySlug } from "~/lib/sites";
 import { listTopicsForSite } from "~/lib/topics";
+
+/** Constant-time string compare — avoids a timing oracle on the cron token. */
+function safeEqual(a: string, b: string): boolean {
+  const ab = Buffer.from(a);
+  const bb = Buffer.from(b);
+  if (ab.length !== bb.length) return false;
+  return timingSafeEqual(ab, bb);
+}
 // Heavy modules (sharp via image/optimize, fal, etc.) lazy-loaded inside the
 // handler so Next.js doesn't try to evaluate them during build-time data collection.
 
@@ -27,7 +41,6 @@ export const maxDuration = 300;
 export async function GET(req: Request, { params }: { params: Promise<{ siteSlug: string }> }) {
   const { siteSlug } = await params;
   const url = new URL(req.url);
-  const token = url.searchParams.get("token");
 
   const expected = process.env.CRON_TOKEN;
   if (!expected) {
@@ -36,7 +49,12 @@ export async function GET(req: Request, { params }: { params: Promise<{ siteSlug
       { status: 503 }
     );
   }
-  if (!token || token !== expected) {
+  // Prefer header-based auth (keeps the token out of access logs / process
+  // lists); fall back to the deprecated ?token= query param for compatibility.
+  const authHeader = req.headers.get("authorization") ?? "";
+  const bearer = authHeader.toLowerCase().startsWith("bearer ") ? authHeader.slice(7).trim() : "";
+  const token = bearer || req.headers.get("x-cron-token") || url.searchParams.get("token") || "";
+  if (!token || !safeEqual(token, expected)) {
     return NextResponse.json({ ok: false, error: "Ongeldige token." }, { status: 401 });
   }
 
