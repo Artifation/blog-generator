@@ -1,8 +1,10 @@
 import Groq from "groq-sdk";
 import type { LLMProvider, LLMRequest, LLMResponse } from "./types.ts";
+import { LLM_TIMEOUT_MS } from "./timeout.ts";
 
 export function createGroqProvider(apiKey: string): LLMProvider {
-  const client = new Groq({ apiKey });
+  // Explicit timeout + maxRetries: 0 — retries are governed by runAgent.
+  const client = new Groq({ apiKey, timeout: LLM_TIMEOUT_MS, maxRetries: 0 });
 
   return {
     name: "groq",

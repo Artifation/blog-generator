@@ -1,8 +1,11 @@
 import Anthropic from "@anthropic-ai/sdk";
 import type { LLMProvider, LLMRequest, LLMResponse } from "./types.ts";
+import { LLM_TIMEOUT_MS } from "./timeout.ts";
 
 export function createAnthropicProvider(apiKey: string): LLMProvider {
-  const client = new Anthropic({ apiKey });
+  // Explicit per-request timeout + maxRetries: 0 so retries/backoff are governed
+  // by runAgent, not silently doubled by the SDK.
+  const client = new Anthropic({ apiKey, timeout: LLM_TIMEOUT_MS, maxRetries: 0 });
 
   return {
     name: "anthropic",

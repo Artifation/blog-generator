@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import type { LLMProvider, LLMRequest, LLMResponse } from "./types.ts";
+import { GEMINI_TIMEOUT_MS, withTimeout } from "./timeout.ts";
 
 export function createGeminiProvider(apiKey: string): LLMProvider {
   const client = new GoogleGenAI({ apiKey });
@@ -20,13 +21,19 @@ export function createGeminiProvider(apiKey: string): LLMProvider {
         config.tools = [{ googleSearch: {} }];
       }
 
-      const res = await client.models.generateContent({
-        model: req.model,
-        contents: [
-          { role: "user", parts: [{ text: `${req.systemPrompt}\n\n${req.userPrompt}` }] },
-        ],
-        config,
-      });
+      // The genai SDK has no built-in per-call deadline, so bound wall-clock
+      // here — otherwise a hung request blocks the whole pipeline run.
+      const res = await withTimeout(
+        client.models.generateContent({
+          model: req.model,
+          contents: [
+            { role: "user", parts: [{ text: `${req.systemPrompt}\n\n${req.userPrompt}` }] },
+          ],
+          config,
+        }),
+        GEMINI_TIMEOUT_MS,
+        `gemini.generateContent(${req.model})`,
+      );
 
       // Extract grounded URIs uit eerste candidate's groundingMetadata (Gemini 2.x).
       const groundedUrls: string[] = [];

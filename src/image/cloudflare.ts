@@ -1,4 +1,5 @@
 import type { GenerateImageInput, GeneratedImage } from "./fal.ts";
+import { IMAGE_TIMEOUT_MS } from "../llm/timeout.ts";
 
 export async function generateImageWithCloudflare(
   input: GenerateImageInput & { accountId: string }
@@ -12,6 +13,7 @@ export async function generateImageWithCloudflare(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({ prompt: input.prompt }),
+    signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS),
   });
   if (!res.ok) throw new Error(`Cloudflare image gen failed: ${res.status}`);
   const json = (await res.json()) as { result: { image: string } };
