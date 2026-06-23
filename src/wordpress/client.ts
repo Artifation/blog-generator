@@ -24,9 +24,11 @@ export function createWordpressClient(opts: WordpressClientOpts): WordpressClien
   const f = opts.fetchImpl ?? fetch;
   const auth = `Basic ${Buffer.from(`${opts.user}:${opts.appPassword}`).toString("base64")}`;
 
-  async function call<T>(path: string, init: RequestInit): Promise<T> {
+  async function call<T>(path: string, init: RequestInit, timeoutMs = 30_000): Promise<T> {
+    // Bound every WP call so a hung/slow WordPress host can't stall the run.
     const res = await f(`${opts.baseUrl}${path}`, {
       ...init,
+      signal: init.signal ?? AbortSignal.timeout(timeoutMs),
       headers: { ...DEFAULT_HEADERS, Authorization: auth, ...(init.headers ?? {}) },
     });
     if (!res.ok) {
@@ -56,7 +58,7 @@ export function createWordpressClient(opts: WordpressClientOpts): WordpressClien
         // Blob class so this works in both runtimes. The cast through Uint8Array
         // narrows Buffer's ArrayBufferLike generic to ArrayBuffer for BlobPart.
         body: new Blob([body as unknown as Uint8Array<ArrayBuffer>], { type: contentType }),
-      }),
+      }, 60_000),
     patchJson: (path, body) =>
       call(path, {
         method: "PATCH",

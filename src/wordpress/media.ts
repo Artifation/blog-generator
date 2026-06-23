@@ -22,6 +22,14 @@ export async function uploadMedia(
     input.contentType,
     input.filename
   );
-  await client.postJson(`/wp-json/wp/v2/media/${created.id}`, { alt_text: input.altText });
+  // The image is already uploaded; alt_text is a follow-up PATCH. Don't let its
+  // failure abort the whole publish — log and continue.
+  try {
+    await client.postJson(`/wp-json/wp/v2/media/${created.id}`, { alt_text: input.altText });
+  } catch (err) {
+    console.warn(
+      JSON.stringify({ stage: "uploadMedia", warning: `alt_text PATCH failed: ${(err as Error).message}` }),
+    );
+  }
   return created;
 }

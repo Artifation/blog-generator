@@ -633,7 +633,7 @@ export async function runForSite(
       const optimized = await optimizeForWeb({ pngBytes: image.bytes });
       const imgDir = path.resolve(process.cwd(), "../../data/images", site.slug);
       await fs.mkdir(imgDir, { recursive: true });
-      const ext = optimized.contentType === "image/avif" ? "avif" : "png";
+      const ext = optimized.contentType === "image/webp" ? "webp" : "png";
       const file = path.join(imgDir, `${seo.parsed.slug}.${ext}`);
       await fs.writeFile(file, optimized.bytes);
       imagePath = `data/images/${site.slug}/${seo.parsed.slug}.${ext}`;

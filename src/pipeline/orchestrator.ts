@@ -690,10 +690,10 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       appPassword: requireEnv(env, tenant.wordpress.app_password_secret_ref),
     });
     const optimized = await optimizeForWeb({ pngBytes: image.bytes });
-    const ext = optimized.contentType === "image/avif" ? "avif" : "png";
+    const ext = optimized.contentType === "image/webp" ? "webp" : "png";
     const media = await uploadMedia(wp, {
       bytes: optimized.bytes,
-      contentType: optimized.contentType,           // "image/avif" or "image/png"
+      contentType: optimized.contentType,           // "image/webp" or "image/png"
       filename: `${seo.parsed.slug}.${ext}`,
       altText: ip.parsed.alt_text_nl,
     });
@@ -751,12 +751,20 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       try {
         const indexNowKey = env[tenant.features.indexnow.key_secret_ref] ?? "";
         const host = new URL(tenant.wordpress.base_url).hostname;
-        await pingIndexNow({
+        const ping = await pingIndexNow({
           host,
           key: indexNowKey,
           urlList: [`${tenant.wordpress.base_url}/${seo.parsed.slug}/`],
           fetchImpl: opts.fetchImpl,
         });
+        if (!ping.ok) {
+          console.warn(
+            JSON.stringify({
+              stage: "indexNow",
+              warning: ping.skipped ? "skipped — no IndexNow key configured" : `non-2xx response (${ping.status})`,
+            }),
+          );
+        }
       } catch (err) {
         console.warn(
           JSON.stringify({
