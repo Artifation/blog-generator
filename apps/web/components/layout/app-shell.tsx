@@ -3,6 +3,7 @@ import { LogoMark } from "~/components/brand/logo-mark";
 import { AccountMenu } from "./account-menu";
 import { SidebarNav } from "./sidebar-nav";
 import { TopbarSearch } from "./topbar-search";
+import { MobileNavToggle } from "./mobile-nav-toggle";
 import type { Site } from "~/lib/db/schema";
 import { Bell, ExternalLink } from "lucide-react";
 
@@ -63,6 +64,7 @@ export function AdminShell({
 
       <div className="main">
         <header className="topbar">
+          <MobileNavToggle />
           <div className="crumb">
             {crumbs.map((c, i) => (
               <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 6 }}>
