@@ -15,25 +15,31 @@ declare global {
 }
 
 export async function register(): Promise<void> {
-  if (process.env.NEXT_RUNTIME !== "nodejs") return;
+  // POSITIVE nested guard (not an early `!== "nodejs"` return): Next's webpack
+  // analysis only scopes the dynamic scheduler import OUT of the Edge bundle when
+  // the `import()` sits inside an `if (NEXT_RUNTIME === "nodejs") { … }` block.
+  // With an early-return guard the scheduler (libsql + node: builtins) still gets
+  // compiled for the Edge runtime — which exists because middleware.ts runs on
+  // Edge — and fails the build with "node:path/crypto/fs not handled".
+  if (process.env.NEXT_RUNTIME === "nodejs") {
+    // Dev (en build) roepen register() vaker aan dan je denkt — bij file-save,
+    // bij routes-rebuild, etc. Een global flag voorkomt dat we de poll-loop
+    // dubbel opzetten.
+    if (globalThis.__schedulerBooted) return;
+    globalThis.__schedulerBooted = true;
 
-  // Dev (en build) roepen register() vaker aan dan je denkt — bij file-save,
-  // bij routes-rebuild, etc. Een global flag voorkomt dat we de poll-loop
-  // dubbel opzetten.
-  if (globalThis.__schedulerBooted) return;
-  globalThis.__schedulerBooted = true;
-
-  try {
-    const { startScheduler } = await import("./lib/scheduler/index");
-    await startScheduler();
-  } catch (err) {
-    // Een gefaalde scheduler-boot mag de webapp niet plat leggen. We loggen
-    // 'm in JSON zodat het bij de andere pipeline-logs past.
-    console.error(
-      JSON.stringify({
-        stage: "scheduler-boot-failed",
-        error: (err as Error).message,
-      })
-    );
+    try {
+      const { startScheduler } = await import("./lib/scheduler/index");
+      await startScheduler();
+    } catch (err) {
+      // Een gefaalde scheduler-boot mag de webapp niet plat leggen. We loggen
+      // 'm in JSON zodat het bij de andere pipeline-logs past.
+      console.error(
+        JSON.stringify({
+          stage: "scheduler-boot-failed",
+          error: (err as Error).message,
+        })
+      );
+    }
   }
 }
