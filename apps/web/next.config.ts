@@ -12,6 +12,17 @@ const nextConfig: NextConfig = {
   output: "standalone",
   outputFileTracingRoot: path.join(__dirname, "../../"),
   serverExternalPackages: ["@libsql/client", "sharp"],
+  outputFileTracingIncludes: {
+    // libsql loads its native binary via dynamic require() which nft can't
+    // trace. Force-include all platform binaries so the standalone tree has
+    // the right .node file at runtime (esp. @libsql/linux-x64-musl on Alpine).
+    "*": [
+      "../../node_modules/libsql/**/*",
+      "../../node_modules/@libsql/**/*",
+      "./node_modules/libsql/**/*",
+      "./node_modules/@libsql/**/*",
+    ],
+  },
   experimental: {
     serverActions: { bodySizeLimit: "5mb" },
   },
