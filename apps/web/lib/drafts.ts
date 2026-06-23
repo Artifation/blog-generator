@@ -2,6 +2,7 @@ import { eq, and, desc } from "drizzle-orm";
 import { getDb, ensureSchema } from "./db/client";
 import { drafts, publishedPosts, topics, type Draft, type PublishedPost } from "./db/schema";
 import { newId } from "./db/ids";
+import { sanitizeContentHtml } from "./security/sanitize-html";
 
 export async function listDraftsForSite(siteId: string, status?: Draft["status"]): Promise<Draft[]> {
   await ensureSchema();
@@ -91,7 +92,7 @@ export async function createDraft(input: CreateDraftInput): Promise<Draft> {
     runId: input.runId ?? null,
     title: input.title,
     slug: input.slug,
-    contentHtml: input.contentHtml,
+    contentHtml: sanitizeContentHtml(input.contentHtml),
     metaTitle: input.metaTitle ?? "",
     metaDescription: input.metaDescription ?? "",
     tldr: input.tldr ?? "",
@@ -122,7 +123,7 @@ export async function updateDraftContent(
   const data: Partial<typeof drafts.$inferInsert> = {};
   if (patch.title !== undefined) data.title = patch.title;
   if (patch.slug !== undefined) data.slug = patch.slug;
-  if (patch.contentHtml !== undefined) data.contentHtml = patch.contentHtml;
+  if (patch.contentHtml !== undefined) data.contentHtml = sanitizeContentHtml(patch.contentHtml);
   if (patch.metaTitle !== undefined) data.metaTitle = patch.metaTitle;
   if (patch.metaDescription !== undefined) data.metaDescription = patch.metaDescription;
   if (patch.tldr !== undefined) data.tldr = patch.tldr;
@@ -176,7 +177,9 @@ export async function publishDraftBuiltIn(input: PublishedPostInput): Promise<Pu
     draftId: draft.id,
     slug: draft.slug,
     title: draft.title,
-    contentHtml: draft.contentHtml,
+    // Defense-in-depth: published copy is sanitized even if a legacy draft row
+    // pre-dates write-time sanitization.
+    contentHtml: sanitizeContentHtml(draft.contentHtml),
     metaTitle: draft.metaTitle,
     metaDescription: draft.metaDescription,
     tldr: draft.tldr,

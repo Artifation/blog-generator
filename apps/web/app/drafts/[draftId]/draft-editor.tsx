@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { CheckCircle, XCircle, Eye, Code, Type as TypeIcon, Save, RefreshCw } from "lucide-react";
 import { updateDraftAction, publishDraftAction, rejectDraftAction } from "~/lib/actions/drafts";
 import { slugify } from "~/lib/utils";
+import { sanitizePreviewHtml } from "~/lib/security/sanitize-preview";
 import { ImageUploader } from "./image-uploader";
 import { RichTextEditor } from "./rich-text-editor";
 
@@ -166,7 +167,7 @@ export function DraftEditor({
                       style={{ width: "100%", height: "auto", borderRadius: 10, margin: "16px 0" }}
                     />
                   )}
-                  <div dangerouslySetInnerHTML={{ __html: contentHtml }} />
+                  <div dangerouslySetInnerHTML={{ __html: sanitizePreviewHtml(contentHtml) }} />
                 </article>
               )}
               {tab === "html" && (
