@@ -33,6 +33,42 @@ type WordpressShape = NonNullable<Site["wordpressConfig"]>;
 
 type AnyApiKeys = Record<string, string | undefined>;
 
+/** Explicit dev opt-in to persist secrets as cleartext (fail-closed otherwise). */
+function plaintextSecretsAllowed(): boolean {
+  return process.env.ALLOW_PLAINTEXT_SECRETS === "true";
+}
+
+/**
+ * True when APP_ENCRYPTION_KEY is set but does NOT yield a usable key (wrong
+ * length / not base64). This is a misconfiguration — distinct from the key being
+ * intentionally absent in dev — and must always fail loudly, never silently fall
+ * back to plaintext (a typo'd key would otherwise leak every secret in cleartext).
+ */
+function keyPresentButInvalid(): boolean {
+  const raw = process.env.APP_ENCRYPTION_KEY;
+  return Boolean(raw && raw.trim() !== "") && !isEncryptionAvailable();
+}
+
+/**
+ * Guard the plaintext-write path. Called only when encryption is unavailable and
+ * a non-empty secret is about to be stored. Throws unless the operator has
+ * explicitly opted into cleartext via ALLOW_PLAINTEXT_SECRETS=true.
+ */
+function assertPlaintextWriteAllowed(field: string): void {
+  if (keyPresentButInvalid()) {
+    throw new Error(
+      `[sites/secrets] refusing to store ${field}: APP_ENCRYPTION_KEY is set but invalid ` +
+        `(must decode to 32 bytes of base64). Fix the key — never store secrets in plaintext.`,
+    );
+  }
+  if (!plaintextSecretsAllowed()) {
+    throw new Error(
+      `[sites/secrets] refusing to store ${field} as plaintext: APP_ENCRYPTION_KEY is not set. ` +
+        `Set a valid key, or set ALLOW_PLAINTEXT_SECRETS=true to explicitly allow cleartext storage (dev only).`,
+    );
+  }
+}
+
 function processApiKeys(
   apiKeys: AnyApiKeys,
   mode: "seal" | "open",
@@ -56,7 +92,8 @@ function processApiKeys(
     }
     if (mode === "seal") {
       if (!available) {
-        // Dev mode without key: pass through (ensureSchema warned at boot).
+        // No usable key: fail closed unless plaintext is explicitly opted into.
+        assertPlaintextWriteAllowed(`apiKeys.${k}`);
         out[k] = v;
         continue;
       }
@@ -111,11 +148,16 @@ export function sealWordpressConfig(
 ): WordpressShape | null {
   if (!cfg) return null;
   const next: WordpressShape = { ...cfg };
-  if (!isEncryptionAvailable()) return next;
+  // Nothing secret to protect — baseUrl/user are not secrets.
   if (typeof next.appPassword !== "string" || next.appPassword === "") {
     return next;
   }
   if (isEncrypted(next.appPassword)) return next;
+  if (!isEncryptionAvailable()) {
+    // No usable key: fail closed unless plaintext is explicitly opted into.
+    assertPlaintextWriteAllowed("wordpressConfig.appPassword");
+    return next;
+  }
   next.appPassword = encryptString(next.appPassword);
   return next;
 }
