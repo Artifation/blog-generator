@@ -125,7 +125,22 @@ export async function runForSite(
 
   // Build an env-like object from the site's apiKeys so the existing
   // provider registry can pick them up without leaking to process.env.
+  //
+  // IMPORTANT: the server's *global* API keys (in .env) are reserved for
+  // onboarding only (the domain-scrape in lib/actions/scrape.ts). The
+  // pipeline must use each site's OWN keys — never silently fall back to
+  // the operator's global keys, or the operator pays for every site's runs.
+  // So we strip the billing keys from the inherited env first, then set
+  // only the per-site ones. A site without its own key gets a clear
+  // "no API key configured" error instead of quietly spending our quota.
   const env = { ...process.env };
+  delete env.ANTHROPIC_API_KEY;
+  delete env.GEMINI_API_KEY;
+  delete env.GROQ_API_KEY;
+  delete env.FAL_API_KEY;
+  delete env.RESEND_API_KEY;
+  delete env.CF_ACCOUNT_ID;
+  delete env.CF_API_TOKEN;
   if (site.apiKeys?.anthropic) env.ANTHROPIC_API_KEY = site.apiKeys.anthropic;
   if (site.apiKeys?.gemini) env.GEMINI_API_KEY = site.apiKeys.gemini;
   if (site.apiKeys?.groq) env.GROQ_API_KEY = site.apiKeys.groq;
