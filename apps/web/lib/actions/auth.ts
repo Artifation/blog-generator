@@ -31,6 +31,7 @@ import {
   verifyAndUpgrade,
 } from "~/lib/auth/credentials";
 import { validatePasswordStrength } from "~/lib/auth/password";
+import { deleteSessionsForUser } from "~/lib/auth/session";
 
 /**
  * Quick-login for the demo sites listed on the login page. Bypasses the
@@ -211,6 +212,11 @@ export async function setPasswordAction(
   }
 
   await setPassword(me.id, newPassword);
+  // Changing the password revokes every existing session (logout-everywhere),
+  // then re-establishes the current device's session so the user stays signed
+  // in here. A leaked/old cookie stops working immediately.
+  await deleteSessionsForUser(me.id);
+  await setSessionCookies(me.siteId, me.id);
   revalidatePath("/account");
   revalidatePath("/account/security");
   return { ok: true };
@@ -251,6 +257,9 @@ export async function removeUserAction(userId: string): Promise<{ ok: true } | {
   const target = users.find((u) => u.id === userId);
   if (!target) return { ok: false, error: "Gebruiker niet gevonden." };
   const { deleteUser } = await import("~/lib/users");
+  // Revoke the removed user's sessions explicitly (libsql does not enable FK
+  // cascades by default, so we can't rely on ON DELETE CASCADE here).
+  await deleteSessionsForUser(userId);
   await deleteUser(userId);
   revalidatePath("/settings");
   return { ok: true };

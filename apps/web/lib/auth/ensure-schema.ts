@@ -49,6 +49,24 @@ export async function ensureAuthSchema(db: LibsqlDb): Promise<void> {
     `CREATE INDEX IF NOT EXISTS login_attempts_ts_idx ON login_attempts(ts)`,
   );
 
+  // sessions — server-side session store. The cookie holds only the opaque
+  // random `id`; the (user_id, site_id) binding lives here so sessions are
+  // revocable and expire server-side. user_id is nullable for the dev demo
+  // login. ON DELETE CASCADE removes a user's/site's sessions automatically.
+  await db.run(`CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    expires_at TEXT NOT NULL
+  )`);
+  await db.run(
+    `CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id)`,
+  );
+  await db.run(
+    `CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires_at)`,
+  );
+
   _done = true;
 }
 

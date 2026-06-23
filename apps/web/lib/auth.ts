@@ -2,12 +2,22 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getSiteById, type SiteWithPillars } from "./sites";
 import { findUserById } from "./users";
-import type { User } from "./db/schema";
+import type { User, Session } from "./db/schema";
+import {
+  createSession,
+  getSession,
+  refreshSessionIfStale,
+  deleteSession,
+} from "./auth/session";
 
-const SESSION_COOKIE = "artifation_site";
-const USER_COOKIE = "artifation_user";
+/** Opaque server-side session token cookie. The value is NOT an id. */
+const SESSION_TOKEN_COOKIE = "artifation_session";
+// Legacy cookies from the old "cookie value IS the site/user id" scheme. Never
+// trusted for auth any more — only cleared on logout so stale browsers shed them.
+const LEGACY_SITE_COOKIE = "artifation_site";
+const LEGACY_USER_COOKIE = "artifation_user";
 
-/** 30 days, sliding — refreshed on every authenticated request. */
+/** 30 days, sliding — mirrors SESSION_TTL_MS in auth/session.ts. */
 const SESSION_MAX_AGE = 60 * 60 * 24 * 30;
 
 /**
@@ -89,29 +99,37 @@ function cookieOptions() {
 }
 
 export async function setSessionCookies(siteId: string, userId?: string): Promise<void> {
+  // Mint a fresh server-side session and hand the browser only the opaque
+  // token. The (siteId, userId) binding lives in the DB, not the cookie.
+  const token = await createSession(siteId, userId);
   const c = await cookies();
-  c.set(SESSION_COOKIE, siteId, cookieOptions());
-  if (userId) {
-    c.set(USER_COOKIE, userId, cookieOptions());
-  }
+  c.set(SESSION_TOKEN_COOKIE, token, cookieOptions());
+  // Shed any legacy id-bearing cookies from the old scheme.
+  c.delete(LEGACY_SITE_COOKIE);
+  c.delete(LEGACY_USER_COOKIE);
 }
 
 /**
- * Sliding-session refresh. Call from `getCurrentSite`/`getCurrentUser` so the
- * 30-day window resets on every authenticated request. Safe to no-op if the
- * cookies aren't present.
+ * Resolve the current request's session from its token cookie. Returns null
+ * when there is no token, or the token is unknown/expired (a forged or stale
+ * cookie therefore never authenticates). Slides the server-side expiry
+ * (throttled to ~once/day) and refreshes the cookie maxAge on activity; the
+ * cookie write is best-effort because read-only RSC contexts can't mutate it.
  */
-async function touchSession(): Promise<void> {
-  try {
-    const c = await cookies();
-    const site = c.get(SESSION_COOKIE)?.value;
-    const user = c.get(USER_COOKIE)?.value;
-    if (site) c.set(SESSION_COOKIE, site, cookieOptions());
-    if (user) c.set(USER_COOKIE, user, cookieOptions());
-  } catch {
-    // Read-only request contexts (RSC streaming) can't mutate cookies — that's
-    // fine, the next mutating request will refresh.
+async function currentSession(): Promise<Session | null> {
+  const c = await cookies();
+  const token = c.get(SESSION_TOKEN_COOKIE)?.value;
+  if (!token) return null;
+  const session = await getSession(token);
+  if (!session) return null;
+  if (await refreshSessionIfStale(session)) {
+    try {
+      c.set(SESSION_TOKEN_COOKIE, token, cookieOptions());
+    } catch {
+      // Read-only request context — the next mutating request refreshes it.
+    }
   }
+  return session;
 }
 
 // Backwards-compat alias used by existing callers
@@ -121,8 +139,17 @@ export async function setCurrentSiteCookie(siteId: string): Promise<void> {
 
 export async function clearSessionCookies(): Promise<void> {
   const c = await cookies();
-  c.delete(SESSION_COOKIE);
-  c.delete(USER_COOKIE);
+  const token = c.get(SESSION_TOKEN_COOKIE)?.value;
+  if (token) {
+    try {
+      await deleteSession(token);
+    } catch {
+      // Best-effort revocation; still clear the cookie below.
+    }
+  }
+  c.delete(SESSION_TOKEN_COOKIE);
+  c.delete(LEGACY_SITE_COOKIE);
+  c.delete(LEGACY_USER_COOKIE);
 }
 
 export async function clearCurrentSiteCookie(): Promise<void> {
@@ -130,21 +157,15 @@ export async function clearCurrentSiteCookie(): Promise<void> {
 }
 
 export async function getCurrentSite(): Promise<SiteWithPillars | null> {
-  const c = await cookies();
-  const id = c.get(SESSION_COOKIE)?.value;
-  if (!id) return null;
-  const site = await getSiteById(id);
-  if (site) await touchSession();
-  return site;
+  const session = await currentSession();
+  if (!session) return null;
+  return getSiteById(session.siteId);
 }
 
 export async function getCurrentUser(): Promise<User | null> {
-  const c = await cookies();
-  const id = c.get(USER_COOKIE)?.value;
-  if (!id) return null;
-  const user = await findUserById(id);
-  if (user) await touchSession();
-  return user;
+  const session = await currentSession();
+  if (!session?.userId) return null;
+  return findUserById(session.userId);
 }
 
 export async function requireSite(): Promise<SiteWithPillars> {
