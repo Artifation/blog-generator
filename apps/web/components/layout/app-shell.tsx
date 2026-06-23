@@ -5,6 +5,7 @@ import { SidebarNav } from "./sidebar-nav";
 import { TopbarSearch } from "./topbar-search";
 import { MobileNavToggle } from "./mobile-nav-toggle";
 import type { Site } from "~/lib/db/schema";
+import { getCurrentUser } from "~/lib/auth";
 import { Bell, ExternalLink } from "lucide-react";
 
 interface AdminShellProps {
@@ -18,7 +19,7 @@ interface AdminShellProps {
   children: React.ReactNode;
 }
 
-export function AdminShell({
+export async function AdminShell({
   site,
   pendingDrafts,
   queuedTopics,
@@ -27,6 +28,9 @@ export function AdminShell({
   topActions,
   children,
 }: AdminShellProps) {
+  // Use the real authenticated user's email rather than fabricating one from
+  // firstname@domain (which was almost never a real, working address).
+  const me = await getCurrentUser();
   return (
     <div className="app">
       <aside className="sidebar">
@@ -57,8 +61,8 @@ export function AdminShell({
         />
 
         <AccountMenu
-          name={(site.author as { name?: string })?.name ?? "Account"}
-          email={`${(site.author as { name?: string })?.name?.split(" ")[0]?.toLowerCase() ?? "user"}@${site.domain}`}
+          name={me?.name || (site.author as { name?: string })?.name || "Account"}
+          email={me?.email ?? ""}
         />
       </aside>
 
@@ -80,7 +84,15 @@ export function AdminShell({
           <div className="topbar-actions">
             {topActions}
             <TopbarSearch />
-            <button className="icon-btn" aria-label="Notificaties">
+            <button
+              className="icon-btn"
+              type="button"
+              disabled
+              aria-disabled="true"
+              aria-label="Notificaties (binnenkort)"
+              title="Notificaties komen binnenkort"
+              style={{ cursor: "not-allowed", opacity: 0.5 }}
+            >
               <Bell size={16} />
             </button>
           </div>
