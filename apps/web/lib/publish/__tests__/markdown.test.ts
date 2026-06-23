@@ -122,6 +122,23 @@ test("exportDraftAsMarkdown writes a file with frontmatter + non-empty body", as
   assert.match(body, /^- two$/m);
 });
 
+test("exportDraftAsMarkdown converts code to fenced/inline markdown and decodes entities", async () => {
+  const draft = fakeDraft({
+    slug: "code-post",
+    contentHtml:
+      "<p>Voorbeeld:</p><pre><code>const x = a ** b; // Array&lt;int&gt;</code></pre><p>Inline <code>a &lt; b</code>.</p>",
+  });
+  const site = fakeSite();
+  const relPath = await exportDraftAsMarkdown(draft, site);
+  const absPath = path.resolve(process.cwd(), "../..", relPath);
+  const content = fs.readFileSync(absPath, "utf8");
+  const body = content.split(/\n---\n/)[1] ?? "";
+  // Fenced block with contents intact and entities decoded to literals.
+  assert.match(body, /```\nconst x = a \*\* b; \/\/ Array<int>\n```/);
+  // Inline code stays inline, entity decoded.
+  assert.match(body, /`a < b`/);
+});
+
 test("exportDraftAsMarkdown falls back to tldr when metaDescription is empty", async () => {
   const draft = fakeDraft({
     slug: "no-meta-desc",
