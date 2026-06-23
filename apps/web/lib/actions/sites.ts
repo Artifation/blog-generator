@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { createSite, updateSite, deleteSite, type CreateSiteInput, type UpdateSiteInput } from "~/lib/sites";
 import { requireSite, getCurrentUser } from "~/lib/auth";
 import { roleAtLeast } from "~/lib/auth/roles";
+import { lookupInviteCode, consumeInviteCode } from "~/lib/invites";
 
 /**
  * Writing integration secrets (API keys / WordPress credentials) is an
@@ -21,14 +22,24 @@ async function ownerGuardForSecrets(patch: UpdateSiteInput): Promise<string | nu
 }
 
 export async function createSiteAction(
-  input: CreateSiteInput
+  input: CreateSiteInput,
+  inviteCode?: string,
 ): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
-  // NOTE: createSiteAction runs during onboarding, before a session exists, so
-  // it cannot require a session. Its abuse vector (anonymous mass site
-  // creation) is gated by the single-use invite-code system — see
-  // createSiteWithInviteAction / the onboarding flow.
+  // Onboarding runs before a session exists, so this action is session-less.
+  // The anonymous-mass-creation hole is closed by requiring a valid, unconsumed
+  // single-use invite code, claimed atomically here.
+  const code = (inviteCode ?? "").trim();
+  if (!code) return { ok: false, error: "Een geldige uitnodigingscode is vereist." };
+  const info = await lookupInviteCode(code);
+  if (!info) return { ok: false, error: "Uitnodigingscode is ongeldig of al gebruikt." };
   try {
     const site = await createSite(input);
+    const claimed = await consumeInviteCode(code, site.id);
+    if (!claimed) {
+      // Race: another request claimed the code between lookup and consume.
+      await deleteSite(site.id);
+      return { ok: false, error: "Uitnodigingscode is zojuist al gebruikt." };
+    }
     revalidatePath("/sites");
     return { ok: true, slug: site.slug };
   } catch (err) {

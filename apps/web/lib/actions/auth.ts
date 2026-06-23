@@ -9,9 +9,9 @@ import {
   requireSite,
   requireUser,
   setSessionCookies,
-  validateInviteCode,
   type InviteCodeInfo,
 } from "~/lib/auth";
+import { lookupInviteCode } from "~/lib/invites";
 import { getSiteBySlug, getSiteById } from "~/lib/sites";
 import {
   authenticate,
@@ -141,8 +141,10 @@ export async function clearSessionAction(): Promise<{ ok: true }> {
 export async function checkInviteCodeAction(
   code: string,
 ): Promise<{ ok: true; info: InviteCodeInfo } | { ok: false; error: string }> {
-  const info = validateInviteCode(code);
-  if (!info) return { ok: false, error: "Deze code is niet geldig. Neem contact op met Artifation." };
+  const info = await lookupInviteCode(code);
+  if (!info) {
+    return { ok: false, error: "Deze code is niet geldig of al gebruikt. Neem contact op met Artifation." };
+  }
   return { ok: true, info };
 }
 

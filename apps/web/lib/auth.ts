@@ -180,10 +180,9 @@ export async function requireUser(): Promise<User> {
   return user;
 }
 
-export function validateInviteCode(raw: string): InviteCodeInfo | null {
-  const normalized = raw.trim().toUpperCase();
-  return INVITE_CODES[normalized] ?? null;
-}
+// Invite-code validation moved to the DB-backed, single-use store in
+// lib/invites.ts (lookupInviteCode / consumeInviteCode). INVITE_CODES above is
+// now only the one-time seed source for that table.
 
 /**
  * Best-effort client IP for rate-limiting. Reads the standard proxy headers

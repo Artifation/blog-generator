@@ -67,6 +67,22 @@ export async function ensureAuthSchema(db: LibsqlDb): Promise<void> {
     `CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires_at)`,
   );
 
+  // invite_codes — single-use onboarding codes. Replaces the hardcoded
+  // in-memory map: codes are claimed atomically at site creation (consumed_at),
+  // so they can't be reused or used for anonymous mass site creation. Seeded
+  // from the legacy INVITE_CODES map on first lookup (see lib/invites.ts).
+  await db.run(`CREATE TABLE IF NOT EXISTS invite_codes (
+    code TEXT PRIMARY KEY,
+    plan TEXT NOT NULL DEFAULT 'pro',
+    company TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
+    domain TEXT NOT NULL DEFAULT '',
+    consumed_at TEXT,
+    consumed_by_site_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  )`);
+
   _done = true;
 }
 

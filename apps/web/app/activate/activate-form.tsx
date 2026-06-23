@@ -264,6 +264,8 @@ export function ActivateForm({ codes }: { codes: Array<{ code: string; company: 
         </button>
       </div>
 
+      {codes.length > 0 && (
+      <>
       <div className="auth-divider">of</div>
 
       <div className="auth-demo">
@@ -301,6 +303,8 @@ export function ActivateForm({ codes }: { codes: Array<{ code: string; company: 
           ))}
         </div>
       </div>
+      </>
+      )}
 
       <div className="auth-foot">
         Heb je al een account? <Link href="/login">Log in</Link>
