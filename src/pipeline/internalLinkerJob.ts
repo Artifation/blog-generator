@@ -148,10 +148,27 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
           continue;
         }
 
+        // Sanitize + validate the model's HTML before it is published live:
+        // strip dangerous tags/attrs and require exactly one anchor pointing at
+        // the intended new_post URL. Defeats prompt-injection in old_post_html
+        // that tries to inject markup or links to an attacker-controlled URL.
+        const safeRewrite = sanitizeRewrittenParagraph(
+          r.parsed.rewritten_paragraph_html,
+          newPost.link
+        );
+        if (safeRewrite === null) {
+          log.skipped.push({
+            from_post_id: oldPost.id,
+            to_post_id: newPost.id,
+            reason: "rewrite failed sanitization / link-target check",
+          });
+          continue;
+        }
+
         const newHtml = replaceParagraphBySignature(
           oldPost.content.rendered,
           r.parsed.target_paragraph_signature,
-          r.parsed.rewritten_paragraph_html
+          safeRewrite
         );
         if (newHtml === null) {
           log.skipped.push({
@@ -198,6 +215,32 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Sanitize a model-rewritten paragraph before it is published to WordPress.
+ * Strips dangerous tags/attributes and requires the paragraph to contain
+ * exactly one anchor pointing at `expectedUrl`. Returns null when the rewrite
+ * is unsafe or doesn't carry the single intended link.
+ */
+const FORBIDDEN_REWRITE_TAGS = ["script", "style", "iframe", "object", "embed", "form", "link", "meta", "base"];
+export function sanitizeRewrittenParagraph(html: string, expectedUrl: string): string | null {
+  const frag = parseHtml(html);
+  for (const el of frag.querySelectorAll(FORBIDDEN_REWRITE_TAGS.join(","))) el.remove();
+  for (const el of frag.querySelectorAll("*")) {
+    for (const name of Object.keys(el.attributes)) {
+      const lower = name.toLowerCase();
+      const value = (el.getAttribute(name) ?? "").replace(/\s+/g, "").toLowerCase();
+      if (lower.startsWith("on")) el.removeAttribute(name);
+      else if ((lower === "href" || lower === "src") && value.startsWith("javascript:")) el.removeAttribute(name);
+      else if (lower === "srcdoc") el.removeAttribute(name);
+    }
+  }
+  const anchors = frag.querySelectorAll("a");
+  if (anchors.length !== 1) return null;
+  const href = (anchors[0]!.getAttribute("href") ?? "").replace(/\/+$/, "");
+  if (href !== expectedUrl.replace(/\/+$/, "")) return null;
+  return frag.toString();
 }
 
 function isAlreadyLinked(html: string, url: string): boolean {
