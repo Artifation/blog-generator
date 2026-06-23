@@ -731,6 +731,20 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       }),
     });
 
+    // CRITICAL for idempotency: durably record the topic as published the moment
+    // the WordPress post exists — BEFORE the non-critical post-publish steps
+    // (IndexNow / email / editorial log / repurpose). Previously this happened
+    // only at the very end, so a failure in any of those aborted the run with
+    // the WP post already created, and the next cron tick re-selected the topic
+    // and published a DUPLICATE post (+ duplicate LLM/image cost). The later
+    // steps are now wrapped so they can't revert this state.
+    topics = markTopicStatus(topics, next.id, "published", now, {
+      wp_post_id: post.id,
+      wp_post_url: post.link,
+      key_entities: research.parsed.key_entities,
+    });
+    await saveTopics(topics, opts.tenantSlug, baseDir);
+
     // IndexNow ping — notifies Bing, Yandex, Naver, Seznam, Yep (not Google).
     // Failure is non-fatal: pipeline continues regardless.
     if (tenant.features.indexnow.enabled) {
@@ -754,45 +768,57 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       }
     }
 
+    // Success email — non-fatal: the post is already published + recorded, so a
+    // mail failure must not abort the run (which would otherwise send an error
+    // email for an actually-successful publish).
     currentStage = "email";
-    const editUrl = buildEditUrl(tenant.wordpress.base_url, post.id);
-    const html = await render(
-      React.createElement(Success, {
-        title: outline.parsed.outline.h1_suggestion,
-        weightedTotal: judgeResult.weighted_total,
-        scoreBreakdown: judge.parsed.scores,
-        tldr: outline.parsed.outline.tldr_one_liner,
-        imageUrl: media.source_url,
-        editUrl,
-        previewUrl: post.link,
-        targetKeyword: next.target_keyword,
-        internalLinksUsed: outline.parsed.outline.internal_links_to_inject,
-      })
-    );
-    await sendEmail({
-      apiKey: requireEnv(env, "RESEND_API_KEY"),
-      from: tenant.email.from,
-      to: tenant.email.to,
-      replyTo: tenant.email.reply_to,
-      subject: `[${tenant.brand.name}] Concept klaar: ${outline.parsed.outline.h1_suggestion} — score ${judgeResult.weighted_total.toFixed(1)}`,
-      html,
-    });
+    try {
+      const editUrl = buildEditUrl(tenant.wordpress.base_url, post.id);
+      const html = await render(
+        React.createElement(Success, {
+          title: outline.parsed.outline.h1_suggestion,
+          weightedTotal: judgeResult.weighted_total,
+          scoreBreakdown: judge.parsed.scores,
+          tldr: outline.parsed.outline.tldr_one_liner,
+          imageUrl: media.source_url,
+          editUrl,
+          previewUrl: post.link,
+          targetKeyword: next.target_keyword,
+          internalLinksUsed: outline.parsed.outline.internal_links_to_inject,
+        })
+      );
+      await sendEmail({
+        apiKey: requireEnv(env, "RESEND_API_KEY"),
+        from: tenant.email.from,
+        to: tenant.email.to,
+        replyTo: tenant.email.reply_to,
+        subject: `[${tenant.brand.name}] Concept klaar: ${outline.parsed.outline.h1_suggestion} — score ${judgeResult.weighted_total.toFixed(1)}`,
+        html,
+      });
+    } catch (err) {
+      console.warn(JSON.stringify({ stage: "email", warning: (err as Error).message }));
+    }
 
-    // Editorial review log — Article 50 EU AI Act audit trail.
-    await appendEditorialLogEntry(
-      {
-        post_id: post.id,
-        post_url: post.link,
-        post_title: outline.parsed.outline.h1_suggestion,
-        reviewer: tenant.author.name,
-        approved_at: now.toISOString(),
-        ai_models_used: [...new Set(usage.map((u) => u.model))],
-        pipeline_version: env.GITHUB_SHA?.slice(0, 7) ?? "local",
-        rubric_total: judgeResult.weighted_total,
-        topic_id: next.id,
-      },
-      { tenant_slug: opts.tenantSlug, baseDir, now }
-    );
+    // Editorial review log — Article 50 EU AI Act audit trail. Non-fatal: a
+    // logging failure must not revert the already-published state.
+    try {
+      await appendEditorialLogEntry(
+        {
+          post_id: post.id,
+          post_url: post.link,
+          post_title: outline.parsed.outline.h1_suggestion,
+          reviewer: tenant.author.name,
+          approved_at: now.toISOString(),
+          ai_models_used: [...new Set(usage.map((u) => u.model))],
+          pipeline_version: env.GITHUB_SHA?.slice(0, 7) ?? "local",
+          rubric_total: judgeResult.weighted_total,
+          topic_id: next.id,
+        },
+        { tenant_slug: opts.tenantSlug, baseDir, now }
+      );
+    } catch (err) {
+      console.warn(JSON.stringify({ stage: "editorial-log", warning: (err as Error).message }));
+    }
 
     // Repurpose stage — inline na success-email + editorial log.
     // Failure is non-fatal: warning gelogd, publish blijft success.
@@ -840,13 +866,8 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       }
     }
 
-    topics = markTopicStatus(topics, next.id, "published", now, {
-      wp_post_id: post.id,
-      wp_post_url: post.link,
-      key_entities: research.parsed.key_entities,
-    });
-    await saveTopics(topics, opts.tenantSlug, baseDir);
-
+    // (topic was already marked published + saved immediately after the WP post
+    // was created — see the idempotency note above.)
     const cost = computeRunCost(usage);
     logStage({
       stage: "complete",

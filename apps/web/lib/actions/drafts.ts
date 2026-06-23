@@ -44,6 +44,11 @@ export async function publishDraftAction(
   const site = await requireSite();
   const draft = await getDraft(draftId);
   if (!draft || draft.siteId !== site.id) return { ok: false, error: "Draft niet gevonden" };
+  // Idempotency guard: refuse to re-publish (double-click / re-click) so we
+  // never create a second WordPress post or published row for the same draft.
+  if (draft.status === "published") {
+    return { ok: false, error: "Deze draft is al gepubliceerd." };
+  }
 
   try {
     const result = await publishDraft(draft, site);

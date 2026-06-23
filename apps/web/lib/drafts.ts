@@ -162,6 +162,17 @@ export async function publishDraftBuiltIn(input: PublishedPostInput): Promise<Pu
   const db = getDb();
   const draft = await getDraft(input.draftId);
   if (!draft) throw new Error(`Draft ${input.draftId} not found`);
+
+  // Idempotency: if this draft was already published, return the existing row
+  // instead of inserting a second one (avoids duplicate posts + a unique-index
+  // crash on a retry / double-click).
+  const already = await db
+    .select()
+    .from(publishedPosts)
+    .where(eq(publishedPosts.draftId, draft.id))
+    .limit(1);
+  if (already[0]) return already[0];
+
   const id = newId("pub");
   let pillarSlug = "";
   let targetKeyword = "";

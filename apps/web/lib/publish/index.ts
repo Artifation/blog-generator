@@ -16,7 +16,9 @@ export async function publishDraft(draft: Draft, site: Site): Promise<PublishRes
       const post = await publishDraftBuiltIn({ draftId: draft.id });
       return {
         destination: "built_in",
-        url: `/${site.slug}/${post.slug}`,
+        // Public route lives under /blog/<siteSlug>/<postSlug> — the previous
+        // /<slug>/<postSlug> produced a 404 link.
+        url: `/blog/${site.slug}/${post.slug}`,
         message: "Published to built-in CMS",
       };
     }
