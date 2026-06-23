@@ -56,6 +56,53 @@ export function computeRunCost(usage: UsageEntry[]): CostResult {
   };
 }
 
+/**
+ * Hard spend guardrails. Two opt-in, env-configured ceilings (unset = no cap,
+ * so default behaviour is unchanged):
+ *   MAX_RUN_USD    — abort a single run once its accumulated LLM/image spend
+ *                    crosses this, so a retry-storm / looping topic can't run up
+ *                    unbounded cost.
+ *   MAX_WEEKLY_USD — refuse to START a run for a site whose rolling 7-day spend
+ *                    already meets this, alongside the post-count cap.
+ */
+export class CostBudgetExceededError extends Error {
+  readonly kind: "run" | "weekly";
+  readonly spentUsd: number;
+  readonly limitUsd: number;
+  constructor(kind: "run" | "weekly", spentUsd: number, limitUsd: number) {
+    super(
+      `Cost ${kind} budget exceeded: spent $${spentUsd.toFixed(4)} exceeds limit $${limitUsd.toFixed(2)}`,
+    );
+    this.name = "CostBudgetExceededError";
+    this.kind = kind;
+    this.spentUsd = spentUsd;
+    this.limitUsd = limitUsd;
+  }
+}
+
+/** Parse a USD limit from env. Unset/blank/non-numeric/non-positive → null (no cap). */
+export function parseUsdLimit(raw: string | undefined | null): number | null {
+  if (raw == null || raw.trim() === "") return null;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  return n;
+}
+
+/** Throw once accumulated run cost strictly exceeds the ceiling (null = no cap). */
+export function assertRunBudget(usage: UsageEntry[], limitUsd: number | null): void {
+  if (limitUsd == null) return;
+  const spent = computeRunCost(usage).totalUsd;
+  if (spent > limitUsd) {
+    throw new CostBudgetExceededError("run", spent, limitUsd);
+  }
+}
+
+/** True when a site's rolling 7-day spend already meets the weekly cap (null = no cap). */
+export function exceedsWeeklyBudget(spentUsdLast7Days: number, limitUsd: number | null): boolean {
+  if (limitUsd == null) return false;
+  return spentUsdLast7Days >= limitUsd;
+}
+
 export interface RollingCounter {
   totalUsdLast7Days: number;
   history: { dateIso: string; costUsd: number }[];

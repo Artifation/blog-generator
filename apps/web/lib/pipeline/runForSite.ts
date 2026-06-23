@@ -22,14 +22,20 @@ import type { TenantConfig } from "@/config/tenant";
 import { checkCitations, enrichSignalsWithCitationCheck } from "@/pipeline/citationCheck";
 import { filterDeadResearchUrls } from "@/pipeline/researchUrlFilter";
 import { extractExternalHrefs, stripDeadLinks, filterDefinitivelyDead } from "@/pipeline/stripDeadLinks";
-import { computeRunCost, type UsageEntry } from "@/pipeline/costTracker";
+import {
+  computeRunCost,
+  parseUsdLimit,
+  assertRunBudget,
+  exceedsWeeklyBudget,
+  type UsageEntry,
+} from "@/pipeline/costTracker";
 import { derivePerformanceInsights, loadLatestSnapshot } from "@/pipeline/gscPerformanceInsights";
 import { applyFactCheckerFixes } from "@/pipeline/applyFactCheckerFixes";
 import type { StrategistInput } from "@/agents/strategist";
 
 import type { Site, Topic, Pillar, Draft } from "~/lib/db/schema";
 import { createDraft, getLatestRejectedDraftForTopic } from "~/lib/drafts";
-import { startRun, finishRun } from "~/lib/runs";
+import { startRun, finishRun, sumRunCostLast7DaysForSite } from "~/lib/runs";
 import { updateTopic } from "~/lib/topics";
 import { listPublishedPostsForSite, countPublishedThisIsoWeekForSite, countDraftsThisIsoWeekForSite } from "~/lib/drafts";
 import { getDb } from "~/lib/db/client";
@@ -124,6 +130,34 @@ export async function runForSite(
     };
   }
 
+  // Optional hard USD guardrails (opt-in via env; unset = no cap). The per-run
+  // ceiling is enforced at the stage boundaries below; the weekly cap is a
+  // pre-flight gate that defers the topic, mirroring the post-count cap.
+  const runUsdCeiling = parseUsdLimit(process.env.MAX_RUN_USD);
+  const weeklyUsdCap = parseUsdLimit(process.env.MAX_WEEKLY_USD);
+  if (weeklyUsdCap != null) {
+    const spentThisWeek = await sumRunCostLast7DaysForSite(site.id);
+    if (exceedsWeeklyBudget(spentThisWeek, weeklyUsdCap)) {
+      const run = await startRun(site.id, topic.id);
+      const reason = `weekbudget bereikt ($${spentThisWeek.toFixed(2)}/$${weeklyUsdCap.toFixed(2)})`;
+      await updateTopic(topic.id, { status: "cap_deferred", rejectReason: reason });
+      const finalRun = await finishRun(run.id, {
+        verdict: "cap_deferred",
+        reason,
+        stages: [{ stage: "cost-cap-early", ms: 0, ok: true }],
+      });
+      return {
+        runId: finalRun.id,
+        draftId: null,
+        verdict: "rejected",
+        weightedTotal: null,
+        hardFails: [],
+        reason,
+        costUsd: 0,
+      };
+    }
+  }
+
   const run = await startRun(site.id, topic.id);
   const stages: Array<{ stage: string; ms: number; ok: boolean }> = [];
   const usage: UsageEntry[] = [];
@@ -207,6 +241,7 @@ export async function runForSite(
     );
     endStage(true);
     usage.push({ provider: researcherModel.provider, model: research.raw.model, inputTokens: research.raw.inputTokens, outputTokens: research.raw.outputTokens });
+    assertRunBudget(usage, runUsdCeiling);
 
     // URL self-verification
     endStage = startStage("urlVerify");
@@ -293,6 +328,7 @@ export async function runForSite(
     );
     endStage(true);
     usage.push({ provider: strategistModel.provider, model: outline.raw.model, inputTokens: outline.raw.inputTokens, outputTokens: outline.raw.outputTokens });
+    assertRunBudget(usage, runUsdCeiling);
 
     // Retry-feedback loop: if this topic was rejected before, read the
     // factChecker's fabricated_claims out of the previous rejected draft and
@@ -331,6 +367,7 @@ export async function runForSite(
     );
     endStage(true);
     usage.push({ provider: writerModel.provider, model: writerModel.model, inputTokens: writer.totalInputTokens, outputTokens: writer.totalOutputTokens });
+    assertRunBudget(usage, runUsdCeiling);
 
     // SEO editor
     endStage = startStage("seoEditor");
@@ -347,6 +384,7 @@ export async function runForSite(
     endStage(true);
     seo.parsed.edited_html = postProcessDraftHtml(seo.parsed.edited_html);
     usage.push({ provider: seoEditorModel.provider, model: seo.raw.model, inputTokens: seo.raw.inputTokens, outputTokens: seo.raw.outputTokens });
+    assertRunBudget(usage, runUsdCeiling);
 
     // Final dead-link scrub on the SEO-edited HTML. researchUrlFilter only
     // caught dead source URLs in research output; the writer / seoEditor can
@@ -399,6 +437,7 @@ export async function runForSite(
     );
     endStage(true);
     usage.push({ provider: factCheckerModel.provider, model: fc.raw.model, inputTokens: fc.raw.inputTokens, outputTokens: fc.raw.outputTokens });
+    assertRunBudget(usage, runUsdCeiling);
 
     // AUTO-FIX LOOP (bounded: 1 retry max). Wanneer factChecker fail-verdict
     // gaf MAAR de fabricated_claims hebben suggested_rewrites, probeer ze
@@ -719,6 +758,11 @@ export async function runForSite(
   } catch (err) {
     const errObj = err as Error;
     const message = errObj.message;
+    // Record whatever was already spent before the abort so a hard per-run
+    // ceiling (or any mid-pipeline failure) still counts toward the weekly cap
+    // and the cost dashboard — otherwise a topic that keeps aborting could burn
+    // up to the ceiling every tick without ever tripping the weekly budget.
+    const partialCost = computeRunCost(usage).totalUsd;
     // Capture in the central error-store BEFORE finishRun so the operator
     // can correlate the error_event with the run row. Last-completed stage
     // is the most actionable single field; we keep the full stage history
@@ -745,6 +789,7 @@ export async function runForSite(
       verdict: "error",
       reason: message,
       errorMessage: message,
+      costUsd: partialCost,
       stages,
     });
     return {
@@ -754,7 +799,7 @@ export async function runForSite(
       weightedTotal: null,
       hardFails: [],
       reason: message,
-      costUsd: 0,
+      costUsd: partialCost,
     };
   }
 }
