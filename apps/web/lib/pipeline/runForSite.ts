@@ -31,7 +31,7 @@ import type { Site, Topic, Pillar, Draft } from "~/lib/db/schema";
 import { createDraft, getLatestRejectedDraftForTopic } from "~/lib/drafts";
 import { startRun, finishRun } from "~/lib/runs";
 import { updateTopic } from "~/lib/topics";
-import { listPublishedPostsForSite, countPublishedThisIsoWeekForSite } from "~/lib/drafts";
+import { listPublishedPostsForSite, countPublishedThisIsoWeekForSite, countDraftsThisIsoWeekForSite } from "~/lib/drafts";
 import { getDb } from "~/lib/db/client";
 import { sites } from "~/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -98,10 +98,15 @@ export async function runForSite(
   // researcher/writer/judge wanneer de site al z'n weekcap heeft bereikt.
   // Markeert het topic als cap_deferred zodat het volgende week opnieuw
   // geprobeerd wordt, en finished de run zonder kosten te maken.
+  // Cap on the most expensive metric: published posts OR drafts generated this
+  // week (each draft is a paid run). Counting only published let a non-auto-
+  // publish site generate unlimited paid drafts.
   const publishedThisWeek = await countPublishedThisIsoWeekForSite(site.id);
-  if (publishedThisWeek >= site.maxPostsPerWeek) {
+  const generatedThisWeek = await countDraftsThisIsoWeekForSite(site.id);
+  const usedThisWeek = Math.max(publishedThisWeek, generatedThisWeek);
+  if (usedThisWeek >= site.maxPostsPerWeek) {
     const run = await startRun(site.id, topic.id);
-    const reason = `weekcap bereikt (${publishedThisWeek}/${site.maxPostsPerWeek})`;
+    const reason = `weekcap bereikt (${usedThisWeek}/${site.maxPostsPerWeek})`;
     await updateTopic(topic.id, { status: "cap_deferred", rejectReason: reason });
     const finalRun = await finishRun(run.id, {
       verdict: "cap_deferred",

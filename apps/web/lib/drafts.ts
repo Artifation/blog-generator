@@ -253,6 +253,24 @@ export async function countPublishedThisIsoWeekForSite(
   return all.filter((p) => p.publishedAt >= weekStart && p.publishedAt < weekEnd).length;
 }
 
+/**
+ * Aantal DRAFTS gegenereerd in de huidige ISO-week voor deze site (ongeacht
+ * status). Elke draft = één betaalde pipeline-run, dus dit is de juiste teller
+ * voor een kosten-cap — anders genereert een niet-auto-publish site oneindig
+ * veel betaalde concepten omdat de published-teller op 0 blijft staan.
+ */
+export async function countDraftsThisIsoWeekForSite(
+  siteId: string,
+  now: Date = new Date()
+): Promise<number> {
+  await ensureSchema();
+  const db = getDb();
+  const weekStart = startOfIsoWeekUtc(now).toISOString();
+  const weekEnd = new Date(startOfIsoWeekUtc(now).getTime() + 7 * 86_400_000).toISOString();
+  const all = await db.select().from(drafts).where(eq(drafts.siteId, siteId));
+  return all.filter((d) => d.createdAt >= weekStart && d.createdAt < weekEnd).length;
+}
+
 function startOfIsoWeekUtc(d: Date): Date {
   const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
   const day = date.getUTCDay() || 7; // Zondag = 7
