@@ -50,14 +50,30 @@ export function createGeminiProvider(apiKey: string): LLMProvider {
       const usageMeta = res.usageMetadata as
         | { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number }
         | undefined;
+
+      const text = res.text ?? "";
+      const finishReason = candidates?.[0]?.finishReason;
+      // Empty for a NON-truncation reason (safety block, recitation, exhausted
+      // thinking budget with no candidate) — surface the real cause instead of
+      // returning "" that downstream reads as a generic "No JSON found" parse
+      // failure and burns 3 retries. MAX_TOKENS is handled via `truncated`.
+      if (!text && finishReason !== "MAX_TOKENS") {
+        const blockReason = (res as { promptFeedback?: { blockReason?: string } })
+          .promptFeedback?.blockReason;
+        throw new Error(
+          `Gemini returned no text (finishReason=${finishReason ?? "unknown"}` +
+            `${blockReason ? `, blockReason=${blockReason}` : ""})`,
+        );
+      }
+
       return {
-        text: res.text ?? "",
+        text,
         inputTokens: usageMeta?.promptTokenCount ?? 0,
         outputTokens: (usageMeta?.candidatesTokenCount ?? 0) + (usageMeta?.thoughtsTokenCount ?? 0),
         model: req.model,
         provider: "gemini",
         groundedUrls: groundedUrls.length > 0 ? groundedUrls : undefined,
-        truncated: candidates?.[0]?.finishReason === "MAX_TOKENS",
+        truncated: finishReason === "MAX_TOKENS",
       };
     },
   };
