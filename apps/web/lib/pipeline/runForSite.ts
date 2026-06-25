@@ -36,7 +36,7 @@ import type { StrategistInput } from "@/agents/strategist";
 import type { Site, Topic, Pillar, Draft } from "~/lib/db/schema";
 import { createDraft, getLatestRejectedDraftForTopic } from "~/lib/drafts";
 import { startRun, finishRun, sumRunCostLast7DaysForSite } from "~/lib/runs";
-import { updateTopic } from "~/lib/topics";
+import { updateTopic, claimTopicForRun } from "~/lib/topics";
 import { listPublishedPostsForSite, countPublishedThisIsoWeekForSite, countDraftsThisIsoWeekForSite } from "~/lib/drafts";
 import { getDb } from "~/lib/db/client";
 import { sites } from "~/lib/db/schema";
@@ -156,6 +156,24 @@ export async function runForSite(
         costUsd: 0,
       };
     }
+  }
+
+  // Atomically claim the topic (queued -> in_progress) BEFORE doing any paid
+  // work. SQLite serializes the UPDATE, so if a concurrent trigger (cron tick,
+  // the UI "Run next" button, or a second process) selected the same queued
+  // topic, only one wins the claim — the rest skip here instead of running the
+  // full ~€0.15 pipeline twice and creating duplicate drafts.
+  const claimed = await claimTopicForRun(topic.id);
+  if (!claimed) {
+    return {
+      runId: "",
+      draftId: null,
+      verdict: "error",
+      weightedTotal: null,
+      hardFails: [],
+      reason: "topic al geclaimd door een gelijktijdige run",
+      costUsd: 0,
+    };
   }
 
   const run = await startRun(site.id, topic.id);
@@ -758,6 +776,12 @@ export async function runForSite(
   } catch (err) {
     const errObj = err as Error;
     const message = errObj.message;
+    // Release the claim: an aborted run must not strand the topic in
+    // `in_progress` (it would silently drop out of the queue forever). Reset to
+    // `queued` so the next tick can retry — matching the pre-claim behaviour
+    // where an errored topic stayed selectable. Best-effort; a failed reset
+    // shouldn't mask the original error.
+    await updateTopic(topic.id, { status: "queued" }).catch(() => {});
     // Record whatever was already spent before the abort so a hard per-run
     // ceiling (or any mid-pipeline failure) still counts toward the weekly cap
     // and the cost dashboard — otherwise a topic that keeps aborting could burn

@@ -85,6 +85,28 @@ export async function updateTopic(
   return (await getTopic(id))!;
 }
 
+/**
+ * Atomically claim a queued topic for a pipeline run: flip `queued -> in_progress`
+ * in a single UPDATE and report whether THIS caller won the claim. SQLite
+ * serializes writes, so when two entry points (cron tick, UI "Run next" button,
+ * a second process/container) select the same queued topic, only the first
+ * UPDATE matches `status='queued'`; the rest get `false` and must skip. This is
+ * the cross-process mutex the in-memory scheduler Set could never provide.
+ *
+ * The caller is responsible for releasing the claim (back to `queued`) if the
+ * run aborts, so an errored run doesn't strand the topic in `in_progress`.
+ */
+export async function claimTopicForRun(id: string): Promise<boolean> {
+  await ensureSchema();
+  const db = getDb();
+  const claimed = await db
+    .update(topics)
+    .set({ status: "in_progress", updatedAt: new Date().toISOString() })
+    .where(and(eq(topics.id, id), eq(topics.status, "queued")))
+    .returning({ id: topics.id });
+  return claimed.length > 0;
+}
+
 export async function deleteTopic(id: string): Promise<void> {
   await ensureSchema();
   const db = getDb();
