@@ -9,6 +9,7 @@ import {
   refreshSessionIfStale,
   deleteSession,
 } from "./auth/session";
+import { resolveClientIp, trustedProxyCount } from "./auth/client-ip";
 
 /** Opaque server-side session token cookie. The value is NOT an id. */
 const SESSION_TOKEN_COOKIE = "artifation_session";
@@ -185,26 +186,21 @@ export async function requireUser(): Promise<User> {
 // now only the one-time seed source for that table.
 
 /**
- * Best-effort client IP for rate-limiting. Reads the standard proxy headers
- * (`x-forwarded-for`, `x-real-ip`) and falls back to a literal "unknown"
- * bucket so we never crash on a missing header. The unknown bucket is shared
- * across requests with no headers, which is the desired conservative
- * behaviour: badly-fingerprinted clients get one shared budget.
+ * Best-effort client IP for rate-limiting. Trusted-proxy-aware: we read the
+ * X-Forwarded-For entry our own proxy chain appended (TRUSTED_PROXY_COUNT from
+ * the right), NOT the spoofable left-most client-supplied hop. Falls back to a
+ * shared "unknown" bucket so we never crash on a missing header. See
+ * `lib/auth/client-ip.ts` for the resolution logic and rationale.
  */
 export async function getClientIp(): Promise<string> {
   try {
     const h = await headers();
-    const fwd = h.get("x-forwarded-for");
-    if (fwd) {
-      // x-forwarded-for can be a comma-separated chain — first entry is the
-      // origin client.
-      const first = fwd.split(",")[0]?.trim();
-      if (first) return first;
-    }
-    const real = h.get("x-real-ip");
-    if (real) return real.trim();
-    const cf = h.get("cf-connecting-ip");
-    if (cf) return cf.trim();
+    return resolveClientIp({
+      xForwardedFor: h.get("x-forwarded-for"),
+      xRealIp: h.get("x-real-ip"),
+      cfConnectingIp: h.get("cf-connecting-ip"),
+      trustedProxyCount: trustedProxyCount(),
+    });
   } catch {
     // headers() can throw in non-request contexts.
   }

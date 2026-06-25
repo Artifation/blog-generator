@@ -22,6 +22,7 @@ import {
 } from "~/lib/users";
 import {
   checkRateLimit,
+  checkEmailRateLimit,
   recordAttempt,
   retryMinutes,
 } from "~/lib/auth/rate-limit";
@@ -79,9 +80,14 @@ export async function loginWithPasswordAction(
   }
 
   const ip = await getClientIp();
-  const gate = await checkRateLimit(ip);
-  if (!gate.allowed) {
-    const mins = retryMinutes(gate.retryAfterMs);
+  // Two buckets: per-IP (blocks a noisy source) AND per-email (caps stuffing on
+  // one account even when the attacker rotates IPs / spoofs X-Forwarded-For).
+  const [ipGate, emailGate] = await Promise.all([
+    checkRateLimit(ip),
+    checkEmailRateLimit(email),
+  ]);
+  if (!ipGate.allowed || !emailGate.allowed) {
+    const mins = retryMinutes(Math.max(ipGate.retryAfterMs, emailGate.retryAfterMs));
     return {
       ok: false,
       error: `Te veel mislukte pogingen. Probeer het over ${mins} min opnieuw.`,
