@@ -29,6 +29,7 @@ export function createAnthropicProvider(apiKey: string): LLMProvider {
         outputTokens: res.usage.output_tokens,
         model: res.model,
         provider: "anthropic",
+        truncated: res.stop_reason === "max_tokens",
       };
     },
   };

@@ -25,6 +25,7 @@ export function createGroqProvider(apiKey: string): LLMProvider {
         outputTokens: res.usage?.completion_tokens ?? 0,
         model: res.model,
         provider: "groq",
+        truncated: res.choices[0]?.finish_reason === "length",
       };
     },
   };

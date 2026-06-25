@@ -23,6 +23,23 @@ const defaultSleep = (ms: number): Promise<void> =>
   new Promise((r) => setTimeout(r, ms));
 
 /**
+ * The model hit its output-token cap, so the JSON is truncated/incomplete.
+ * Thrown (and NOT retried) by runAgent: re-issuing the identical request just
+ * truncates again at the same cap, burning full input tokens each time.
+ */
+export class TruncatedResponseError extends Error {
+  readonly maxTokens: number;
+  constructor(maxTokens: number, model: string) {
+    super(
+      `LLM output truncated at maxTokens=${maxTokens} (model ${model}). ` +
+        `Raise maxTokens for this agent — retrying the same request will keep truncating.`,
+    );
+    this.name = "TruncatedResponseError";
+    this.maxTokens = maxTokens;
+  }
+}
+
+/**
  * Anthropic returns HTTP 529 + body `{"type":"error","error":{"type":"overloaded_error",...}}`
  * when its infrastructure can't accept new requests. Short retry-backoff (the
  * default 2^attempt seconds) is useless here because overload windows last
@@ -68,11 +85,19 @@ export async function runAgent<T extends z.ZodTypeAny>(
         useSearch: input.useSearch,
       });
 
+      if (raw.truncated) {
+        // Output cap hit → incomplete JSON. Fail fast; don't retry (see class doc).
+        throw new TruncatedResponseError(input.maxTokens, input.model);
+      }
+
       const json = extractJson(raw.text);
       const parsed = input.schema.parse(json);
       return { parsed, raw };
     } catch (err) {
       lastError = err as Error;
+      // Truncation is deterministic at a fixed maxTokens — surface it immediately
+      // instead of burning the remaining attempts on the same doomed request.
+      if (err instanceof TruncatedResponseError) throw err;
       if (attempt === maxAttempts) break;
       await sleepImpl(backoffMs(attempt, isOverloadedError(lastError)));
     }

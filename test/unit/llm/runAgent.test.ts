@@ -135,6 +135,48 @@ describe("runAgent", () => {
     ).rejects.toThrow(/parse/);
   });
 
+  it("fails fast on a truncated (max_tokens) response instead of retrying the same request", async () => {
+    // A truncated response is incomplete JSON; re-issuing the identical request
+    // just truncates again and burns input tokens. runAgent should stop after
+    // one call and surface an actionable 'truncated at maxTokens' error.
+    const p: LLMProvider = {
+      name: "gemini",
+      call: vi.fn(async () => ({
+        text: '{"greeting":"hi',
+        inputTokens: 1,
+        outputTokens: 1,
+        model: "x",
+        provider: "gemini" as const,
+        truncated: true,
+      })),
+    };
+    await expect(
+      runAgent(
+        { provider: p, systemPrompt: "s", userPrompt: "u", model: "x", schema, maxTokens: 256 },
+        noSleep
+      )
+    ).rejects.toThrow(/truncat/i);
+    expect(p.call).toHaveBeenCalledTimes(1);
+  });
+
+  it("truncation error names the maxTokens so the operator can raise it", async () => {
+    const p = makeProvider('{"greeting":"hi');
+    (p.call as ReturnType<typeof vi.fn>).mockResolvedValue({
+      text: '{"greeting":"hi',
+      inputTokens: 1,
+      outputTokens: 1,
+      model: "x",
+      provider: "anthropic",
+      truncated: true,
+    });
+    await expect(
+      runAgent(
+        { provider: p, systemPrompt: "s", userPrompt: "u", model: "x", schema, maxTokens: 777 },
+        noSleep
+      )
+    ).rejects.toThrow(/777/);
+  });
+
   describe("retry backoff policy", () => {
     function makeFailingProvider(error: Error, attempts: { count: number }): LLMProvider {
       return {

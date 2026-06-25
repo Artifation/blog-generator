@@ -37,7 +37,7 @@ export function createGeminiProvider(apiKey: string): LLMProvider {
 
       // Extract grounded URIs uit eerste candidate's groundingMetadata (Gemini 2.x).
       const groundedUrls: string[] = [];
-      const candidates = (res as { candidates?: Array<{ groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string } }> } }> }).candidates;
+      const candidates = (res as { candidates?: Array<{ finishReason?: string; groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string } }> } }> }).candidates;
       const chunks = candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
       for (const c of chunks) {
         const uri = c.web?.uri;
@@ -57,6 +57,7 @@ export function createGeminiProvider(apiKey: string): LLMProvider {
         model: req.model,
         provider: "gemini",
         groundedUrls: groundedUrls.length > 0 ? groundedUrls : undefined,
+        truncated: candidates?.[0]?.finishReason === "MAX_TOKENS",
       };
     },
   };
