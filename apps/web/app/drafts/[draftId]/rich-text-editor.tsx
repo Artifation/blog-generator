@@ -121,11 +121,25 @@ function Toolbar({ editor }: { editor: Editor }) {
           const prev = editor.getAttributes("link").href as string | undefined;
           const url = prompt("Link URL", prev ?? "https://");
           if (url === null) return;
-          if (url === "") {
+          if (url.trim() === "") {
             editor.chain().focus().extendMarkRange("link").unsetLink().run();
             return;
           }
-          editor.chain().focus().extendMarkRange("link").setLink({ href: url }).run();
+          // Allowlist safe schemes (mirrors the server sanitizer) so a pasted
+          // `javascript:`/`data:` URL can't inject script — even in the author's
+          // own preview session.
+          const href = url.trim();
+          const safe =
+            /^https?:/i.test(href) ||
+            /^mailto:/i.test(href) ||
+            /^tel:/i.test(href) ||
+            href.startsWith("/") ||
+            href.startsWith("#");
+          if (!safe) {
+            alert("Alleen http(s)-, mailto-, tel- of relatieve links zijn toegestaan.");
+            return;
+          }
+          editor.chain().focus().extendMarkRange("link").setLink({ href }).run();
         }}
         label="Link"
       >

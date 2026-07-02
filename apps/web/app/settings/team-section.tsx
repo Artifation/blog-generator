@@ -16,7 +16,14 @@ export interface TeamMember {
   isMe: boolean;
 }
 
-export function TeamSection({ members }: { members: TeamMember[] }) {
+export function TeamSection({
+  members,
+  canManage = true,
+}: {
+  members: TeamMember[];
+  /** Only owners may invite/remove; the server enforces this too. */
+  canManage?: boolean;
+}) {
   const router = useRouter();
   const [inviting, setInviting] = React.useState(false);
   const [showInvite, setShowInvite] = React.useState(false);
@@ -30,13 +37,15 @@ export function TeamSection({ members }: { members: TeamMember[] }) {
             Wie kan inloggen en de blog beheren.
           </div>
         </div>
-        <button
-          type="button"
-          className="btn btn-outline btn-sm card-action"
-          onClick={() => setShowInvite(true)}
-        >
-          <UserPlus size={13} /> Uitnodigen
-        </button>
+        {canManage && (
+          <button
+            type="button"
+            className="btn btn-outline btn-sm card-action"
+            onClick={() => setShowInvite(true)}
+          >
+            <UserPlus size={13} /> Uitnodigen
+          </button>
+        )}
       </div>
       <div className="card-body">
         {members.length === 0 ? (
@@ -90,7 +99,7 @@ export function TeamSection({ members }: { members: TeamMember[] }) {
                     {m.lastLoginAt && ` · laatst ingelogd ${new Date(m.lastLoginAt).toLocaleDateString("nl-NL")}`}
                   </div>
                 </div>
-                {!m.isMe && (
+                {!m.isMe && canManage && (
                   <RemoveMemberButton id={m.id} onRemoved={() => router.refresh()} />
                 )}
               </div>

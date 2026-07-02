@@ -54,7 +54,7 @@ export default async function SettingsPage({ searchParams }: PageProps) {
         {tab === "brand" && <BrandTab site={clientSite} />}
         {tab === "publish" && <PublishTab site={clientSite} wpAppPasswordSet={secretsPresent.wpAppPassword} />}
         {tab === "integrations" && <IntegrationsTab site={clientSite} secretsPresent={secretsPresent} />}
-        {tab === "team" && <TeamTab members={members} />}
+        {tab === "team" && <TeamTab members={members} canManage={me?.role === "owner"} />}
         {tab === "danger" && <DangerTab site={clientSite} />}
       </SettingsShell>
     </AdminShell>
