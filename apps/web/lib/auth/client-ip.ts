@@ -30,9 +30,10 @@ export function resolveClientIp(input: ClientIpInput): string {
     if (parts.length > 0) {
       const idx = parts.length - hops;
       // The entry `hops` from the right was appended by our trusted chain. If the
-      // chain is shorter than configured (idx < 0), the left-most is the best
-      // available — still not attacker-prependable past a real proxy.
-      return idx >= 0 ? parts[idx]! : parts[0]!;
+      // chain is shorter than configured (idx < 0), fall back to the RIGHT-most
+      // entry — the one the nearest real proxy appended — never the left-most,
+      // which is client-controlled and would reopen the XFF-spoof bypass.
+      return idx >= 0 ? parts[idx]! : parts[parts.length - 1]!;
     }
   }
   if (input.xRealIp) return input.xRealIp.trim();

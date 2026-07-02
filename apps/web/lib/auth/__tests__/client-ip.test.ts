@@ -44,3 +44,12 @@ test("tolerates a shorter chain than the configured hop count", () => {
     "1.2.3.4",
   );
 });
+
+test("under-configured hop count falls back to the RIGHT-most entry, not the spoofable left-most", () => {
+  // Attacker prepends 6.6.6.6; real chain is shorter than the configured 5 hops.
+  // We must NOT return the client-controlled left-most entry.
+  assert.equal(
+    resolveClientIp({ ...base, trustedProxyCount: 5, xForwardedFor: "6.6.6.6, 1.2.3.4" }),
+    "1.2.3.4",
+  );
+});

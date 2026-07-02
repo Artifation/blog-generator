@@ -20,17 +20,20 @@
  * for human approval.
  */
 
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { getSiteBySlug } from "~/lib/sites";
 import { listTopicsForSite } from "~/lib/topics";
 
-/** Constant-time string compare — avoids a timing oracle on the cron token. */
+/**
+ * Constant-time, length-oblivious string compare. Hash both sides to a fixed
+ * 32-byte digest first: timingSafeEqual requires equal-length buffers, and an
+ * early `length` check would itself leak the expected CRON_TOKEN length.
+ */
 function safeEqual(a: string, b: string): boolean {
-  const ab = Buffer.from(a);
-  const bb = Buffer.from(b);
-  if (ab.length !== bb.length) return false;
-  return timingSafeEqual(ab, bb);
+  const ah = createHash("sha256").update(a).digest();
+  const bh = createHash("sha256").update(b).digest();
+  return timingSafeEqual(ah, bh);
 }
 // Heavy modules (sharp via image/optimize, fal, etc.) lazy-loaded inside the
 // handler so Next.js doesn't try to evaluate them during build-time data collection.

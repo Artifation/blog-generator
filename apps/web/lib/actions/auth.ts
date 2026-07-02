@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
@@ -33,6 +34,7 @@ import {
 } from "~/lib/auth/credentials";
 import { validatePasswordStrength } from "~/lib/auth/password";
 import { deleteSessionsForUser } from "~/lib/auth/session";
+import { equalizeVerifyTiming } from "~/lib/passwords";
 
 /**
  * Quick-login for the demo sites listed on the login page. Bypasses the
@@ -87,6 +89,9 @@ export async function loginWithPasswordAction(
     checkEmailRateLimit(email),
   ]);
   if (!ipGate.allowed || !emailGate.allowed) {
+    // Record the blocked attempt too, so sustained hammering keeps the sliding
+    // window pinned instead of letting it roll off and regain budget early.
+    await recordAttempt(ip, false, email);
     const mins = retryMinutes(Math.max(ipGate.retryAfterMs, emailGate.retryAfterMs));
     return {
       ok: false,
@@ -123,7 +128,12 @@ async function authenticateWithCredentials(
   // Find any user with this email (across sites).
   const { findUserAnyEmail } = await import("~/lib/users");
   const user = await findUserAnyEmail(email);
-  if (!user) return null;
+  if (!user) {
+    // Equalize timing with the found-user path (which runs a full scrypt), so
+    // response latency can't be used to enumerate which emails have accounts.
+    await equalizeVerifyTiming(plain);
+    return null;
+  }
   const ok = await verifyAndUpgrade(user.id, user.passwordHash, plain);
   if (!ok) return null;
   return { user };
@@ -254,7 +264,6 @@ export async function inviteUserAction(
   email: string,
   name: string,
   role: "owner" | "editor" | "viewer",
-  tempPassword: string,
 ): Promise<{ ok: true; tempPassword: string } | { ok: false; error: string }> {
   const site = await requireSite();
   const inviter = await requireUser();
@@ -262,7 +271,10 @@ export async function inviteUserAction(
     return { ok: false, error: "Alleen eigenaren kunnen teamleden uitnodigen." };
   }
   if (!email || !email.includes("@")) return { ok: false, error: "Ongeldig e-mailadres." };
-  if (tempPassword.length < 6) return { ok: false, error: "Tijdelijk wachtwoord min. 6 tekens." };
+  // Generate the temp password SERVER-SIDE with a CSPRNG. It was previously a
+  // client-supplied Math.random() string that became the invitee's real
+  // credential — predictable and never rotated.
+  const tempPassword = randomBytes(12).toString("base64url");
   const existing = await findUserByEmail(site.id, email);
   if (existing) return { ok: false, error: "Deze gebruiker bestaat al op deze site." };
   const created = await createUser({
