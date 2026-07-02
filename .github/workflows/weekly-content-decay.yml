@@ -10,6 +10,9 @@ permissions:
   contents: write
 concurrency:
   group: content-decay-${{ github.event.inputs.tenant || 'artifation' }}
+  # Serialize same-tenant runs (schedule + manual dispatch share this group) so
+  # two runs can't race the git commit/push. Never cancel — the job commits.
+  cancel-in-progress: false
 
 jobs:
   measure:

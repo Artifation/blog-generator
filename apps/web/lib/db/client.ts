@@ -221,7 +221,13 @@ export async function ensureSchema(): Promise<void> {
     // in `sites` rows from earlier deploys. Idempotent — uses isEncrypted()
     // to skip rows that are already done.
     await migratePlaintextSiteSecrets(db);
-  })();
+  })().catch((err) => {
+    // Don't cache a rejected init forever (a transient DDL failure or a missing
+    // encryption key would otherwise wedge every future query until restart).
+    // Clear it so the next ensureSchema() call retries.
+    _initPromise = null;
+    throw err;
+  });
   return _initPromise;
 }
 

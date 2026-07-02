@@ -97,6 +97,11 @@ export async function startScheduler(): Promise<void> {
   started = true;
   console.log(JSON.stringify({ stage: "scheduler-start" }));
 
+  // Graceful shutdown: stop the poll-loop + cron tasks on SIGTERM/SIGINT so a
+  // container restart tears the scheduler down cleanly instead of being killed
+  // mid-tick. Registered once per process.
+  registerShutdownHandlers();
+
   // Initial sync + poll-loop. De interval is in ms; minimaal 15s om te
   // voorkomen dat een tik-overflow het proces wegblaast.
   const pollMs = Math.max(15_000, Number(process.env.SCHEDULER_POLL_INTERVAL_MS ?? 60_000));
@@ -147,6 +152,18 @@ export async function stopScheduler(): Promise<void> {
   runningSiteIds.clear();
   started = false;
   stopping = false;
+}
+
+let shutdownHandlersRegistered = false;
+/** Register SIGTERM/SIGINT → stopScheduler once per process. */
+function registerShutdownHandlers(): void {
+  if (shutdownHandlersRegistered) return;
+  shutdownHandlersRegistered = true;
+  const handler = () => {
+    void stopScheduler();
+  };
+  process.once("SIGTERM", handler);
+  process.once("SIGINT", handler);
 }
 
 /**
@@ -254,9 +271,11 @@ async function syncScheduledJobs(): Promise<void> {
         void triggerSiteRun(row.id, row.slug);
       },
       {
-        // node-cron v3 accepteert deze opties; we zetten timezone via env
-        // (default = systeem-TZ) en starten meteen.
-        timezone: process.env.SCHEDULER_TIMEZONE || undefined,
+        // Default to UTC (not the host TZ): the ISO-week caps and the rolling
+        // 7-day cost sums are all computed in UTC, so a host in another zone
+        // would fire crons and reset budgets on disagreeing clocks around week
+        // edges / DST. Override via SCHEDULER_TIMEZONE when intentional.
+        timezone: process.env.SCHEDULER_TIMEZONE || "UTC",
       }
     );
     // Sommige node-cron versies starten direct na schedule(), andere niet.
