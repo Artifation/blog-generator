@@ -238,23 +238,28 @@ export async function updateSite(id: string, input: UpdateSiteInput): Promise<Si
   }
   if (input.features !== undefined) patch.features = input.features;
 
-  await db.update(sites).set(patch).where(eq(sites.id, id));
+  // Atomic: the site patch + full pillar replacement in one transaction, so a
+  // failure mid-loop can't leave the site with its pillars deleted / partially
+  // re-inserted (schema-gen + runForSite depend on site.pillars).
+  await db.transaction(async (tx) => {
+    await tx.update(sites).set(patch).where(eq(sites.id, id));
 
-  if (input.pillars) {
-    await db.delete(pillars).where(eq(pillars.siteId, id));
-    const totalWeight = input.pillars.reduce((s, p) => s + p.weight, 0);
-    for (let i = 0; i < input.pillars.length; i++) {
-      const p = input.pillars[i]!;
-      await db.insert(pillars).values({
-        id: newId("pil"),
-        siteId: id,
-        slug: p.slug ?? slugify(p.name),
-        name: p.name,
-        weight: totalWeight > 0 ? p.weight / totalWeight : 1 / input.pillars.length,
-        sortOrder: i,
-      });
+    if (input.pillars) {
+      await tx.delete(pillars).where(eq(pillars.siteId, id));
+      const totalWeight = input.pillars.reduce((s, p) => s + p.weight, 0);
+      for (let i = 0; i < input.pillars.length; i++) {
+        const p = input.pillars[i]!;
+        await tx.insert(pillars).values({
+          id: newId("pil"),
+          siteId: id,
+          slug: p.slug ?? slugify(p.name),
+          name: p.name,
+          weight: totalWeight > 0 ? p.weight / totalWeight : 1 / input.pillars.length,
+          sortOrder: i,
+        });
+      }
     }
-  }
+  });
 
   return (await getSiteById(id))!;
 }

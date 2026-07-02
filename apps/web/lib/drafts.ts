@@ -1,4 +1,4 @@
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count, gte, lt } from "drizzle-orm";
 import { getDb, ensureSchema } from "./db/client";
 import { drafts, publishedPosts, topics, type Draft, type PublishedPost } from "./db/schema";
 import { newId } from "./db/ids";
@@ -182,42 +182,48 @@ export async function publishDraftBuiltIn(input: PublishedPostInput): Promise<Pu
     pillarSlug = t?.pillarSlug ?? "";
     targetKeyword = t?.targetKeyword ?? "";
   }
-  await db.insert(publishedPosts).values({
-    id,
-    siteId: draft.siteId,
-    draftId: draft.id,
-    slug: draft.slug,
-    title: draft.title,
-    // Defense-in-depth: published copy is sanitized even if a legacy draft row
-    // pre-dates write-time sanitization.
-    contentHtml: sanitizeContentHtml(draft.contentHtml),
-    metaTitle: draft.metaTitle,
-    metaDescription: draft.metaDescription,
-    tldr: draft.tldr,
-    imagePath: draft.imagePath,
-    imageAlt: draft.imageAlt,
-    targetKeyword,
-    pillarSlug,
-    externalUrl: input.externalUrl ?? null,
-    externalId: input.externalId ?? null,
+  // Atomic: insert the published row + flip the draft + flip the topic in one
+  // transaction. A crash between these previously left a published_posts row
+  // whose draft stayed pending_review and topic unpublished — and the
+  // idempotency guard above then made that half-state permanent on retry.
+  await db.transaction(async (tx) => {
+    await tx.insert(publishedPosts).values({
+      id,
+      siteId: draft.siteId,
+      draftId: draft.id,
+      slug: draft.slug,
+      title: draft.title,
+      // Defense-in-depth: published copy is sanitized even if a legacy draft row
+      // pre-dates write-time sanitization.
+      contentHtml: sanitizeContentHtml(draft.contentHtml),
+      metaTitle: draft.metaTitle,
+      metaDescription: draft.metaDescription,
+      tldr: draft.tldr,
+      imagePath: draft.imagePath,
+      imageAlt: draft.imageAlt,
+      targetKeyword,
+      pillarSlug,
+      externalUrl: input.externalUrl ?? null,
+      externalId: input.externalId ?? null,
+    });
+
+    await tx
+      .update(drafts)
+      .set({ status: "published", reviewedAt: new Date().toISOString() })
+      .where(eq(drafts.id, draft.id));
+
+    if (draft.topicId) {
+      await tx
+        .update(topics)
+        .set({
+          status: "published",
+          publishedDraftId: draft.id,
+          publishedUrl: input.externalUrl ?? `/${draft.slug}`,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(topics.id, draft.topicId));
+    }
   });
-
-  await db
-    .update(drafts)
-    .set({ status: "published", reviewedAt: new Date().toISOString() })
-    .where(eq(drafts.id, draft.id));
-
-  if (draft.topicId) {
-    await db
-      .update(topics)
-      .set({
-        status: "published",
-        publishedDraftId: draft.id,
-        publishedUrl: input.externalUrl ?? `/${draft.slug}`,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(topics.id, draft.topicId));
-  }
 
   const rows = await db.select().from(publishedPosts).where(eq(publishedPosts.id, id)).limit(1);
   return rows[0]!;
@@ -246,11 +252,20 @@ export async function countPublishedThisIsoWeekForSite(
   const db = getDb();
   const weekStart = startOfIsoWeekUtc(now).toISOString();
   const weekEnd = new Date(startOfIsoWeekUtc(now).getTime() + 7 * 86_400_000).toISOString();
-  const all = await db
-    .select()
+  // Count in SQL (ISO-8601 strings sort lexicographically = chronologically),
+  // half-open [weekStart, weekEnd), so we don't load every row (incl. contentHtml)
+  // just to count a week's worth on every pipeline tick.
+  const rows = await db
+    .select({ c: count() })
     .from(publishedPosts)
-    .where(eq(publishedPosts.siteId, siteId));
-  return all.filter((p) => p.publishedAt >= weekStart && p.publishedAt < weekEnd).length;
+    .where(
+      and(
+        eq(publishedPosts.siteId, siteId),
+        gte(publishedPosts.publishedAt, weekStart),
+        lt(publishedPosts.publishedAt, weekEnd),
+      ),
+    );
+  return rows[0]?.c ?? 0;
 }
 
 /**
@@ -267,8 +282,17 @@ export async function countDraftsThisIsoWeekForSite(
   const db = getDb();
   const weekStart = startOfIsoWeekUtc(now).toISOString();
   const weekEnd = new Date(startOfIsoWeekUtc(now).getTime() + 7 * 86_400_000).toISOString();
-  const all = await db.select().from(drafts).where(eq(drafts.siteId, siteId));
-  return all.filter((d) => d.createdAt >= weekStart && d.createdAt < weekEnd).length;
+  const rows = await db
+    .select({ c: count() })
+    .from(drafts)
+    .where(
+      and(
+        eq(drafts.siteId, siteId),
+        gte(drafts.createdAt, weekStart),
+        lt(drafts.createdAt, weekEnd),
+      ),
+    );
+  return rows[0]?.c ?? 0;
 }
 
 function startOfIsoWeekUtc(d: Date): Date {
