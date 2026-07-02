@@ -1,4 +1,4 @@
-import fs from "node:fs";
+import fs from "node:fs/promises";
 import path from "node:path";
 import { NextResponse } from "next/server";
 import { getDb, ensureSchema } from "~/lib/db/client";
@@ -13,8 +13,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ postId:
   const post = rows[0];
   if (!post?.imagePath) return new NextResponse("Not found", { status: 404 });
   const abs = path.resolve(process.cwd(), "../../", post.imagePath);
-  if (!fs.existsSync(abs)) return new NextResponse("Not found", { status: 404 });
-  const bytes = fs.readFileSync(abs);
+  // Published content is public; read async so a busy disk doesn't block the
+  // event loop for other requests.
+  let bytes: Buffer;
+  try {
+    bytes = await fs.readFile(abs);
+  } catch {
+    return new NextResponse("Not found", { status: 404 });
+  }
   const ext = path.extname(abs).slice(1).toLowerCase();
   const contentType = ext === "avif" ? "image/avif" : ext === "webp" ? "image/webp" : "image/jpeg";
   return new NextResponse(new Uint8Array(bytes), {
