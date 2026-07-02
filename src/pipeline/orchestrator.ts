@@ -691,7 +691,13 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
     const image = await generateBlogImage(
       { prompt: ip.parsed.prompt, negative_prompt: ip.parsed.negative_prompt },
       {
-        FAL_API_KEY: requireEnv(env, "FAL_API_KEY"),
+        // Pass every configured provider so the tiered fallback works as
+        // designed: Fal → Gemini Imagen → Cloudflare. FAL must be OPTIONAL
+        // (requireEnv made it mandatory, killing the Gemini tier that the rest
+        // of the pipeline's key already enables); generateBlogImage still errors
+        // clearly when NO provider is configured.
+        FAL_API_KEY: env.FAL_API_KEY,
+        GEMINI_API_KEY: env.GEMINI_API_KEY,
         CF_ACCOUNT_ID: env.CF_ACCOUNT_ID,
         CF_API_TOKEN: env.CF_API_TOKEN,
       }

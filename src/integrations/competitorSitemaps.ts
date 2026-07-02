@@ -3,6 +3,8 @@
  * to detect newly published competitor content.
  */
 
+import { guardedFetch } from "./urlGuard.ts";
+
 export interface SitemapEntry {
   url: string;
   slug: string;
@@ -66,7 +68,9 @@ async function fetchSingleSitemap(
   domain: string,
   f: typeof fetch
 ): Promise<SitemapEntry[]> {
-  const res = await f(sitemapUrl);
+  // SSRF-guarded + timed out: `domain` is tenant config and the recursed <loc>
+  // URLs below are fully controlled by the remote sitemap.
+  const res = await guardedFetch(sitemapUrl, f);
   if (!res.ok) throw new Error(`sitemap fetch failed for ${sitemapUrl}: ${res.status}`);
   const xml = await res.text();
 
@@ -90,7 +94,7 @@ async function fetchSingleSitemap(
 
   for (const sm of targets) {
     try {
-      const r = await f(sm);
+      const r = await guardedFetch(sm, f);
       if (!r.ok) continue;
       const subXml = await r.text();
       const blocks = parseUrlBlocks(subXml);

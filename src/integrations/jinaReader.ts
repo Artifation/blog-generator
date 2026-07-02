@@ -81,7 +81,11 @@ export async function readPage(input: ReadPageInput): Promise<ReadPageResult> {
   const headers: Record<string, string> = { Accept: "text/plain" };
   if (input.apiKey) headers.Authorization = `Bearer ${input.apiKey}`;
 
-  const res = await f(endpoint, { headers, signal: input.signal });
+  const res = await f(endpoint, {
+    headers,
+    // r.jina.ai proxies arbitrary third-party pages that can hang — bound it.
+    signal: input.signal ?? AbortSignal.timeout(30_000),
+  });
   if (!res.ok) {
     throw new Error(`Jina Reader fetch failed for ${input.url}: ${res.status}`);
   }
