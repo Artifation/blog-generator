@@ -1,6 +1,7 @@
 "use server";
 
 import { requireSite } from "~/lib/auth";
+import { currentUserHasRole } from "~/lib/auth/roles";
 import { createProviderRegistry } from "@/llm/client";
 import { runAuditor, type AuditorOutput, type AuditorIssue, type SerpResultForAuditor } from "@/agents/auditor";
 import { runRewriter } from "@/agents/rewriter";
@@ -100,6 +101,8 @@ export async function auditBlogAction(input: {
   }
 
   const site = await requireSite();
+  if (!(await currentUserHasRole("editor")))
+    return { ok: false, error: "Alleen editors of eigenaren kunnen een audit draaien." };
   const key = site.apiKeys?.gemini ?? site.apiKeys?.anthropic;
   if (!key) {
     return { ok: false, error: "API-key ontbreekt — vul Gemini of Anthropic in onder Instellingen." };
@@ -251,6 +254,8 @@ export async function generateRewriteAction(input: {
   }
 
   const site = await requireSite();
+  if (!(await currentUserHasRole("editor")))
+    return { ok: false, error: "Alleen editors of eigenaren kunnen een rewrite genereren." };
   const key = site.apiKeys?.gemini ?? site.apiKeys?.anthropic;
   if (!key) {
     return { ok: false, error: "API-key ontbreekt — vul Gemini of Anthropic in onder Instellingen." };

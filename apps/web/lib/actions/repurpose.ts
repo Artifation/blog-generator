@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { eq, and } from "drizzle-orm";
 import { requireSite } from "~/lib/auth";
+import { currentUserHasRole } from "~/lib/auth/roles";
 import { getDb, ensureSchema } from "~/lib/db/client";
 import { publishedPosts } from "~/lib/db/schema";
 import { createProviderRegistry, resolveAgentModel } from "@/llm/client";
@@ -24,6 +25,8 @@ export async function repurposePostAction(
   formats: Array<"linkedin" | "newsletter" | "xthread">
 ): Promise<RepurposeResult | { ok: false; error: string }> {
   const site = await requireSite();
+  if (!(await currentUserHasRole("editor")))
+    return { ok: false, error: "Alleen editors of eigenaren kunnen content hergebruiken." };
   // Gemini is the only hard requirement — pipeline falls back gracefully to
   // Gemini for the LLM rollen if Anthropic isn't set.
   const geminiKey = site.apiKeys?.gemini ?? process.env.GEMINI_API_KEY;

@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSite, updateSite, deleteSite, type CreateSiteInput, type UpdateSiteInput } from "~/lib/sites";
 import { requireSite, getCurrentUser } from "~/lib/auth";
-import { roleAtLeast } from "~/lib/auth/roles";
+import { roleAtLeast, currentUserHasRole } from "~/lib/auth/roles";
 import { lookupInviteCode, consumeInviteCode } from "~/lib/invites";
 
 /**
@@ -55,6 +55,10 @@ export async function updateSiteAction(
   // client-supplied id — it must match the session's site.
   const current = await requireSite();
   if (current.id !== id) return { ok: false, error: "Geen toegang tot deze site." };
+  // Config writes require at least editor. Viewers are read-only; secrets stay
+  // owner-only via ownerGuardForSecrets below.
+  if (!(await currentUserHasRole("editor")))
+    return { ok: false, error: "Alleen editors of eigenaren kunnen instellingen wijzigen." };
   const secErr = await ownerGuardForSecrets(input);
   if (secErr) return { ok: false, error: secErr };
   try {
@@ -92,6 +96,8 @@ export async function patchSiteAction(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const current = await requireSite();
   if (current.id !== id) return { ok: false, error: "Geen toegang tot deze site." };
+  if (!(await currentUserHasRole("editor")))
+    return { ok: false, error: "Alleen editors of eigenaren kunnen instellingen wijzigen." };
   const secErr = await ownerGuardForSecrets(partial);
   if (secErr) return { ok: false, error: secErr };
   try {

@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { eq } from "drizzle-orm";
 import { requireSite } from "~/lib/auth";
+import { currentUserHasRole } from "~/lib/auth/roles";
 import { listRefreshOpportunitiesForSite } from "~/lib/refreshes";
 import { refreshForSite } from "~/lib/pipeline/refreshForSite";
 import { getDb, ensureSchema } from "~/lib/db/client";
@@ -15,6 +16,8 @@ export async function startRefreshAction(input: {
   | { ok: false; error: string }
 > {
   const site = await requireSite();
+  if (!(await currentUserHasRole("editor")))
+    return { ok: false, error: "Alleen editors of eigenaren kunnen een refresh starten." };
   if (!site.apiKeys?.gemini && !site.apiKeys?.anthropic) {
     return {
       ok: false,
