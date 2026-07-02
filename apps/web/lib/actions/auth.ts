@@ -14,7 +14,6 @@ import {
 import { lookupInviteCode } from "~/lib/invites";
 import { getSiteBySlug, getSiteById } from "~/lib/sites";
 import {
-  authenticate,
   findUserByEmail,
   createUser,
   listUsersForSite,
@@ -26,6 +25,7 @@ import {
   recordAttempt,
   retryMinutes,
 } from "~/lib/auth/rate-limit";
+import { throttle } from "~/lib/auth/throttle";
 import {
   hasCredential,
   setPassword,
@@ -147,6 +147,17 @@ export async function clearSessionAction(): Promise<{ ok: true }> {
 export async function checkInviteCodeAction(
   code: string,
 ): Promise<{ ok: true; info: InviteCodeInfo } | { ok: false; error: string }> {
+  // Unauthenticated + unthrottled otherwise: throttle per-IP so the guessable
+  // ARTI-2026-XXXX code space can't be brute-forced to harvest the customer PII
+  // (name/email/company) seeded on each code.
+  const ip = await getClientIp();
+  const gate = throttle(`invite:${ip}`, 10, 15 * 60 * 1000);
+  if (!gate.allowed) {
+    return {
+      ok: false,
+      error: `Te veel pogingen. Probeer het over ${retryMinutes(gate.retryAfterMs)} min opnieuw.`,
+    };
+  }
   const info = await lookupInviteCode(code);
   if (!info) {
     return { ok: false, error: "Deze code is niet geldig of al gebruikt. Neem contact op met Artifation." };
@@ -165,6 +176,15 @@ export async function createOwnerUserAction(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const site = await getSiteBySlug(siteSlug);
   if (!site) return { ok: false, error: "Site niet gevonden." };
+
+  // Takeover guard: this action mints an OWNER + a live session with no auth,
+  // so it must only ever create the FIRST user of a freshly-created site. If the
+  // site already has any user, refuse — otherwise anyone could POST this action
+  // with a public site slug + their own email and seize an existing tenant.
+  const existingUsers = await listUsersForSite(site.id);
+  if (existingUsers.length > 0) {
+    return { ok: false, error: "Deze site heeft al een eigenaar." };
+  }
 
   const strength = validatePasswordStrength(input.password);
   if (!strength.ok) return { ok: false, error: strength.error };
@@ -278,7 +298,3 @@ export async function removeUserAction(userId: string): Promise<{ ok: true } | {
   revalidatePath("/settings");
   return { ok: true };
 }
-
-// Keep a reference to silence the unused import warning when `authenticate`
-// is dead-code (current callers all go through credentials).
-export { authenticate };
