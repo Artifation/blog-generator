@@ -19,10 +19,22 @@ const NewsletterOutputSchema = z.object({
   cta_url: z.string().url(),
 });
 
-const XThreadOutputSchema = z.object({
-  tweets: z.array(z.string().min(20).max(280)).min(5).max(9),
-  blog_link_tweet_index: z.number().int().min(0), // index van tweet die naar blog linkt
-});
+const XThreadOutputSchema = z
+  .object({
+    tweets: z.array(z.string().min(20).max(280)).min(5).max(9),
+    blog_link_tweet_index: z.number().int().min(0), // index van tweet die naar blog linkt
+  })
+  // Guard against an index past the end of the array — it flows into the email
+  // template and would point at a non-existent tweet.
+  .superRefine((v, ctx) => {
+    if (v.blog_link_tweet_index >= v.tweets.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["blog_link_tweet_index"],
+        message: `blog_link_tweet_index ${v.blog_link_tweet_index} is out of range (tweets.length=${v.tweets.length})`,
+      });
+    }
+  });
 
 export type LinkedInOutput = z.infer<typeof LinkedInOutputSchema>;
 export type NewsletterOutput = z.infer<typeof NewsletterOutputSchema>;

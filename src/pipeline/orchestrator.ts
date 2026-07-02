@@ -9,7 +9,12 @@ import { postProcessDraftHtml } from "./htmlPostProcess.ts";
 import { computeDeterministicRubricSignals } from "./rubric.ts";
 import { checkCitations, enrichSignalsWithCitationCheck } from "./citationCheck.ts";
 import { detectAiContent } from "./aiDetection.ts";
-import { computeRunCost, type UsageEntry } from "./costTracker.ts";
+import {
+  computeRunCost,
+  parseUsdLimit,
+  assertRunBudget,
+  type UsageEntry,
+} from "./costTracker.ts";
 import { countPublishedThisIsoWeek, markTopicStatus } from "./state.ts";
 import { createProviderRegistry, resolveAgentModel } from "@/llm/client";
 import { runResearcher } from "@/agents/researcher";
@@ -103,6 +108,15 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
   }
 
   const usage: UsageEntry[] = [];
+  // Per-run USD ceiling (unset MAX_RUN_USD = no cap, so default is unchanged).
+  // trackUsage records each stage's spend AND aborts the run the moment the
+  // accumulated cost crosses the ceiling — a retry-storm / looping topic can't
+  // run up unbounded cost on the live daily path.
+  const runUsdCeiling = parseUsdLimit(process.env.MAX_RUN_USD);
+  const trackUsage = (entry: UsageEntry): void => {
+    usage.push(entry);
+    assertRunBudget(usage, runUsdCeiling);
+  };
   let currentStage = "init";
 
   try {
@@ -164,7 +178,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(researcherModel.provider), model: researcherModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: researcherModel.provider,
       model: research.raw.model,
       inputTokens: research.raw.inputTokens,
@@ -311,7 +325,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(strategistModel.provider), model: strategistModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: strategistModel.provider,
       model: outline.raw.model,
       inputTokens: outline.raw.inputTokens,
@@ -331,7 +345,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(writerModel.provider), model: writerModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: writerModel.provider,
       model: writerModel.model,
       inputTokens: writer.totalInputTokens,
@@ -349,7 +363,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(seoEditorModel.provider), model: seoEditorModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: seoEditorModel.provider,
       model: seo.raw.model,
       inputTokens: seo.raw.inputTokens,
@@ -370,7 +384,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(factCheckerModel.provider), model: factCheckerModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: factCheckerModel.provider,
       model: fc.raw.model,
       inputTokens: fc.raw.inputTokens,
@@ -402,7 +416,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
           },
           { provider: providers.get(factCheckerModel.provider), model: factCheckerModel, sleepImpl: sleep }
         );
-        usage.push({
+        trackUsage({
           provider: factCheckerModel.provider,
           model: fc2.raw.model,
           inputTokens: fc2.raw.inputTokens,
@@ -554,7 +568,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(qualityJudgeModel.provider), model: qualityJudgeModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: qualityJudgeModel.provider,
       model: judge.raw.model,
       inputTokens: judge.raw.inputTokens,
@@ -666,7 +680,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(imagePrompterModel.provider), model: imagePrompterModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: imagePrompterModel.provider,
       model: ip.raw.model,
       inputTokens: ip.raw.inputTokens,

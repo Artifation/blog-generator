@@ -47,15 +47,20 @@ jobs:
           GSC_SERVICE_ACCOUNT_JSON: ${{ secrets.GSC_SERVICE_ACCOUNT_JSON }}
           DATAFORSEO_LOGIN: ${{ secrets.DATAFORSEO_LOGIN }}
           DATAFORSEO_PASSWORD: ${{ secrets.DATAFORSEO_PASSWORD }}
+          # Opt-in USD guardrail (unset = no cap). Set as a repo variable.
+          MAX_RUN_USD: ${{ vars.MAX_RUN_USD }}
         run: npx tsx src/pipeline/orchestrator.ts --tenant=${{ github.event.inputs.tenant || 'artifation' }}
 
-      - name: Commit topics.yaml updates
+      - name: Commit state updates
         if: success()
         run: |
           git config user.name "blog-bot"
           git config user.email "blog-bot@artifation.nl"
-          git add tenants/*/topics.yaml
-          git diff --staged --quiet || git commit -m "chore(state): topic queue update from $(date -u +%Y-%m-%dT%H:%MZ)"
+          # topics.yaml = the topic queue; editorial-reviews = the EU AI Act human-
+          # review audit trail; anchor-history = the internal-link anchor cache.
+          # All three were written to the ephemeral runner FS and lost before this.
+          git add tenants/*/topics.yaml data/editorial-reviews/ data/anchor-history-*.json
+          git diff --staged --quiet || git commit -m "chore(state): topic queue + audit trail update from $(date -u +%Y-%m-%dT%H:%MZ)"
           git pull --rebase origin main
           git push
 

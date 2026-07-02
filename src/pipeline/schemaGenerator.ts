@@ -128,6 +128,13 @@ export function buildBreadcrumbListSchema(input: SchemaInput): BreadcrumbListSch
 export function buildAllSchemaJsonLd(input: SchemaInput): string {
   const blocks = [buildBlogPostingSchema(input), buildBreadcrumbListSchema(input)];
   return blocks
-    .map((b) => `<script type="application/ld+json">${JSON.stringify(b)}</script>`)
+    .map((b) => {
+      // JSON.stringify does NOT escape "<", so an LLM-sourced value containing
+      // "</script>" would close the tag early and inject markup into the post
+      // (published to WP unsanitized on this path). Escape "<" to its unicode
+      // form — still valid JSON-LD, no breakout.
+      const json = JSON.stringify(b).replace(/</g, "\\u003c");
+      return `<script type="application/ld+json">${json}</script>`;
+    })
     .join("\n");
 }
