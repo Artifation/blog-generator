@@ -31,3 +31,19 @@ export interface LLMProvider {
   name: LLMProviderName;
   call(req: LLMRequest): Promise<LLMResponse>;
 }
+
+/**
+ * The model declined to answer (Anthropic stop_reason "refusal", or a turn with
+ * no usable text block). Flagged non-retryable so runAgent fails fast — an
+ * identical request will just refuse again, wasting all retries + input tokens.
+ */
+export class LlmRefusalError extends Error {
+  readonly nonRetryable = true;
+  constructor(reason: string, model: string) {
+    super(
+      `LLM declined to answer (reason=${reason}, model ${model}). Not retrying — ` +
+        `the same request will refuse again.`,
+    );
+    this.name = "LlmRefusalError";
+  }
+}

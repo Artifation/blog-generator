@@ -16,6 +16,10 @@ export function createGeminiProvider(apiKey: string): LLMProvider {
       const config: Record<string, unknown> = {
         maxOutputTokens: req.maxTokens,
         temperature: req.temperature ?? 1.0,
+        // Also pass a real abort signal so the underlying HTTP request is
+        // actually cancelled at the deadline — withTimeout only races a timer,
+        // which would otherwise leave a hung request (and its socket) running.
+        abortSignal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
       };
       if (req.useSearch) {
         config.tools = [{ googleSearch: {} }];

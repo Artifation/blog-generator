@@ -81,6 +81,92 @@ describe("runAgent", () => {
     expect(r.parsed.greeting).toBe("a } b { c");
   });
 
+  it("parses fenced JSON whose string value contains a markdown code fence", async () => {
+    // The writer/content agents emit blog content that itself contains ``` code
+    // fences. A non-greedy fence regex stops at the FIRST inner ```, truncating
+    // the JSON mid-string -> 'Unterminated string in JSON'. The extractor must
+    // find the real closing fence (or balance the braces) instead.
+    const greeting = "Voorbeeld:\n```js\nconst x = 1;\n```\nKlaar.";
+    const text = "```json\n" + JSON.stringify({ greeting }) + "\n```";
+    const r = await runAgent(
+      {
+        provider: makeProvider(text),
+        systemPrompt: "s",
+        userPrompt: "u",
+        model: "x",
+        schema,
+        maxTokens: 100,
+      },
+      noSleep
+    );
+    expect(r.parsed.greeting).toBe(greeting);
+  });
+
+  it("parses JSON with an embedded code fence even when the model omits the closing outer fence", async () => {
+    // Long-output failure mode behind the user-reported
+    // "Unterminated string in JSON at position 202" error: the model opens
+    // ```json, emits an object whose string value contains a complete ```code```
+    // block, but never writes the closing outer ```. Any fence-DELIMITED extractor
+    // (greedy OR non-greedy) then mistakes the code block's ``` for the closing
+    // fence and slices the JSON string in half. Only brace-balancing recovers it.
+    const greeting = "Voorbeeld:\n```js\nconst x = 1;\n```\nKlaar.";
+    const text = "```json\n" + JSON.stringify({ greeting }) + "\n"; // no closing ```
+    const r = await runAgent(
+      {
+        provider: makeProvider(text),
+        systemPrompt: "s",
+        userPrompt: "u",
+        model: "x",
+        schema,
+        maxTokens: 100,
+      },
+      noSleep
+    );
+    expect(r.parsed.greeting).toBe(greeting);
+  });
+
+  it("parses UNFENCED JSON whose string value contains a code fence (Gemini grounding shape)", async () => {
+    // The model emits {…} with NO outer fence, but a string value contains a
+    // complete ```code``` block. A fence-stripping extractor locks onto the inner
+    // ``` and slices the JSON mid-string -> "No JSON found"/"Unterminated string".
+    const greeting = "Voorbeeld:\n```js\nconst x = 1;\n```\nKlaar.";
+    const text = JSON.stringify({ greeting }); // no outer fence at all
+    const r = await runAgent(
+      { provider: makeProvider(text), systemPrompt: "s", userPrompt: "u", model: "x", schema, maxTokens: 100 },
+      noSleep
+    );
+    expect(r.parsed.greeting).toBe(greeting);
+  });
+
+  it("skips prose braces BEFORE the real fenced object (no regression from a naive first-bracket fix)", async () => {
+    const text = 'Here is {an example}: ```json\n' + JSON.stringify({ greeting: "real" }) + "\n```";
+    const r = await runAgent(
+      { provider: makeProvider(text), systemPrompt: "s", userPrompt: "u", model: "x", schema, maxTokens: 100 },
+      noSleep
+    );
+    expect(r.parsed.greeting).toBe("real");
+  });
+
+  it("skips a prose array before the real object", async () => {
+    const text = "Options [a, b] then: " + JSON.stringify({ greeting: "real" });
+    const r = await runAgent(
+      { provider: makeProvider(text), systemPrompt: "s", userPrompt: "u", model: "x", schema, maxTokens: 100 },
+      noSleep
+    );
+    expect(r.parsed.greeting).toBe("real");
+  });
+
+  it("repairs a trailing comma WITHOUT corrupting comma/bracket chars inside a string value", async () => {
+    // The string value contains ", ]" — the old repair regex stripped that comma
+    // too. The structural trailing comma after the value must be removed while the
+    // string content stays byte-for-byte intact.
+    const r = await runAgent(
+      { provider: makeProvider('{"greeting":"a, ]",}'), systemPrompt: "s", userPrompt: "u", model: "x", schema, maxTokens: 100 },
+      noSleep
+    );
+    expect(r.parsed.greeting).toBe("a, ]");
+  });
+
   it("retries on parse failure (max 3 attempts)", async () => {
     const calls = ["bad", "still bad", '{"greeting":"ok"}'];
     let i = 0;
