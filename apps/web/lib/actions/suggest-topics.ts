@@ -50,6 +50,11 @@ function readSearchConsoleFeature(features: Record<string, unknown>): SearchCons
 }
 
 function gscSnapshotPath(siteSlug: string): string {
+  // Defensive: slugs are DB-controlled today, but never let a stray "/" or ".."
+  // reach a filesystem path if that ever changes.
+  if (!/^[a-z0-9][a-z0-9-]*$/i.test(siteSlug)) {
+    throw new Error(`Invalid site slug for snapshot path: ${siteSlug}`);
+  }
   // Webapp cwd = apps/web; snapshots live at repo-root/data/gsc-snapshots
   return path.resolve(process.cwd(), "../../data/gsc-snapshots", `${siteSlug}.json`);
 }

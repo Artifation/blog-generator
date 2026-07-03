@@ -1,4 +1,4 @@
-import { eq, and, asc, desc } from "drizzle-orm";
+import { eq, and, asc, desc, sql } from "drizzle-orm";
 import { getDb, ensureSchema } from "./db/client";
 import { topics, type Topic } from "./db/schema";
 import { newId } from "./db/ids";
@@ -111,4 +111,30 @@ export async function deleteTopic(id: string): Promise<void> {
   await ensureSchema();
   const db = getDb();
   await db.delete(topics).where(eq(topics.id, id));
+}
+
+/**
+ * Recover topics stranded in `in_progress` by a hard-killed run: reset them to
+ * `queued` so the scheduler (which only selects `queued`) can pick them up
+ * again. SAFELY leaves alone any topic that legitimately sits in_progress while
+ * a draft awaits review — those have a pending_review/published draft — so this
+ * never re-runs (and double-charges) an awaiting-review topic. Only reaps rows
+ * whose last update is older than `olderThanMs`. Returns the number reset.
+ */
+export async function resetStaleInProgressTopics(olderThanMs: number): Promise<number> {
+  await ensureSchema();
+  const db = getDb();
+  const cutoff = new Date(Date.now() - olderThanMs).toISOString();
+  const now = new Date().toISOString();
+  const res = await db.run(sql`
+    UPDATE topics
+    SET status = 'queued', updated_at = ${now}
+    WHERE status = 'in_progress'
+      AND updated_at < ${cutoff}
+      AND id NOT IN (
+        SELECT topic_id FROM drafts
+        WHERE topic_id IS NOT NULL AND status IN ('pending_review', 'published')
+      )
+  `);
+  return (res as { rowsAffected?: number }).rowsAffected ?? 0;
 }

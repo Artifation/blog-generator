@@ -172,8 +172,12 @@ async function fetchPsiWithRetry(
       return await fetchPsi({ url, apiKey, fetchImpl });
     } catch (err) {
       lastError = err as Error;
+      // Retry on 429 AND 403/quotaExceeded (PSI's actual quota error), not just
+      // a literal "429"/"rate" substring.
       const isRateLimit =
-        lastError.message.includes("429") || lastError.message.includes("rate");
+        /\b429\b/.test(lastError.message) ||
+        /\b403\b/.test(lastError.message) ||
+        /rate|quota/i.test(lastError.message);
       if (isRateLimit && attempt < maxRetries) {
         await new Promise<void>((r) => setTimeout(r, 5_000 * (attempt + 1)));
         continue;

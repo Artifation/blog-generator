@@ -102,6 +102,21 @@ export async function startScheduler(): Promise<void> {
   // mid-tick. Registered once per process.
   registerShutdownHandlers();
 
+  // Recover topics stranded in_progress by a previous hard kill (the scheduler
+  // only selects `queued`, so without this they'd never run again). Safe: leaves
+  // awaiting-review topics — which have a pending_review draft — untouched.
+  try {
+    const { resetStaleInProgressTopics } = await import("../topics");
+    const reaped = await resetStaleInProgressTopics(30 * 60 * 1000);
+    if (reaped > 0) {
+      console.log(JSON.stringify({ stage: "scheduler-reaped-stale-topics", count: reaped }));
+    }
+  } catch (err) {
+    console.warn(
+      JSON.stringify({ stage: "scheduler-reap-failed", error: (err as Error).message }),
+    );
+  }
+
   // Initial sync + poll-loop. De interval is in ms; minimaal 15s om te
   // voorkomen dat een tik-overflow het proces wegblaast.
   const pollMs = Math.max(15_000, Number(process.env.SCHEDULER_POLL_INTERVAL_MS ?? 60_000));
