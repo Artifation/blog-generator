@@ -12,7 +12,8 @@
     "test": "node --test --import tsx \"lib/**/__tests__/*.test.ts\"",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "import:yaml": "tsx scripts/import-yaml.ts"
+    "import:yaml": "tsx scripts/import-yaml.ts",
+    "cleanup:orphans": "tsx scripts/cleanup-orphans.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.95.1",
