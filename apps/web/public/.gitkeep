@@ -1,0 +1,3 @@
+# Placeholder so the directory exists for `docker compose build`.
+# Drop favicon.ico, robots.txt, /images, etc. here as needed — Next.js serves
+# everything in public/ at the site root (e.g. public/foo.png -> /foo.png).
