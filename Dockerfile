@@ -12,7 +12,10 @@
 #                artifacts. SQLite db lives on a mounted volume at /app/data.
 # ---------------------------------------------------------------------------
 
-ARG NODE_VERSION=22-alpine
+# Digest-pinned for reproducible builds (all three stages share this ARG).
+# node:22-alpine manifest-list digest, resolved 2026-07-02. Update via
+# Renovate/Dependabot or re-pull the tag and swap the sha256.
+ARG NODE_VERSION=22-alpine@sha256:16e22a550f3863206a3f701448c45f7912c6896a62de43add43bb9c86130c3e2
 
 # ===========================================================================
 # Stage 1: deps — install dependencies (root + apps/web)

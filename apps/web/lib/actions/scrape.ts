@@ -2,6 +2,9 @@
 
 import { scrapeWebsite } from "~/lib/scrape/website";
 import { extractFromScrape, type Extraction } from "~/lib/scrape/extract";
+import { getClientIp } from "~/lib/auth";
+import { throttle } from "~/lib/auth/throttle";
+import { retryMinutes } from "~/lib/auth/rate-limit";
 
 export interface ScrapeResult {
   ok: true;
@@ -12,8 +15,24 @@ export interface ScrapeResult {
 export type ScrapeResponse = ScrapeResult | { ok: false; error: string };
 
 export async function scrapeWebsiteAction(domainOrUrl: string): Promise<ScrapeResponse> {
+  // Intentionally session-less: this runs during onboarding before an account
+  // exists. The open-proxy / SSRF risk is contained inside scrapeWebsite, which
+  // routes every fetch through the SSRF guard (lib/security/ssrf.ts) — non-
+  // public targets and internal redirects are rejected.
   if (!domainOrUrl.trim()) {
     return { ok: false, error: "Voer eerst een domein in." };
+  }
+
+  // Session-less by design (onboarding), so throttle per-IP: each call fires an
+  // outbound fetch chain AND a paid Gemini extraction on the host's key. Without
+  // this an anonymous caller could loop it to drain the budget / abuse the fetch.
+  const ip = await getClientIp();
+  const gate = throttle(`scrape:${ip}`, 8, 60 * 1000);
+  if (!gate.allowed) {
+    return {
+      ok: false,
+      error: `Te veel pogingen. Probeer het over ${retryMinutes(gate.retryAfterMs)} min opnieuw.`,
+    };
   }
 
   const apiKey = process.env.GEMINI_API_KEY;

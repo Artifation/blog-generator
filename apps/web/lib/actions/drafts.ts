@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getDraft, rejectDraft, updateDraftContent } from "~/lib/drafts";
-import { getSiteById } from "~/lib/sites";
 import { publishDraft } from "~/lib/publish";
+import { requireSite } from "~/lib/auth";
 
 export async function updateDraftAction(
   draftId: string,
@@ -18,6 +18,11 @@ export async function updateDraftAction(
     tldr?: string;
   }
 ): Promise<{ ok: true } | { ok: false; error: string }> {
+  // Ownership: server actions are directly-invocable POST endpoints, so the
+  // page-level guard is not enough — verify the draft belongs to the session.
+  const site = await requireSite();
+  const draft = await getDraft(draftId);
+  if (!draft || draft.siteId !== site.id) return { ok: false, error: "Draft niet gevonden" };
   try {
     await updateDraftContent(draftId, patch);
     revalidatePath(`/drafts/${draftId}`);
@@ -34,10 +39,16 @@ export async function publishDraftAction(
   | { ok: true; url: string | null; destination: string; message?: string }
   | { ok: false; error: string }
 > {
+  // Derive the site from the SESSION (not from the draft) and confirm the
+  // draft belongs to it — otherwise any draftId could be force-published.
+  const site = await requireSite();
   const draft = await getDraft(draftId);
-  if (!draft) return { ok: false, error: "Draft niet gevonden" };
-  const site = await getSiteById(draft.siteId);
-  if (!site) return { ok: false, error: "Site niet gevonden" };
+  if (!draft || draft.siteId !== site.id) return { ok: false, error: "Draft niet gevonden" };
+  // Idempotency guard: refuse to re-publish (double-click / re-click) so we
+  // never create a second WordPress post or published row for the same draft.
+  if (draft.status === "published") {
+    return { ok: false, error: "Deze draft is al gepubliceerd." };
+  }
 
   try {
     const result = await publishDraft(draft, site);
@@ -53,6 +64,9 @@ export async function publishDraftAction(
 }
 
 export async function rejectDraftAction(draftId: string, reason?: string): Promise<void> {
+  const site = await requireSite();
+  const draft = await getDraft(draftId);
+  if (!draft || draft.siteId !== site.id) redirect(`/drafts`);
   await rejectDraft(draftId, reason);
   revalidatePath(`/drafts`);
   redirect(`/drafts`);

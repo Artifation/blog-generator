@@ -36,13 +36,16 @@ export interface RateLimitCheck {
 }
 
 /**
- * Check whether an IP may attempt a login right now. Read-only — call
- * `recordAttempt` separately after you know the outcome.
+ * Count failed attempts in the current window for one bucket (by IP or by the
+ * attempted email) and decide whether another attempt is allowed. Read-only.
  *
  * GC: deletes rows older than 2× the window opportunistically so the table
  * stays small without a cron job.
  */
-export async function checkRateLimit(ip: string): Promise<RateLimitCheck> {
+async function checkBucket(
+  column: "ip" | "attempted_email",
+  value: string,
+): Promise<RateLimitCheck> {
   await ensureSchema();
   const db = getDb();
   const now = Date.now();
@@ -55,10 +58,18 @@ export async function checkRateLimit(ip: string): Promise<RateLimitCheck> {
     sql`DELETE FROM login_attempts WHERE ts < ${now - windowMs() * 2}`,
   );
 
+  // `column` is a fixed internal literal (never user input), so sql.raw is safe.
+  // Email is matched case-insensitively so an attacker can't dodge the cap by
+  // varying the casing of the same address.
+  const match =
+    column === "attempted_email"
+      ? sql`LOWER(attempted_email) = ${value.toLowerCase()}`
+      : sql`ip = ${value}`;
+
   const result = await db.run(
     sql`SELECT COUNT(*) AS c, MIN(ts) AS oldest
         FROM login_attempts
-        WHERE ip = ${ip} AND success = 0 AND ts >= ${since}`,
+        WHERE ${match} AND success = 0 AND ts >= ${since}`,
   );
   const row = (result.rows?.[0] ?? {}) as { c?: number; oldest?: number | null };
   const attempts = Number(row.c ?? 0);
@@ -71,6 +82,23 @@ export async function checkRateLimit(ip: string): Promise<RateLimitCheck> {
     limit,
     retryAfterMs,
   };
+}
+
+/**
+ * Check whether an IP may attempt a login right now. Read-only — call
+ * `recordAttempt` separately after you know the outcome.
+ */
+export async function checkRateLimit(ip: string): Promise<RateLimitCheck> {
+  return checkBucket("ip", ip);
+}
+
+/**
+ * Check whether a given account (email) may be attempted right now, regardless
+ * of source IP. Caps credential-stuffing against one account even when the
+ * attacker rotates IPs (or spoofs X-Forwarded-For).
+ */
+export async function checkEmailRateLimit(email: string): Promise<RateLimitCheck> {
+  return checkBucket("attempted_email", email);
 }
 
 /**

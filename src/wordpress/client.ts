@@ -24,9 +24,11 @@ export function createWordpressClient(opts: WordpressClientOpts): WordpressClien
   const f = opts.fetchImpl ?? fetch;
   const auth = `Basic ${Buffer.from(`${opts.user}:${opts.appPassword}`).toString("base64")}`;
 
-  async function call<T>(path: string, init: RequestInit): Promise<T> {
+  async function call<T>(path: string, init: RequestInit, timeoutMs = 30_000): Promise<T> {
+    // Bound every WP call so a hung/slow WordPress host can't stall the run.
     const res = await f(`${opts.baseUrl}${path}`, {
       ...init,
+      signal: init.signal ?? AbortSignal.timeout(timeoutMs),
       headers: { ...DEFAULT_HEADERS, Authorization: auth, ...(init.headers ?? {}) },
     });
     if (!res.ok) {
@@ -44,8 +46,16 @@ export function createWordpressClient(opts: WordpressClientOpts): WordpressClien
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       }),
-    postBinary: (path, body, contentType, filename) =>
-      call(path, {
+    postBinary: (path, body, contentType, filename) => {
+      // Reject oversized uploads before streaming them to WP (a bad optimizer
+      // output or unexpected input shouldn't push tens of MB at the host).
+      const MAX_UPLOAD_BYTES = 12 * 1024 * 1024; // 12 MB
+      if (body.length > MAX_UPLOAD_BYTES) {
+        throw new Error(
+          `WP upload too large: ${body.length} bytes exceeds ${MAX_UPLOAD_BYTES} byte limit`,
+        );
+      }
+      return call(path, {
         method: "POST",
         headers: {
           "Content-Type": contentType,
@@ -56,7 +66,8 @@ export function createWordpressClient(opts: WordpressClientOpts): WordpressClien
         // Blob class so this works in both runtimes. The cast through Uint8Array
         // narrows Buffer's ArrayBufferLike generic to ArrayBuffer for BlobPart.
         body: new Blob([body as unknown as Uint8Array<ArrayBuffer>], { type: contentType }),
-      }),
+      }, 60_000);
+    },
     patchJson: (path, body) =>
       call(path, {
         method: "PATCH",

@@ -6,9 +6,9 @@ describe("resolveAgentModel", () => {
     expect(resolveAgentModel("researcher").provider).toBe("gemini");
     expect(resolveAgentModel("strategist").provider).toBe("gemini");
     expect(resolveAgentModel("writer").provider).toBe("anthropic");
-    expect(resolveAgentModel("seoEditor").provider).toBe("anthropic");
-    expect(resolveAgentModel("factChecker").provider).toBe("anthropic");
-    expect(resolveAgentModel("qualityJudge").provider).toBe("anthropic");
+    expect(resolveAgentModel("seoEditor").provider).toBe("gemini");
+    expect(resolveAgentModel("factChecker").provider).toBe("gemini");
+    expect(resolveAgentModel("qualityJudge").provider).toBe("gemini");
     expect(resolveAgentModel("imagePrompter").provider).toBe("groq");
   });
 

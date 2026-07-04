@@ -81,7 +81,11 @@ export async function readPage(input: ReadPageInput): Promise<ReadPageResult> {
   const headers: Record<string, string> = { Accept: "text/plain" };
   if (input.apiKey) headers.Authorization = `Bearer ${input.apiKey}`;
 
-  const res = await f(endpoint, { headers, signal: input.signal });
+  const res = await f(endpoint, {
+    headers,
+    // r.jina.ai proxies arbitrary third-party pages that can hang — bound it.
+    signal: input.signal ?? AbortSignal.timeout(30_000),
+  });
   if (!res.ok) {
     throw new Error(`Jina Reader fetch failed for ${input.url}: ${res.status}`);
   }
@@ -120,7 +124,13 @@ export async function readPages(input: ReadPagesInput): Promise<ReadPageResult[]
           fetchImpl: input.fetchImpl,
           signal: input.signal,
         });
-      } catch {
+      } catch (err) {
+        // Surface the failure (timeout / 429 / SSRF-rejected) instead of a silent
+        // drop — callers still get null, but the log distinguishes "empty page"
+        // from "fetch failed" for observability.
+        console.warn(
+          JSON.stringify({ stage: "jina-read", url, warning: (err as Error).message }),
+        );
         results[idx] = null;
       }
     }

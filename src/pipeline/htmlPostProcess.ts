@@ -1,7 +1,19 @@
 // Deterministische cleanup van de SeoEditor HTML voor publish.
 // Lost terugkerende model-quirks op die ondanks prompt-instructies blijven verschijnen.
 export function postProcessDraftHtml(html: string): string {
-  let out = html;
+  // Protect code regions: their literal contents (`**`, `—`, leading numbers)
+  // are source, not prose, and must survive verbatim. We swap each <pre>…</pre>
+  // and inline <code>…</code> for a transform-inert placeholder, run the
+  // cosmetic transforms on the rest, then restore. (<pre> is matched first so a
+  // nested <pre><code> is captured as one block.) The placeholder is space-free
+  // so restoration is byte-exact, and contains no `**`/`—`/`<h3>` so none of the
+  // rules below can touch it.
+  const codeBlocks: string[] = [];
+  const PH = (i: number) => `￼cb${i}￼`;
+  let out = html.replace(/<pre[\s\S]*?<\/pre>|<code[\s\S]*?<\/code>/gi, (m) => {
+    codeBlocks.push(m);
+    return PH(codeBlocks.length - 1);
+  });
 
   // 1. Em-dashes: WP rubric devalueert >3 per 1000w; strip om anti-AI-cliche signaal te halen.
   out = out.replace(/\s*—\s*/g, ", ");
@@ -31,6 +43,9 @@ export function postProcessDraftHtml(html: string): string {
   //    Alleen binnen tekst-content matchen, niet inside attributen — daarom geen `>...<` check;
   //    asterisken in attributen zijn extreem zeldzaam en triggeren geen rendering-bug.
   out = out.replace(/\*\*([^*\n]+?)\*\*/g, "<strong>$1</strong>");
+
+  // Restore protected code regions verbatim.
+  out = out.replace(/￼cb(\d+)￼/g, (_, i: string) => codeBlocks[Number(i)] ?? "");
 
   return out;
 }

@@ -97,7 +97,13 @@ function sameHostAndPath(a: string, b: string): boolean {
     if (ua.host !== ub.host) return false;
     const pa = ua.pathname.replace(/\/$/, "");
     const pb = ub.pathname.replace(/\/$/, "");
-    return pa === pb || pa.startsWith(pb) || pb.startsWith(pa);
+    if (pa === pb) return true;
+    // A prefix match only counts when the shorter path is NON-empty. A grounded
+    // root URL normalizes to "" and would otherwise startsWith-match every
+    // same-host candidate, defeating the anti-hallucination grounding filter.
+    if (pb !== "" && pa.startsWith(pb)) return true;
+    if (pa !== "" && pb.startsWith(pa)) return true;
+    return false;
   } catch {
     return false;
   }

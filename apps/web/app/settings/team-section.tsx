@@ -16,7 +16,14 @@ export interface TeamMember {
   isMe: boolean;
 }
 
-export function TeamSection({ members }: { members: TeamMember[] }) {
+export function TeamSection({
+  members,
+  canManage = true,
+}: {
+  members: TeamMember[];
+  /** Only owners may invite/remove; the server enforces this too. */
+  canManage?: boolean;
+}) {
   const router = useRouter();
   const [inviting, setInviting] = React.useState(false);
   const [showInvite, setShowInvite] = React.useState(false);
@@ -30,13 +37,15 @@ export function TeamSection({ members }: { members: TeamMember[] }) {
             Wie kan inloggen en de blog beheren.
           </div>
         </div>
-        <button
-          type="button"
-          className="btn btn-outline btn-sm card-action"
-          onClick={() => setShowInvite(true)}
-        >
-          <UserPlus size={13} /> Uitnodigen
-        </button>
+        {canManage && (
+          <button
+            type="button"
+            className="btn btn-outline btn-sm card-action"
+            onClick={() => setShowInvite(true)}
+          >
+            <UserPlus size={13} /> Uitnodigen
+          </button>
+        )}
       </div>
       <div className="card-body">
         {members.length === 0 ? (
@@ -90,7 +99,7 @@ export function TeamSection({ members }: { members: TeamMember[] }) {
                     {m.lastLoginAt && ` · laatst ingelogd ${new Date(m.lastLoginAt).toLocaleDateString("nl-NL")}`}
                   </div>
                 </div>
-                {!m.isMe && (
+                {!m.isMe && canManage && (
                   <RemoveMemberButton id={m.id} onRemoved={() => router.refresh()} />
                 )}
               </div>
@@ -149,12 +158,9 @@ function InviteModal({
   const [email, setEmail] = React.useState("");
   const [name, setName] = React.useState("");
   const [role, setRole] = React.useState<"editor" | "viewer" | "owner">("editor");
-  const [tempPassword] = React.useState(() => generateTempPassword());
+  // The temp password is generated SERVER-SIDE (CSPRNG) and returned on success.
+  const [tempPassword, setTempPassword] = React.useState("");
   const [done, setDone] = React.useState(false);
-
-  function generateTempPassword() {
-    return Math.random().toString(36).slice(2, 6) + "-" + Math.random().toString(36).slice(2, 6);
-  }
 
   async function submit() {
     if (!email.trim() || !email.includes("@")) {
@@ -162,9 +168,10 @@ function InviteModal({
       return;
     }
     setBusy(true);
-    const r = await inviteUserAction(email.trim(), name.trim(), role, tempPassword);
+    const r = await inviteUserAction(email.trim(), name.trim(), role);
     setBusy(false);
     if (r.ok) {
+      setTempPassword(r.tempPassword);
       setDone(true);
     } else {
       toast.error(r.error);
@@ -265,7 +272,7 @@ function InviteModal({
                 </select>
               </div>
               <div className="hint">
-                Tijdelijk wachtwoord: <span className="mono">{tempPassword}</span>
+                Je krijgt na het uitnodigen een veilig tijdelijk wachtwoord om te delen.
               </div>
             </div>
             <div

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { requireSite } from "~/lib/auth";
+import { requireSite, getCurrentUser } from "~/lib/auth";
 import { AdminShell } from "~/components/layout/app-shell";
 import { listDraftsForSite } from "~/lib/drafts";
 import { listTopicsForSite } from "~/lib/topics";
@@ -9,6 +9,7 @@ export const dynamic = "force-dynamic";
 
 export default async function AccountPage() {
   const site = await requireSite();
+  const me = await getCurrentUser();
   const pending = await listDraftsForSite(site.id, "pending_review");
   const topics = await listTopicsForSite(site.id);
   const runs = await listRunsForSite(site.id, 100);
@@ -61,9 +62,10 @@ export default async function AccountPage() {
               {initials || "?"}
             </div>
             <div>
-              <div style={{ fontWeight: 600 }}>{author.name ?? "Onbekend"}</div>
+              <div style={{ fontWeight: 600 }}>{me?.name || author.name || "Onbekend"}</div>
               <div className="muted" style={{ fontSize: 13 }}>
-                {author.name?.split(" ")[0]?.toLowerCase() ?? "user"}@{site.domain}
+                {/* Real signed-in email — was a fabricated firstname@domain guess. */}
+                {me?.email ?? "—"}
               </div>
               <div className="muted" style={{ fontSize: 12, marginTop: 4 }}>
                 {site.name}

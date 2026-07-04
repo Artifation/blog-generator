@@ -17,8 +17,11 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 EnvironmentFile=/etc/blogtool/cron.env
+; Token via Authorization header — keeps it out of the process list / access
+; logs (the old ?token= query param still works but is discouraged).
 ExecStart=/usr/bin/curl --fail --silent --show-error --max-time 600 \
-  "${BLOGTOOL_BASE_URL}/api/cron/%i?token=${CRON_TOKEN}"
+  -H "Authorization: Bearer ${CRON_TOKEN}" \
+  "${BLOGTOOL_BASE_URL}/api/cron/%i"
 ; Geen Restart= — als 't faalt mag de volgende timer-tick 'm opnieuw doen.
 ; Logs gaan via journalctl -u blogtool-cron@<siteSlug>.
 

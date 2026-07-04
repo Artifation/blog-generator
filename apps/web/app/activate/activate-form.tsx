@@ -74,7 +74,9 @@ export function ActivateForm({ codes }: { codes: Array<{ code: string; company: 
     setBusy(true);
     // Stash invite info + password in sessionStorage so the onboarding wizard can
     // pre-fill and finalize the owner-user creation at the end. For generic
-    // codes we override the (empty) email/name with what the user just typed.
+    // codes we override the (empty) email/name with what the user just typed —
+    // without this the wizard creates no credentials row and the customer is
+    // locked out on their next visit.
     sessionStorage.setItem(
       "artifation_invite",
       JSON.stringify({ ...info, email: effectiveEmail, name: effectiveName, code, password: pw1 })
@@ -154,7 +156,7 @@ export function ActivateForm({ codes }: { codes: Array<{ code: string; company: 
             <input
               className="input"
               type="password"
-              autoFocus
+              autoFocus={!!info.email}
               value={pw1}
               onChange={(e) => setPw1(e.target.value)}
               placeholder="minimaal 6 tekens"
@@ -263,45 +265,45 @@ export function ActivateForm({ codes }: { codes: Array<{ code: string; company: 
       </div>
 
       {codes.length > 0 && (
-        <>
-          <div className="auth-divider">of</div>
+      <>
+      <div className="auth-divider">of</div>
 
-          <div className="auth-demo">
-            <div className="auth-demo-h">
-              <Key size={11} /> Demo-codes (klik om in te vullen)
-            </div>
-            <div className="col" style={{ gap: 2 }}>
-              {codes.map(({ code: c, company, plan }) => (
-                <button
-                  key={c}
-                  type="button"
-                  className="auth-demo-row"
-                  onClick={() => {
-                    setCode(c);
-                    setError("");
-                  }}
-                  style={{ background: "transparent", border: "none", width: "100%" }}
+      <div className="auth-demo">
+        <div className="auth-demo-h">
+          <Key size={11} /> Demo-codes (klik om in te vullen)
+        </div>
+        <div className="col" style={{ gap: 2 }}>
+          {codes.map(({ code: c, company, plan }) => (
+            <button
+              key={c}
+              type="button"
+              className="auth-demo-row"
+              onClick={() => {
+                setCode(c);
+                setError("");
+              }}
+              style={{ background: "transparent", border: "none", width: "100%" }}
+            >
+              <div className="auth-demo-avatar" style={{ background: "var(--accent)" }}>
+                <Key size={12} />
+              </div>
+              <div className="auth-demo-meta">
+                <div
+                  className="auth-demo-name mono"
+                  style={{ fontSize: 12, letterSpacing: "0.04em" }}
                 >
-                  <div className="auth-demo-avatar" style={{ background: "var(--accent)" }}>
-                    <Key size={12} />
-                  </div>
-                  <div className="auth-demo-meta">
-                    <div
-                      className="auth-demo-name mono"
-                      style={{ fontSize: 12, letterSpacing: "0.04em" }}
-                    >
-                      {c}
-                    </div>
-                    <div className="auth-demo-domain">
-                      {company} · {plan}
-                    </div>
-                  </div>
-                  <ArrowRight size={13} style={{ color: "var(--text-muted)" }} />
-                </button>
-              ))}
-            </div>
-          </div>
-        </>
+                  {c}
+                </div>
+                <div className="auth-demo-domain">
+                  {company} · {plan}
+                </div>
+              </div>
+              <ArrowRight size={13} style={{ color: "var(--text-muted)" }} />
+            </button>
+          ))}
+        </div>
+      </div>
+      </>
       )}
 
       <div className="auth-foot">

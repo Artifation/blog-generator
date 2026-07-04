@@ -60,10 +60,11 @@ vi.mock("@/image", () => ({
 
 vi.mock("@/image/optimize", () => ({
   optimizeForWeb: vi.fn(async () => ({
-    avifBytes: Buffer.from("avif-mock"),
+    bytes: Buffer.from("avif-mock"),
     contentType: "image/avif",
     width: 1024,
     height: 1024,
+    fallbackUsed: false,
   })),
 }));
 
@@ -78,6 +79,7 @@ vi.mock("@/llm/client", async () => {
   return {
     ...actual,
     createProviderRegistry: () => ({
+      has: () => true,
       get: () => ({
         name: "anthropic" as const,
         call: vi.fn(async () => {
@@ -138,6 +140,8 @@ const STRATEGIST_RESPONSE = JSON.stringify({
       { url: "https://artifation.nl/ai-scan/", anchor: "AI Scan" },
       { url: "https://artifation.nl/contact/", anchor: "neem contact op" },
       { url: "https://artifation.nl/ai-consultancy/", anchor: "consultancy" },
+      { url: "https://artifation.nl/cases/", anchor: "klantcases" },
+      { url: "https://artifation.nl/blog/", anchor: "ons blog" },
     ],
     external_links_to_cite: ["https://rvo.nl"],
     schema_choices: ["BlogPosting"],

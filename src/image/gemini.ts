@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import { composeBrandedPrompt } from "./fal.ts";
+import { IMAGE_TIMEOUT_MS, withTimeout } from "../llm/timeout.ts";
 
 export interface GenerateImageInput {
   prompt: string;
@@ -31,15 +32,19 @@ export async function generateImageWithGemini(
   const client = new GoogleGenAI({ apiKey: input.apiKey });
   const finalPrompt = composeBrandedPrompt(input.prompt, input.negative_prompt);
 
-  const response = await client.models.generateImages({
-    model: "imagen-3.0-generate-002",
-    prompt: finalPrompt,
-    config: {
-      numberOfImages: 1,
-      aspectRatio: "16:9",
-      // Imagen 3 default safety level
-    },
-  });
+  const response = await withTimeout(
+    client.models.generateImages({
+      model: "imagen-3.0-generate-002",
+      prompt: finalPrompt,
+      config: {
+        numberOfImages: 1,
+        aspectRatio: "16:9",
+        // Imagen 3 default safety level
+      },
+    }),
+    IMAGE_TIMEOUT_MS,
+    "gemini.generateImages(imagen-3)",
+  );
 
   const generated = response.generatedImages?.[0];
   const imageBytes = generated?.image?.imageBytes;

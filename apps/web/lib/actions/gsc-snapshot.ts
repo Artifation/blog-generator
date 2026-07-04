@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSite } from "~/lib/auth";
+import { currentUserHasRole } from "~/lib/auth/roles";
 import { runGscSnapshotForSite } from "~/lib/pipeline/gscSnapshotForSite";
 
 export interface SnapshotActionResult {
@@ -15,6 +16,9 @@ export interface SnapshotActionResult {
 
 export async function runGscSnapshotAction(): Promise<SnapshotActionResult> {
   const site = await requireSite();
+  if (!(await currentUserHasRole("editor"))) {
+    return { ok: false, message: "Alleen editors of eigenaren kunnen een GSC-snapshot draaien." };
+  }
   const result = await runGscSnapshotForSite({ site });
   if (!result.ok) {
     return { ok: false, message: result.message };

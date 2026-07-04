@@ -1,4 +1,4 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, rename } from "node:fs/promises";
 import path from "node:path";
 import yaml from "js-yaml";
 import { z } from "zod";
@@ -70,5 +70,14 @@ export async function saveTopics(
   baseDir: string = "tenants"
 ): Promise<void> {
   const file = path.join(baseDir, tenantSlug, "topics.yaml");
-  await writeFile(file, yaml.dump(topics, { lineWidth: 120 }), "utf-8");
+  // Atomic write: serialize to a temp file in the SAME directory, then rename.
+  // A crash mid-write previously could leave a truncated/corrupt queue; rename
+  // is atomic and intra-filesystem here so the file is always complete.
+  const tmp = path.join(
+    baseDir,
+    tenantSlug,
+    `.topics.yaml.tmp-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+  );
+  await writeFile(tmp, yaml.dump(topics, { lineWidth: 120 }), "utf-8");
+  await rename(tmp, file);
 }

@@ -49,6 +49,7 @@ vi.mock("@/llm/client", async () => {
   return {
     ...actual,
     createProviderRegistry: () => ({
+      has: () => true,
       get: () => ({
         name: "anthropic" as const,
         call: vi.fn(async () => {
@@ -86,7 +87,47 @@ vi.mock("@/agents/internalLinker", async () => {
   };
 });
 
-import { runInternalLinkerJob } from "@/pipeline/internalLinkerJob";
+import { runInternalLinkerJob, sanitizeRewrittenParagraph } from "@/pipeline/internalLinkerJob";
+
+describe("sanitizeRewrittenParagraph", () => {
+  const url = "https://artifation.nl/nieuwe-post";
+
+  it("accepts a clean paragraph with exactly one link to the expected URL", () => {
+    const out = sanitizeRewrittenParagraph(
+      `<p>Lees meer over <a href="${url}">de AI-Act</a> in onze gids.</p>`,
+      url,
+    );
+    expect(out).not.toBeNull();
+    expect(out).toContain(`href="${url}"`);
+  });
+
+  it("tolerates a trailing slash difference on the href", () => {
+    expect(sanitizeRewrittenParagraph(`<p><a href="${url}/">x</a></p>`, url)).not.toBeNull();
+  });
+
+  it("rejects a paragraph whose link points elsewhere (injection)", () => {
+    expect(
+      sanitizeRewrittenParagraph(`<p><a href="https://evil.example/phish">klik</a></p>`, url),
+    ).toBeNull();
+  });
+
+  it("rejects more than one anchor", () => {
+    expect(
+      sanitizeRewrittenParagraph(`<p><a href="${url}">a</a> en <a href="${url}">b</a></p>`, url),
+    ).toBeNull();
+  });
+
+  it("strips script tags and event handlers but keeps the valid link", () => {
+    const out = sanitizeRewrittenParagraph(
+      `<p onmouseover="steal()">hoi <a href="${url}" onclick="x()">link</a><script>evil()</script></p>`,
+      url,
+    );
+    expect(out).not.toBeNull();
+    expect(out!.toLowerCase()).not.toContain("<script");
+    expect(out!.toLowerCase()).not.toContain("onmouseover");
+    expect(out!.toLowerCase()).not.toContain("onclick");
+  });
+});
 
 const TENANT_CONFIG_YAML = `
 slug: artifation

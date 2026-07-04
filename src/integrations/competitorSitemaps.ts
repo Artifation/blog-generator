@@ -3,6 +3,27 @@
  * to detect newly published competitor content.
  */
 
+import { guardedFetch } from "./urlGuard.ts";
+
+// Bound resource use on hostile/huge competitor sitemaps: a remote server fully
+// controls the document size, the number of sub-sitemaps in an index, and the
+// entry count — without caps a single domain could OOM the run or run for ages.
+const MAX_SITEMAP_BYTES = 5_000_000; // 5 MB per sitemap document
+const MAX_SUB_SITEMAPS = 50; // recurse into at most this many sub-sitemaps
+const MAX_ENTRIES_PER_DOMAIN = 5000; // stop parsing past this many entries
+
+async function readCappedText(res: Response, url: string): Promise<string> {
+  const len = Number(res.headers?.get?.("content-length") ?? "");
+  if (Number.isFinite(len) && len > MAX_SITEMAP_BYTES) {
+    throw new Error(`sitemap too large (${len} bytes) for ${url}`);
+  }
+  const text = await res.text();
+  if (text.length > MAX_SITEMAP_BYTES) {
+    throw new Error(`sitemap body too large (${text.length} bytes) for ${url}`);
+  }
+  return text;
+}
+
 export interface SitemapEntry {
   url: string;
   slug: string;
@@ -66,9 +87,11 @@ async function fetchSingleSitemap(
   domain: string,
   f: typeof fetch
 ): Promise<SitemapEntry[]> {
-  const res = await f(sitemapUrl);
+  // SSRF-guarded + timed out: `domain` is tenant config and the recursed <loc>
+  // URLs below are fully controlled by the remote sitemap.
+  const res = await guardedFetch(sitemapUrl, f);
   if (!res.ok) throw new Error(`sitemap fetch failed for ${sitemapUrl}: ${res.status}`);
-  const xml = await res.text();
+  const xml = await readCappedText(res, sitemapUrl);
 
   const isIndex = /<sitemapindex/i.test(xml);
 
@@ -82,19 +105,21 @@ async function fetchSingleSitemap(
     }));
   }
 
-  // Sitemap index: recurse into sub-sitemaps
+  // Sitemap index: recurse into sub-sitemaps (bounded).
   const allLocs = matchAllLocs(xml);
   const postSitemaps = allLocs.filter((u) => /post|page|article/i.test(u));
-  const targets = postSitemaps.length > 0 ? postSitemaps : allLocs;
+  const targets = (postSitemaps.length > 0 ? postSitemaps : allLocs).slice(0, MAX_SUB_SITEMAPS);
   const entries: SitemapEntry[] = [];
 
   for (const sm of targets) {
+    if (entries.length >= MAX_ENTRIES_PER_DOMAIN) break;
     try {
-      const r = await f(sm);
+      const r = await guardedFetch(sm, f);
       if (!r.ok) continue;
-      const subXml = await r.text();
+      const subXml = await readCappedText(r, sm);
       const blocks = parseUrlBlocks(subXml);
       for (const { url, lastmod } of blocks) {
+        if (entries.length >= MAX_ENTRIES_PER_DOMAIN) break;
         entries.push({
           url,
           slug: extractSlug(url),

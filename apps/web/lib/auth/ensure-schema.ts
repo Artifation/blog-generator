@@ -49,6 +49,40 @@ export async function ensureAuthSchema(db: LibsqlDb): Promise<void> {
     `CREATE INDEX IF NOT EXISTS login_attempts_ts_idx ON login_attempts(ts)`,
   );
 
+  // sessions — server-side session store. The cookie holds only the opaque
+  // random `id`; the (user_id, site_id) binding lives here so sessions are
+  // revocable and expire server-side. user_id is nullable for the dev demo
+  // login. ON DELETE CASCADE removes a user's/site's sessions automatically.
+  await db.run(`CREATE TABLE IF NOT EXISTS sessions (
+    id TEXT PRIMARY KEY,
+    user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+    site_id TEXT NOT NULL REFERENCES sites(id) ON DELETE CASCADE,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now')),
+    expires_at TEXT NOT NULL
+  )`);
+  await db.run(
+    `CREATE INDEX IF NOT EXISTS sessions_user_idx ON sessions(user_id)`,
+  );
+  await db.run(
+    `CREATE INDEX IF NOT EXISTS sessions_expires_idx ON sessions(expires_at)`,
+  );
+
+  // invite_codes — single-use onboarding codes. Replaces the hardcoded
+  // in-memory map: codes are claimed atomically at site creation (consumed_at),
+  // so they can't be reused or used for anonymous mass site creation. Seeded
+  // from the legacy INVITE_CODES map on first lookup (see lib/invites.ts).
+  await db.run(`CREATE TABLE IF NOT EXISTS invite_codes (
+    code TEXT PRIMARY KEY,
+    plan TEXT NOT NULL DEFAULT 'pro',
+    company TEXT NOT NULL DEFAULT '',
+    email TEXT NOT NULL DEFAULT '',
+    name TEXT NOT NULL DEFAULT '',
+    domain TEXT NOT NULL DEFAULT '',
+    consumed_at TEXT,
+    consumed_by_site_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ','now'))
+  )`);
+
   _done = true;
 }
 

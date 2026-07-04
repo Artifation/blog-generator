@@ -187,6 +187,36 @@ a { color: inherit; text-decoration: none; }
 .topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 .content { padding: 28px 32px; max-width: 1280px; width: 100%; margin: 0 auto; }
 
+/* Mobile nav: hamburger + off-canvas drawer. Hidden on desktop. */
+.nav-hamburger { display: none; margin-right: 4px; }
+.nav-backdrop { display: none; }
+@media (max-width: 768px) {
+  .nav-hamburger { display: inline-flex; }
+  /* Sidebar slides in from the left over the content. */
+  .app > .sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 60;
+    transform: translateX(-100%);
+    transition: transform 0.2s ease;
+    box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0);
+  }
+  body[data-nav-open="true"] .app > .sidebar {
+    transform: translateX(0);
+    box-shadow: 4px 0 24px rgba(0, 0, 0, 0.35);
+  }
+  .nav-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 55;
+    background: rgba(0, 0, 0, 0.45);
+  }
+  .content { padding: 18px 16px; }
+  .topbar { padding-left: 12px; padding-right: 12px; }
+}
+
 /* ----- Buttons ----- */
 .btn {
   display: inline-flex; align-items: center; gap: 6px;

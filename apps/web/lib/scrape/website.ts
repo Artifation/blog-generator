@@ -6,6 +6,8 @@
  * headless browser — only HTML the server renders.
  */
 
+import { guardedFetch } from "../security/ssrf";
+
 const USER_AGENT =
   "Mozilla/5.0 (compatible; ArtifationBlogBot/1.0; +https://artifation.nl)";
 
@@ -42,23 +44,17 @@ function normalizeUrl(input: string): string {
 async function fetchWithTimeout(
   url: string,
   timeoutMs = FETCH_TIMEOUT_MS
-): Promise<Response> {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, {
-      signal: controller.signal,
-      redirect: "follow",
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept:
-          "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "nl,en;q=0.8",
-      },
-    });
-  } finally {
-    clearTimeout(t);
-  }
+): Promise<{ res: Response; finalUrl: string }> {
+  // SSRF-guarded: rejects non-public targets and re-validates every redirect
+  // hop (so an attacker can't 302 us into an internal service).
+  return guardedFetch(url, {
+    timeoutMs,
+    headers: {
+      "User-Agent": USER_AGENT,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "nl,en;q=0.8",
+    },
+  });
 }
 
 /**
@@ -108,13 +104,14 @@ function htmlToText(html: string): { title: string; description: string; text: s
 
 async function tryFetchOne(url: string): Promise<{ ok: true; html: string; finalUrl: string } | { ok: false }> {
   try {
-    const res = await fetchWithTimeout(url);
+    const { res, finalUrl } = await fetchWithTimeout(url);
     if (!res.ok) return { ok: false };
     const ct = res.headers.get("content-type") ?? "";
     if (!ct.includes("text/html") && !ct.includes("text/")) return { ok: false };
     const html = await res.text();
-    return { ok: true, html, finalUrl: res.url || url };
+    return { ok: true, html, finalUrl: res.url || finalUrl };
   } catch {
+    // Includes SsrfError for blocked targets — treated as an unreachable page.
     return { ok: false };
   }
 }

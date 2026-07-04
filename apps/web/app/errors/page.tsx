@@ -67,18 +67,22 @@ export default async function ErrorsPage({ searchParams }: PageProps) {
   const scope = sp.scope === "all" ? "all" : "site";
 
   // "site"-scope: alleen errors die expliciet aan deze site hangen.
-  // "all"-scope: scheduler-level / cross-site (siteId = null) ook meenemen.
-  const siteFilter = scope === "all" ? undefined : { siteId: site.id as string };
+  // "all"-scope: deze site PLUS scheduler/platform-rijen (siteId = null) — maar
+  // NOOIT rijen van andere tenants (dat was een cross-tenant read-lek).
+  const siteFilter: { siteId: string; includeGlobal?: boolean } =
+    scope === "all"
+      ? { siteId: site.id, includeGlobal: true }
+      : { siteId: site.id };
 
   const [events, counts, pending, topics] = await Promise.all([
     listErrors({
-      ...(siteFilter ?? {}),
+      ...siteFilter,
       source,
       severity,
       resolved,
       limit: 100,
     }),
-    countErrors(siteFilter ?? {}),
+    countErrors(siteFilter),
     listDraftsForSite(site.id, "pending_review"),
     listTopicsForSite(site.id),
   ]);
@@ -286,7 +290,7 @@ function FilterBar({
         active={current.scope === "site"}
       />
       <FilterChip
-        label="alle sites"
+        label="+ systeem"
         href={buildHref({ scope: "all" })}
         active={current.scope === "all"}
       />

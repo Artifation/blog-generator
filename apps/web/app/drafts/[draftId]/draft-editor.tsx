@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { CheckCircle, XCircle, Eye, Code, Type as TypeIcon, Save, RefreshCw } from "lucide-react";
 import { updateDraftAction, publishDraftAction, rejectDraftAction } from "~/lib/actions/drafts";
 import { slugify } from "~/lib/utils";
+import { sanitizePreviewHtml } from "~/lib/security/sanitize-preview";
 import { ImageUploader } from "./image-uploader";
 import { RichTextEditor } from "./rich-text-editor";
 
@@ -54,6 +55,20 @@ export function DraftEditor({
     metaDescription !== draft.metaDescription ||
     tldr !== draft.tldr;
 
+  // Warn before a tab close / reload / external navigation when there are
+  // unsaved edits, so a reviewer doesn't silently lose a long edit. (In-app
+  // route changes via the sidebar aren't covered by beforeunload — same
+  // limitation as the settings auto-save hook.)
+  React.useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
+
   async function save() {
     setSaving(true);
     const r = await updateDraftAction(draft.id, "/drafts", {
@@ -83,8 +98,13 @@ export function DraftEditor({
   }
 
   async function reject() {
-    const reason = prompt("Waarom afwijzen? (optioneel)") ?? undefined;
-    await rejectDraftAction(draft.id, reason);
+    // Two-step so a mis-click can't reject: confirm, then optionally a reason.
+    // prompt() returns null on Cancel — abort instead of rejecting anyway (the
+    // old `?? undefined` rejected even when the user cancelled).
+    if (!confirm("Deze draft afwijzen? Het topic gaat terug uit de wachtrij.")) return;
+    const reason = prompt("Reden voor afwijzen? (optioneel)");
+    if (reason === null) return; // cancelled at the reason step
+    await rejectDraftAction(draft.id, reason.trim() || undefined);
   }
 
   const readOnly = draft.status === "published" || draft.status === "rejected";
@@ -166,7 +186,7 @@ export function DraftEditor({
                       style={{ width: "100%", height: "auto", borderRadius: 10, margin: "16px 0" }}
                     />
                   )}
-                  <div dangerouslySetInnerHTML={{ __html: contentHtml }} />
+                  <div dangerouslySetInnerHTML={{ __html: sanitizePreviewHtml(contentHtml) }} />
                 </article>
               )}
               {tab === "html" && (

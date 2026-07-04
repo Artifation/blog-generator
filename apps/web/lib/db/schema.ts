@@ -251,6 +251,30 @@ export const users = sqliteTable(
 export type User = typeof users.$inferSelect;
 export type NewUser = typeof users.$inferInsert;
 
+/**
+ * Server-side sessions. The cookie carries only the opaque random `id` token;
+ * the (userId, siteId) binding lives here so a session can be revoked
+ * (logout-everywhere, user removal, password change) and expired server-side.
+ * userId is nullable to support the dev-only demo login, which authenticates a
+ * site without a specific user.
+ */
+export const sessions = sqliteTable(
+  "sessions",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+    siteId: text("site_id").notNull().references(() => sites.id, { onDelete: "cascade" }),
+    createdAt: text("created_at").notNull().default(sql`(strftime('%Y-%m-%dT%H:%M:%fZ','now'))`),
+    expiresAt: text("expires_at").notNull(),
+  },
+  (t) => ({
+    userIdx: index("sessions_user_idx").on(t.userId),
+    expiresIdx: index("sessions_expires_idx").on(t.expiresAt),
+  })
+);
+export type Session = typeof sessions.$inferSelect;
+export type NewSession = typeof sessions.$inferInsert;
+
 export const runs = sqliteTable(
   "runs",
   {

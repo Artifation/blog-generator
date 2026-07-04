@@ -1,5 +1,6 @@
 import { GoogleGenAI } from "@google/genai";
 import type { LLMProvider, LLMRequest, LLMResponse } from "./types.ts";
+import { GEMINI_TIMEOUT_MS, withTimeout } from "./timeout.ts";
 
 export function createGeminiProvider(apiKey: string): LLMProvider {
   const client = new GoogleGenAI({ apiKey });
@@ -15,35 +16,68 @@ export function createGeminiProvider(apiKey: string): LLMProvider {
       const config: Record<string, unknown> = {
         maxOutputTokens: req.maxTokens,
         temperature: req.temperature ?? 1.0,
+        // Also pass a real abort signal so the underlying HTTP request is
+        // actually cancelled at the deadline — withTimeout only races a timer,
+        // which would otherwise leave a hung request (and its socket) running.
+        abortSignal: AbortSignal.timeout(GEMINI_TIMEOUT_MS),
       };
       if (req.useSearch) {
         config.tools = [{ googleSearch: {} }];
       }
 
-      const res = await client.models.generateContent({
-        model: req.model,
-        contents: [
-          { role: "user", parts: [{ text: `${req.systemPrompt}\n\n${req.userPrompt}` }] },
-        ],
-        config,
-      });
+      // The genai SDK has no built-in per-call deadline, so bound wall-clock
+      // here — otherwise a hung request blocks the whole pipeline run.
+      const res = await withTimeout(
+        client.models.generateContent({
+          model: req.model,
+          contents: [
+            { role: "user", parts: [{ text: `${req.systemPrompt}\n\n${req.userPrompt}` }] },
+          ],
+          config,
+        }),
+        GEMINI_TIMEOUT_MS,
+        `gemini.generateContent(${req.model})`,
+      );
 
       // Extract grounded URIs uit eerste candidate's groundingMetadata (Gemini 2.x).
       const groundedUrls: string[] = [];
-      const candidates = (res as { candidates?: Array<{ groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string } }> } }> }).candidates;
+      const candidates = (res as { candidates?: Array<{ finishReason?: string; groundingMetadata?: { groundingChunks?: Array<{ web?: { uri?: string } }> } }> }).candidates;
       const chunks = candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
       for (const c of chunks) {
         const uri = c.web?.uri;
         if (uri) groundedUrls.push(uri);
       }
 
+      // Gemini 2.5 bills "thinking" tokens at the output rate but reports them
+      // separately from candidatesTokenCount — include them so cost tracking
+      // isn't undercounted.
+      const usageMeta = res.usageMetadata as
+        | { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number }
+        | undefined;
+
+      const text = res.text ?? "";
+      const finishReason = candidates?.[0]?.finishReason;
+      // Empty for a NON-truncation reason (safety block, recitation, exhausted
+      // thinking budget with no candidate) — surface the real cause instead of
+      // returning "" that downstream reads as a generic "No JSON found" parse
+      // failure and burns 3 retries. MAX_TOKENS is handled via `truncated`.
+      if (!text && finishReason !== "MAX_TOKENS") {
+        const blockReason = (res as { promptFeedback?: { blockReason?: string } })
+          .promptFeedback?.blockReason;
+        throw new Error(
+          `Gemini returned no text (finishReason=${finishReason ?? "unknown"}` +
+            `${blockReason ? `, blockReason=${blockReason}` : ""})`,
+        );
+      }
+
       return {
-        text: res.text ?? "",
-        inputTokens: res.usageMetadata?.promptTokenCount ?? 0,
-        outputTokens: res.usageMetadata?.candidatesTokenCount ?? 0,
+        text,
+        inputTokens: usageMeta?.promptTokenCount ?? 0,
+        outputTokens: (usageMeta?.candidatesTokenCount ?? 0) + (usageMeta?.thoughtsTokenCount ?? 0),
         model: req.model,
         provider: "gemini",
         groundedUrls: groundedUrls.length > 0 ? groundedUrls : undefined,
+        truncated: finishReason === "MAX_TOKENS",
       };
     },
   };

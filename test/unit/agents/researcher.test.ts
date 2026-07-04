@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runResearcher } from "@/agents/researcher";
 import type { LLMProvider } from "@/llm/types";
+import { resolveAgentModel } from "@/llm/client";
 
 const mockOutput = JSON.stringify({
   fan_out_subqueries: ["q1", "q2", "q3", "q4", "q5"],
@@ -35,7 +36,7 @@ describe("runResearcher", () => {
         pillar: "ai-per-afdeling",
         existing_site_urls: ["https://artifation.nl/ai-scan/"],
       },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("researcher"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.fan_out_subqueries).toHaveLength(5);
     expect(r.parsed.key_entities).toHaveLength(5);

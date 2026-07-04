@@ -1,4 +1,5 @@
 import { requireSite, getCurrentUser } from "~/lib/auth";
+import { maskSiteForClient } from "~/lib/sites/mask";
 import { AdminShell } from "~/components/layout/app-shell";
 import { listDraftsForSite } from "~/lib/drafts";
 import { listTopicsForSite } from "~/lib/topics";
@@ -23,6 +24,10 @@ export default async function SettingsPage({ searchParams }: PageProps) {
   const sp = await searchParams;
   const tab: TabKey = parseTab(sp.tab);
 
+  // Never hand decrypted secrets to client components — blank them and pass a
+  // "present" map so the UI can show "•••• ingesteld" without the value.
+  const { site: clientSite, secretsPresent } = maskSiteForClient(site);
+
   const [pending, topics, users] = await Promise.all([
     listDraftsForSite(site.id, "pending_review"),
     listTopicsForSite(site.id, "queued"),
@@ -46,11 +51,11 @@ export default async function SettingsPage({ searchParams }: PageProps) {
       crumbs={[{ label: "Instellingen" }]}
     >
       <SettingsShell activeTab={tab}>
-        {tab === "brand" && <BrandTab site={site} />}
-        {tab === "publish" && <PublishTab site={site} />}
-        {tab === "integrations" && <IntegrationsTab site={site} />}
-        {tab === "team" && <TeamTab members={members} />}
-        {tab === "danger" && <DangerTab site={site} />}
+        {tab === "brand" && <BrandTab site={clientSite} />}
+        {tab === "publish" && <PublishTab site={clientSite} wpAppPasswordSet={secretsPresent.wpAppPassword} />}
+        {tab === "integrations" && <IntegrationsTab site={clientSite} secretsPresent={secretsPresent} />}
+        {tab === "team" && <TeamTab members={members} canManage={me?.role === "owner"} />}
+        {tab === "danger" && <DangerTab site={clientSite} />}
       </SettingsShell>
     </AdminShell>
   );

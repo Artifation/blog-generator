@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runRepurposerLinkedIn, runRepurposerNewsletter, runRepurposerXThread } from "@/agents/repurposer";
 import type { LLMProvider } from "@/llm/types";
+import { resolveAgentModel } from "@/llm/client";
 
 // full_text must be >=800 chars — pad with realistic content
 const LINKEDIN_FULL_TEXT =
@@ -60,7 +61,7 @@ const INPUT = {
 
 describe("runRepurposerLinkedIn", () => {
   it("returns valid LinkedIn post structure", async () => {
-    const r = await runRepurposerLinkedIn(INPUT, { provider: makeProvider(linkedInResp), sleepImpl: () => Promise.resolve() });
+    const r = await runRepurposerLinkedIn(INPUT, { provider: makeProvider(linkedInResp), model: resolveAgentModel("repurposer"), sleepImpl: () => Promise.resolve() });
     expect(r.parsed.hook_first_200.length).toBeLessThanOrEqual(400);
     expect(r.parsed.full_text.length).toBeGreaterThanOrEqual(800);
     expect(r.parsed.cta.length).toBeGreaterThan(10);
@@ -69,7 +70,7 @@ describe("runRepurposerLinkedIn", () => {
 
 describe("runRepurposerNewsletter", () => {
   it("returns valid newsletter structure", async () => {
-    const r = await runRepurposerNewsletter(INPUT, { provider: makeProvider(newsletterResp), sleepImpl: () => Promise.resolve() });
+    const r = await runRepurposerNewsletter(INPUT, { provider: makeProvider(newsletterResp), model: resolveAgentModel("repurposer"), sleepImpl: () => Promise.resolve() });
     expect(r.parsed.subject_line.length).toBeLessThanOrEqual(100);
     expect(r.parsed.body_html).toContain("<p>");
     expect(r.parsed.cta_url).toBe("https://artifation.nl/ai-in-hr-mkb/");
@@ -78,7 +79,7 @@ describe("runRepurposerNewsletter", () => {
 
 describe("runRepurposerXThread", () => {
   it("returns 5-9 tweets with link-tweet index", async () => {
-    const r = await runRepurposerXThread(INPUT, { provider: makeProvider(xthreadResp), sleepImpl: () => Promise.resolve() });
+    const r = await runRepurposerXThread(INPUT, { provider: makeProvider(xthreadResp), model: resolveAgentModel("repurposer"), sleepImpl: () => Promise.resolve() });
     expect(r.parsed.tweets.length).toBeGreaterThanOrEqual(5);
     expect(r.parsed.tweets.length).toBeLessThanOrEqual(9);
     expect(r.parsed.blog_link_tweet_index).toBeLessThan(r.parsed.tweets.length);

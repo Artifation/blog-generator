@@ -9,13 +9,15 @@ import { useAutoSave } from "../use-auto-save";
 
 interface Props {
   site: SiteWithPillars;
+  /** Whether a WordPress app password is already stored (it is masked out of `site`). */
+  wpAppPasswordSet?: boolean;
 }
 
-export function PublishTab({ site }: Props) {
+export function PublishTab({ site, wpAppPasswordSet = false }: Props) {
   return (
     <div className="col gap-lg" style={{ paddingBottom: 40 }}>
       <QualityCard site={site} />
-      <DestinationCard site={site} />
+      <DestinationCard site={site} wpAppPasswordSet={wpAppPasswordSet} />
     </div>
   );
 }
@@ -82,7 +84,7 @@ function QualityCard({ site }: Props) {
   );
 }
 
-function DestinationCard({ site }: Props) {
+function DestinationCard({ site, wpAppPasswordSet = false }: Props) {
   const [publishDestination, setPd] = React.useState(site.publishDestination);
   const [wp, setWp] = React.useState(site.wordpressConfig);
 
@@ -153,7 +155,8 @@ function DestinationCard({ site }: Props) {
                     value={wp?.appPassword ?? ""}
                     onChange={(e) => setWp({ ...(wp ?? { baseUrl: "", user: "" }), appPassword: e.target.value })}
                     onBlur={flush}
-                    placeholder="xxxx xxxx xxxx xxxx"
+                    placeholder={wpAppPasswordSet ? "•••• ingesteld — laat leeg om te behouden" : "xxxx xxxx xxxx xxxx"}
+                    autoComplete="off"
                   />
                 </Field>
               </div>

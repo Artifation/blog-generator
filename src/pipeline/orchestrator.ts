@@ -9,7 +9,12 @@ import { postProcessDraftHtml } from "./htmlPostProcess.ts";
 import { computeDeterministicRubricSignals } from "./rubric.ts";
 import { checkCitations, enrichSignalsWithCitationCheck } from "./citationCheck.ts";
 import { detectAiContent } from "./aiDetection.ts";
-import { computeRunCost, type UsageEntry } from "./costTracker.ts";
+import {
+  computeRunCost,
+  parseUsdLimit,
+  assertRunBudget,
+  type UsageEntry,
+} from "./costTracker.ts";
 import { countPublishedThisIsoWeek, markTopicStatus } from "./state.ts";
 import { createProviderRegistry, resolveAgentModel } from "@/llm/client";
 import { runResearcher } from "@/agents/researcher";
@@ -20,6 +25,7 @@ import { runWriter } from "@/agents/writer";
 import { runSeoEditor } from "@/agents/seoEditor";
 import { runFactChecker } from "@/agents/factChecker";
 import { runQualityJudge } from "@/agents/qualityJudge";
+import { judgeWeightedTotal, JUDGE_GO_THRESHOLD } from "@/agents/scoring";
 import { runImagePrompter } from "@/agents/imagePrompter";
 import { generateBlogImage } from "@/image";
 import { optimizeForWeb } from "@/image/optimize";
@@ -102,6 +108,15 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
   }
 
   const usage: UsageEntry[] = [];
+  // Per-run USD ceiling (unset MAX_RUN_USD = no cap, so default is unchanged).
+  // trackUsage records each stage's spend AND aborts the run the moment the
+  // accumulated cost crosses the ceiling — a retry-storm / looping topic can't
+  // run up unbounded cost on the live daily path.
+  const runUsdCeiling = parseUsdLimit(process.env.MAX_RUN_USD);
+  const trackUsage = (entry: UsageEntry): void => {
+    usage.push(entry);
+    assertRunBudget(usage, runUsdCeiling);
+  };
   let currentStage = "init";
 
   try {
@@ -163,7 +178,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(researcherModel.provider), model: researcherModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: researcherModel.provider,
       model: research.raw.model,
       inputTokens: research.raw.inputTokens,
@@ -310,7 +325,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(strategistModel.provider), model: strategistModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: strategistModel.provider,
       model: outline.raw.model,
       inputTokens: outline.raw.inputTokens,
@@ -330,7 +345,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(writerModel.provider), model: writerModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: writerModel.provider,
       model: writerModel.model,
       inputTokens: writer.totalInputTokens,
@@ -348,7 +363,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(seoEditorModel.provider), model: seoEditorModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: seoEditorModel.provider,
       model: seo.raw.model,
       inputTokens: seo.raw.inputTokens,
@@ -369,7 +384,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(factCheckerModel.provider), model: factCheckerModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: factCheckerModel.provider,
       model: fc.raw.model,
       inputTokens: fc.raw.inputTokens,
@@ -401,7 +416,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
           },
           { provider: providers.get(factCheckerModel.provider), model: factCheckerModel, sleepImpl: sleep }
         );
-        usage.push({
+        trackUsage({
           provider: factCheckerModel.provider,
           model: fc2.raw.model,
           inputTokens: fc2.raw.inputTokens,
@@ -553,21 +568,45 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(qualityJudgeModel.provider), model: qualityJudgeModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: qualityJudgeModel.provider,
       model: judge.raw.model,
       inputTokens: judge.raw.inputTokens,
       outputTokens: judge.raw.outputTokens,
     });
 
+    // Deterministic publish gate — NEVER trust the model's own arithmetic or
+    // verdict (LLMs are unreliable at weighting 8 terms in their head). Recompute
+    // the weighted total from its scores, re-derive the hard fails from
+    // scores + deterministic signals, and decide GO/NO-GO in code. The model's
+    // `scores`, `reasoning` and `improvement_suggestions` are still used as-is.
+    const recomputedWeightedTotal = judgeWeightedTotal(judge.parsed.scores);
+    const recomputedHardFails: string[] = [];
+    if (judge.parsed.scores.originality < 6) recomputedHardFails.push("originality < 6");
+    // NB: a failed fact-check already short-circuits earlier (the topic is
+    // rejected before the judge runs), so fact_check is always "pass" here —
+    // no need to re-check it as a hard fail.
+    const judgeWordCount = signals.word_count || 0;
+    const banlistPer1000 = judgeWordCount > 0 ? (signals.banlist_hits / judgeWordCount) * 1000 : 0;
+    if (banlistPer1000 > 5) recomputedHardFails.push("banlist_hits_per_1000_words > 5");
+    const goThreshold = tenant.quality_threshold ?? JUDGE_GO_THRESHOLD;
+    const recomputedVerdict: "GO" | "NO-GO" =
+      recomputedWeightedTotal < goThreshold || recomputedHardFails.length > 0 ? "NO-GO" : "GO";
+    const judgeResult = {
+      ...judge.parsed,
+      weighted_total: recomputedWeightedTotal,
+      hard_fails: recomputedHardFails,
+      verdict: recomputedVerdict,
+    };
+
     // Volledige judge-uitkomst in GH Actions log — geen email nodig om scores te zien.
     logStage({
       stage: "judge",
       topicId: next.id,
-      verdict: judge.parsed.verdict,
-      weighted_total: judge.parsed.weighted_total,
+      verdict: judgeResult.verdict,
+      weighted_total: judgeResult.weighted_total,
       scores: judge.parsed.scores,
-      hard_fails: judge.parsed.hard_fails,
+      hard_fails: judgeResult.hard_fails,
       signals: {
         internal_link_count: signals.internal_link_count,
         external_link_count: signals.external_link_count,
@@ -579,13 +618,13 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
     });
 
-    if (judge.parsed.verdict === "NO-GO") {
+    if (judgeResult.verdict === "NO-GO") {
       const html = await render(
         React.createElement(Reject, {
           title: outline.parsed.outline.h1_suggestion,
-          weightedTotal: judge.parsed.weighted_total,
+          weightedTotal: judgeResult.weighted_total,
           scoreBreakdown: judge.parsed.scores,
-          hardFails: judge.parsed.hard_fails,
+          hardFails: judgeResult.hard_fails,
           reasoning: judge.parsed.reasoning,
           improvementSuggestions: judge.parsed.improvement_suggestions,
         })
@@ -595,7 +634,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         from: tenant.email.from,
         to: tenant.email.to,
         replyTo: tenant.email.reply_to,
-        subject: `[${tenant.brand.name}] Reject: ${outline.parsed.outline.h1_suggestion} — score ${judge.parsed.weighted_total.toFixed(1)}`,
+        subject: `[${tenant.brand.name}] Reject: ${outline.parsed.outline.h1_suggestion} — score ${judgeResult.weighted_total.toFixed(1)}`,
         html,
         attachments: [
           { filename: "draft.html", content: Buffer.from(seo.parsed.edited_html, "utf-8") },
@@ -606,15 +645,15 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         ],
       });
       topics = markTopicStatus(topics, next.id, "rejected", now, {
-        reject_reason: judge.parsed.hard_fails.join("; ") || "score < threshold",
+        reject_reason: judgeResult.hard_fails.join("; ") || "score < threshold",
         retry_after: new Date(now.getTime() + 7 * 86400_000).toISOString(),
       });
       await saveTopics(topics, opts.tenantSlug, baseDir);
       await persistRunSummary(
         buildSummary({
           runId, tenantSlug: opts.tenantSlug, topic: next, startedAt, now,
-          verdict: "rejected", judge: judge.parsed, signals,
-          reason: judge.parsed.hard_fails.join("; ") || "score < threshold",
+          verdict: "rejected", judge: judgeResult, signals,
+          reason: judgeResult.hard_fails.join("; ") || "score < threshold",
         }),
         dataDir
       );
@@ -641,7 +680,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       },
       { provider: providers.get(imagePrompterModel.provider), model: imagePrompterModel, sleepImpl: sleep }
     );
-    usage.push({
+    trackUsage({
       provider: imagePrompterModel.provider,
       model: ip.raw.model,
       inputTokens: ip.raw.inputTokens,
@@ -652,7 +691,13 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
     const image = await generateBlogImage(
       { prompt: ip.parsed.prompt, negative_prompt: ip.parsed.negative_prompt },
       {
-        FAL_API_KEY: requireEnv(env, "FAL_API_KEY"),
+        // Pass every configured provider so the tiered fallback works as
+        // designed: Fal → Gemini Imagen → Cloudflare. FAL must be OPTIONAL
+        // (requireEnv made it mandatory, killing the Gemini tier that the rest
+        // of the pipeline's key already enables); generateBlogImage still errors
+        // clearly when NO provider is configured.
+        FAL_API_KEY: env.FAL_API_KEY,
+        GEMINI_API_KEY: env.GEMINI_API_KEY,
         CF_ACCOUNT_ID: env.CF_ACCOUNT_ID,
         CF_API_TOKEN: env.CF_API_TOKEN,
       }
@@ -665,10 +710,10 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       appPassword: requireEnv(env, tenant.wordpress.app_password_secret_ref),
     });
     const optimized = await optimizeForWeb({ pngBytes: image.bytes });
-    const ext = optimized.contentType === "image/avif" ? "avif" : "png";
+    const ext = optimized.contentType === "image/webp" ? "webp" : "png";
     const media = await uploadMedia(wp, {
       bytes: optimized.bytes,
-      contentType: optimized.contentType,           // "image/avif" or "image/png"
+      contentType: optimized.contentType,           // "image/webp" or "image/png"
       filename: `${seo.parsed.slug}.${ext}`,
       altText: ip.parsed.alt_text_nl,
     });
@@ -706,18 +751,40 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       }),
     });
 
+    // CRITICAL for idempotency: durably record the topic as published the moment
+    // the WordPress post exists — BEFORE the non-critical post-publish steps
+    // (IndexNow / email / editorial log / repurpose). Previously this happened
+    // only at the very end, so a failure in any of those aborted the run with
+    // the WP post already created, and the next cron tick re-selected the topic
+    // and published a DUPLICATE post (+ duplicate LLM/image cost). The later
+    // steps are now wrapped so they can't revert this state.
+    topics = markTopicStatus(topics, next.id, "published", now, {
+      wp_post_id: post.id,
+      wp_post_url: post.link,
+      key_entities: research.parsed.key_entities,
+    });
+    await saveTopics(topics, opts.tenantSlug, baseDir);
+
     // IndexNow ping — notifies Bing, Yandex, Naver, Seznam, Yep (not Google).
     // Failure is non-fatal: pipeline continues regardless.
     if (tenant.features.indexnow.enabled) {
       try {
         const indexNowKey = env[tenant.features.indexnow.key_secret_ref] ?? "";
         const host = new URL(tenant.wordpress.base_url).hostname;
-        await pingIndexNow({
+        const ping = await pingIndexNow({
           host,
           key: indexNowKey,
           urlList: [`${tenant.wordpress.base_url}/${seo.parsed.slug}/`],
           fetchImpl: opts.fetchImpl,
         });
+        if (!ping.ok) {
+          console.warn(
+            JSON.stringify({
+              stage: "indexNow",
+              warning: ping.skipped ? "skipped — no IndexNow key configured" : `non-2xx response (${ping.status})`,
+            }),
+          );
+        }
       } catch (err) {
         console.warn(
           JSON.stringify({
@@ -729,45 +796,57 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       }
     }
 
+    // Success email — non-fatal: the post is already published + recorded, so a
+    // mail failure must not abort the run (which would otherwise send an error
+    // email for an actually-successful publish).
     currentStage = "email";
-    const editUrl = buildEditUrl(tenant.wordpress.base_url, post.id);
-    const html = await render(
-      React.createElement(Success, {
-        title: outline.parsed.outline.h1_suggestion,
-        weightedTotal: judge.parsed.weighted_total,
-        scoreBreakdown: judge.parsed.scores,
-        tldr: outline.parsed.outline.tldr_one_liner,
-        imageUrl: media.source_url,
-        editUrl,
-        previewUrl: post.link,
-        targetKeyword: next.target_keyword,
-        internalLinksUsed: outline.parsed.outline.internal_links_to_inject,
-      })
-    );
-    await sendEmail({
-      apiKey: requireEnv(env, "RESEND_API_KEY"),
-      from: tenant.email.from,
-      to: tenant.email.to,
-      replyTo: tenant.email.reply_to,
-      subject: `[${tenant.brand.name}] Concept klaar: ${outline.parsed.outline.h1_suggestion} — score ${judge.parsed.weighted_total.toFixed(1)}`,
-      html,
-    });
+    try {
+      const editUrl = buildEditUrl(tenant.wordpress.base_url, post.id);
+      const html = await render(
+        React.createElement(Success, {
+          title: outline.parsed.outline.h1_suggestion,
+          weightedTotal: judgeResult.weighted_total,
+          scoreBreakdown: judge.parsed.scores,
+          tldr: outline.parsed.outline.tldr_one_liner,
+          imageUrl: media.source_url,
+          editUrl,
+          previewUrl: post.link,
+          targetKeyword: next.target_keyword,
+          internalLinksUsed: outline.parsed.outline.internal_links_to_inject,
+        })
+      );
+      await sendEmail({
+        apiKey: requireEnv(env, "RESEND_API_KEY"),
+        from: tenant.email.from,
+        to: tenant.email.to,
+        replyTo: tenant.email.reply_to,
+        subject: `[${tenant.brand.name}] Concept klaar: ${outline.parsed.outline.h1_suggestion} — score ${judgeResult.weighted_total.toFixed(1)}`,
+        html,
+      });
+    } catch (err) {
+      console.warn(JSON.stringify({ stage: "email", warning: (err as Error).message }));
+    }
 
-    // Editorial review log — Article 50 EU AI Act audit trail.
-    await appendEditorialLogEntry(
-      {
-        post_id: post.id,
-        post_url: post.link,
-        post_title: outline.parsed.outline.h1_suggestion,
-        reviewer: tenant.author.name,
-        approved_at: now.toISOString(),
-        ai_models_used: [...new Set(usage.map((u) => u.model))],
-        pipeline_version: env.GITHUB_SHA?.slice(0, 7) ?? "local",
-        rubric_total: judge.parsed.weighted_total,
-        topic_id: next.id,
-      },
-      { tenant_slug: opts.tenantSlug, baseDir, now }
-    );
+    // Editorial review log — Article 50 EU AI Act audit trail. Non-fatal: a
+    // logging failure must not revert the already-published state.
+    try {
+      await appendEditorialLogEntry(
+        {
+          post_id: post.id,
+          post_url: post.link,
+          post_title: outline.parsed.outline.h1_suggestion,
+          reviewer: tenant.author.name,
+          approved_at: now.toISOString(),
+          ai_models_used: [...new Set(usage.map((u) => u.model))],
+          pipeline_version: env.GITHUB_SHA?.slice(0, 7) ?? "local",
+          rubric_total: judgeResult.weighted_total,
+          topic_id: next.id,
+        },
+        { tenant_slug: opts.tenantSlug, baseDir, now }
+      );
+    } catch (err) {
+      console.warn(JSON.stringify({ stage: "editorial-log", warning: (err as Error).message }));
+    }
 
     // Repurpose stage — inline na success-email + editorial log.
     // Failure is non-fatal: warning gelogd, publish blijft success.
@@ -815,25 +894,20 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       }
     }
 
-    topics = markTopicStatus(topics, next.id, "published", now, {
-      wp_post_id: post.id,
-      wp_post_url: post.link,
-      key_entities: research.parsed.key_entities,
-    });
-    await saveTopics(topics, opts.tenantSlug, baseDir);
-
+    // (topic was already marked published + saved immediately after the WP post
+    // was created — see the idempotency note above.)
     const cost = computeRunCost(usage);
     logStage({
       stage: "complete",
       topicId: next.id,
       postId: post.id,
       costUsd: cost.totalUsd,
-      score: judge.parsed.weighted_total,
+      score: judgeResult.weighted_total,
     });
     await persistRunSummary(
       buildSummary({
         runId, tenantSlug: opts.tenantSlug, topic: next, startedAt, now,
-        verdict: "published", judge: judge.parsed, signals,
+        verdict: "published", judge: judgeResult, signals,
         wpPostId: post.id, costUsd: cost.totalUsd,
       }),
       dataDir

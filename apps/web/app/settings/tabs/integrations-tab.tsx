@@ -3,29 +3,36 @@
 import * as React from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import type { SiteWithPillars } from "~/lib/sites";
+import type { SecretsPresent } from "~/lib/sites/mask";
 import { SectionIntro, FieldHelp, OptionalBadge, RequiredBadge } from "~/components/ui/form-help";
 import { CardHead } from "../card-head";
 import { useAutoSave } from "../use-auto-save";
 
 interface Props {
   site: SiteWithPillars;
+  secretsPresent: SecretsPresent;
 }
 
-export function IntegrationsTab({ site }: Props) {
+/** Placeholder for a secret input that already has a stored value. */
+const SET_PLACEHOLDER = "•••••••• ingesteld — laat leeg om te behouden";
+
+export function IntegrationsTab({ site, secretsPresent }: Props) {
   return (
     <div className="col gap-lg" style={{ paddingBottom: 40 }}>
-      <GeminiCard site={site} />
-      <AdvancedSection site={site} />
+      <GeminiCard site={site} present={secretsPresent.apiKeys.gemini ?? false} />
+      <AdvancedSection site={site} secretsPresent={secretsPresent} />
     </div>
   );
 }
 
-function GeminiCard({ site }: Props) {
-  const [gemini, setGemini] = React.useState(site.apiKeys?.gemini ?? "");
+function GeminiCard({ site, present }: { site: SiteWithPillars; present: boolean }) {
+  const [gemini, setGemini] = React.useState("");
   const { status, flush } = useAutoSave({
     siteId: site.id,
     cardKey: "Gemini",
-    values: { apiKeys: { ...site.apiKeys, gemini } },
+    // Write-only: only send the key when the user typed a new value, otherwise
+    // an empty save merges to a no-op and the stored key is preserved.
+    values: { apiKeys: gemini ? { gemini } : {} },
   });
   const [show, setShow] = React.useState(false);
 
@@ -43,7 +50,7 @@ function GeminiCard({ site }: Props) {
         </SectionIntro>
         <label>
           <span>Gemini</span>
-          <RequiredBadge />
+          {present ? <OptionalBadge /> : <RequiredBadge />}
         </label>
         <div className="row" style={{ gap: 6 }}>
           <input
@@ -52,18 +59,20 @@ function GeminiCard({ site }: Props) {
             value={gemini}
             onChange={(e) => setGemini(e.target.value)}
             onBlur={flush}
-            placeholder="AIza…"
+            placeholder={present ? SET_PLACEHOLDER : "AIza…"}
+            autoComplete="off"
           />
           <button type="button" className="btn btn-outline btn-sm" onClick={() => setShow((s) => !s)}>
             {show ? "Verberg" : "Toon"}
           </button>
         </div>
+        {present && <FieldHelp>Er is al een key opgeslagen. Vul alleen iets in om te vervangen.</FieldHelp>}
       </div>
     </div>
   );
 }
 
-function AdvancedSection({ site }: Props) {
+function AdvancedSection({ site, secretsPresent }: Props) {
   const [open, setOpen] = React.useState(false);
   return (
     <div className="card">
@@ -90,6 +99,7 @@ function AdvancedSection({ site }: Props) {
             fallbackNote="Zonder Anthropic: deze agents draaien op Gemini (default)."
             apiKeyName="anthropic"
             placeholder="sk-ant-…"
+            present={secretsPresent.apiKeys.anthropic ?? false}
           />
           <ApiKeyOverrideCard
             site={site}
@@ -98,6 +108,7 @@ function AdvancedSection({ site }: Props) {
             fallbackNote="Zonder Groq: image-prompter draait op Gemini."
             apiKeyName="groq"
             placeholder="gsk_…"
+            present={secretsPresent.apiKeys.groq ?? false}
           />
           <ApiKeyOverrideCard
             site={site}
@@ -106,6 +117,7 @@ function AdvancedSection({ site }: Props) {
             fallbackNote="Zonder Fal: images draaien op Gemini Imagen 3 (gebruikt je Gemini-key). Iets ander kwaliteits-profiel, maar gewoon werkend."
             apiKeyName="fal"
             placeholder="fal_…"
+            present={secretsPresent.apiKeys.fal ?? false}
           />
           <ApiKeyOverrideCard
             site={site}
@@ -114,9 +126,10 @@ function AdvancedSection({ site }: Props) {
             fallbackNote="Zonder Resend: je ziet alles alleen in het dashboard."
             apiKeyName="resend"
             placeholder="re_…"
+            present={secretsPresent.apiKeys.resend ?? false}
           />
-          <GscCard site={site} />
-          <DfsCard site={site} />
+          <GscCard site={site} present={secretsPresent.apiKeys.gscServiceAccountJson ?? false} />
+          <DfsCard site={site} present={secretsPresent.apiKeys.dataForSeoPassword ?? false} />
         </div>
       )}
     </div>
@@ -130,6 +143,7 @@ function ApiKeyOverrideCard({
   fallbackNote,
   apiKeyName,
   placeholder,
+  present,
 }: {
   site: SiteWithPillars;
   title: string;
@@ -137,12 +151,13 @@ function ApiKeyOverrideCard({
   fallbackNote: string;
   apiKeyName: "anthropic" | "groq" | "fal" | "resend";
   placeholder: string;
+  present: boolean;
 }) {
-  const [value, setValue] = React.useState(site.apiKeys?.[apiKeyName] ?? "");
+  const [value, setValue] = React.useState("");
   const { status, flush } = useAutoSave({
     siteId: site.id,
     cardKey: title,
-    values: { apiKeys: { ...site.apiKeys, [apiKeyName]: value } },
+    values: { apiKeys: value ? { [apiKeyName]: value } : {} },
   });
   const [show, setShow] = React.useState(false);
   return (
@@ -160,22 +175,22 @@ function ApiKeyOverrideCard({
             value={value}
             onChange={(e) => setValue(e.target.value)}
             onBlur={flush}
-            placeholder={placeholder}
+            placeholder={present ? SET_PLACEHOLDER : placeholder}
+            autoComplete="off"
           />
           <button type="button" className="btn btn-outline btn-sm" onClick={() => setShow((s) => !s)}>
             {show ? "Verberg" : "Toon"}
           </button>
         </div>
-        <FieldHelp>{fallbackNote}</FieldHelp>
+        <FieldHelp>{present ? "Al ingesteld — vul alleen iets in om te vervangen." : fallbackNote}</FieldHelp>
       </div>
     </div>
   );
 }
 
-function GscCard({ site }: Props) {
-  // Migrate the GSC section from settings-form.tsx (around lines 354-429 in the original).
-  // The section toggles GSC via features.search_console.enabled, takes property URL,
-  // and accepts a service-account JSON pasted into apiKeys.gscServiceAccountJson.
+function GscCard({ site, present }: { site: SiteWithPillars; present: boolean }) {
+  // GSC toggle + property URL live in features (not secret); the service-account
+  // JSON is the secret and is masked (write-only).
   const initialSc = (() => {
     const sc = (site.features ?? {}).search_console;
     if (sc && typeof sc === "object") return sc as { enabled?: boolean; property_url?: string };
@@ -183,14 +198,14 @@ function GscCard({ site }: Props) {
   })();
   const [enabled, setEnabled] = React.useState(initialSc.enabled ?? false);
   const [propertyUrl, setPropertyUrl] = React.useState(initialSc.property_url ?? "");
-  const [gscJson, setGscJson] = React.useState(site.apiKeys?.gscServiceAccountJson ?? "");
+  const [gscJson, setGscJson] = React.useState("");
 
   const { status, flush } = useAutoSave({
     siteId: site.id,
     cardKey: "Google Search Console",
     values: {
       features: { ...(site.features ?? {}), search_console: { enabled, property_url: propertyUrl } },
-      apiKeys: { ...site.apiKeys, gscServiceAccountJson: gscJson },
+      apiKeys: gscJson ? { gscServiceAccountJson: gscJson } : {},
     },
   });
 
@@ -242,7 +257,7 @@ function GscCard({ site }: Props) {
         </FieldHelp>
         <label>
           <span>Service account JSON</span>
-          {enabled ? <RequiredBadge /> : <OptionalBadge />}
+          {enabled && !present ? <RequiredBadge /> : <OptionalBadge />}
         </label>
         <textarea
           className="textarea mono"
@@ -250,7 +265,11 @@ function GscCard({ site }: Props) {
           value={gscJson}
           onChange={(e) => setGscJson(e.target.value)}
           onBlur={flush}
-          placeholder='{"type":"service_account","project_id":"...","client_email":"...","private_key":"..."}'
+          placeholder={
+            present
+              ? "•••• service account opgeslagen — plak nieuwe JSON om te vervangen"
+              : '{"type":"service_account","project_id":"...","client_email":"...","private_key":"..."}'
+          }
           disabled={!enabled}
           style={{ fontSize: 11, fontFamily: "monospace" }}
         />
@@ -269,10 +288,11 @@ function GscCard({ site }: Props) {
   );
 }
 
-function DfsCard({ site }: Props) {
-  // Migrate the DataForSEO section from settings-form.tsx (around lines 431-504 in the original).
+function DfsCard({ site, present }: { site: SiteWithPillars; present: boolean }) {
+  // login + language/location codes are not secrets and prefill normally; only
+  // the API password is masked (write-only).
   const [login, setLogin] = React.useState(site.apiKeys?.dataForSeoLogin ?? "");
-  const [password, setPassword] = React.useState(site.apiKeys?.dataForSeoPassword ?? "");
+  const [password, setPassword] = React.useState("");
   const [langCode, setLangCode] = React.useState(site.apiKeys?.dataForSeoLanguageCode ?? "");
   const [locCode, setLocCode] = React.useState(site.apiKeys?.dataForSeoLocationCode ?? "");
 
@@ -281,11 +301,10 @@ function DfsCard({ site }: Props) {
     cardKey: "DataForSEO",
     values: {
       apiKeys: {
-        ...site.apiKeys,
         dataForSeoLogin: login,
-        dataForSeoPassword: password,
         dataForSeoLanguageCode: langCode,
         dataForSeoLocationCode: locCode,
+        ...(password ? { dataForSeoPassword: password } : {}),
       },
     },
   });
@@ -324,7 +343,8 @@ function DfsCard({ site }: Props) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               onBlur={flush}
-              placeholder="********"
+              placeholder={present ? SET_PLACEHOLDER : "********"}
+              autoComplete="off"
             />
           </div>
         </div>

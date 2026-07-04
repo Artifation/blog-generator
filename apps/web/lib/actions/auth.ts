@@ -1,5 +1,6 @@
 "use server";
 
+import { randomBytes } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
@@ -9,12 +10,11 @@ import {
   requireSite,
   requireUser,
   setSessionCookies,
-  validateInviteCode,
   type InviteCodeInfo,
 } from "~/lib/auth";
+import { lookupInviteCode } from "~/lib/invites";
 import { getSiteBySlug, getSiteById } from "~/lib/sites";
 import {
-  authenticate,
   findUserByEmail,
   createUser,
   listUsersForSite,
@@ -22,15 +22,19 @@ import {
 } from "~/lib/users";
 import {
   checkRateLimit,
+  checkEmailRateLimit,
   recordAttempt,
   retryMinutes,
 } from "~/lib/auth/rate-limit";
+import { throttle } from "~/lib/auth/throttle";
 import {
   hasCredential,
   setPassword,
   verifyAndUpgrade,
 } from "~/lib/auth/credentials";
 import { validatePasswordStrength } from "~/lib/auth/password";
+import { deleteSessionsForUser } from "~/lib/auth/session";
+import { equalizeVerifyTiming } from "~/lib/passwords";
 
 /**
  * Quick-login for the demo sites listed on the login page. Bypasses the
@@ -78,9 +82,17 @@ export async function loginWithPasswordAction(
   }
 
   const ip = await getClientIp();
-  const gate = await checkRateLimit(ip);
-  if (!gate.allowed) {
-    const mins = retryMinutes(gate.retryAfterMs);
+  // Two buckets: per-IP (blocks a noisy source) AND per-email (caps stuffing on
+  // one account even when the attacker rotates IPs / spoofs X-Forwarded-For).
+  const [ipGate, emailGate] = await Promise.all([
+    checkRateLimit(ip),
+    checkEmailRateLimit(email),
+  ]);
+  if (!ipGate.allowed || !emailGate.allowed) {
+    // Record the blocked attempt too, so sustained hammering keeps the sliding
+    // window pinned instead of letting it roll off and regain budget early.
+    await recordAttempt(ip, false, email);
+    const mins = retryMinutes(Math.max(ipGate.retryAfterMs, emailGate.retryAfterMs));
     return {
       ok: false,
       error: `Te veel mislukte pogingen. Probeer het over ${mins} min opnieuw.`,
@@ -116,7 +128,12 @@ async function authenticateWithCredentials(
   // Find any user with this email (across sites).
   const { findUserAnyEmail } = await import("~/lib/users");
   const user = await findUserAnyEmail(email);
-  if (!user) return null;
+  if (!user) {
+    // Equalize timing with the found-user path (which runs a full scrypt), so
+    // response latency can't be used to enumerate which emails have accounts.
+    await equalizeVerifyTiming(plain);
+    return null;
+  }
   const ok = await verifyAndUpgrade(user.id, user.passwordHash, plain);
   if (!ok) return null;
   return { user };
@@ -140,8 +157,21 @@ export async function clearSessionAction(): Promise<{ ok: true }> {
 export async function checkInviteCodeAction(
   code: string,
 ): Promise<{ ok: true; info: InviteCodeInfo } | { ok: false; error: string }> {
-  const info = validateInviteCode(code);
-  if (!info) return { ok: false, error: "Deze code is niet geldig. Neem contact op met Artifation." };
+  // Unauthenticated + unthrottled otherwise: throttle per-IP so the guessable
+  // ARTI-2026-XXXX code space can't be brute-forced to harvest the customer PII
+  // (name/email/company) seeded on each code.
+  const ip = await getClientIp();
+  const gate = throttle(`invite:${ip}`, 10, 15 * 60 * 1000);
+  if (!gate.allowed) {
+    return {
+      ok: false,
+      error: `Te veel pogingen. Probeer het over ${retryMinutes(gate.retryAfterMs)} min opnieuw.`,
+    };
+  }
+  const info = await lookupInviteCode(code);
+  if (!info) {
+    return { ok: false, error: "Deze code is niet geldig of al gebruikt. Neem contact op met Artifation." };
+  }
   return { ok: true, info };
 }
 
@@ -156,6 +186,15 @@ export async function createOwnerUserAction(
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const site = await getSiteBySlug(siteSlug);
   if (!site) return { ok: false, error: "Site niet gevonden." };
+
+  // Takeover guard: this action mints an OWNER + a live session with no auth,
+  // so it must only ever create the FIRST user of a freshly-created site. If the
+  // site already has any user, refuse — otherwise anyone could POST this action
+  // with a public site slug + their own email and seize an existing tenant.
+  const existingUsers = await listUsersForSite(site.id);
+  if (existingUsers.length > 0) {
+    return { ok: false, error: "Deze site heeft al een eigenaar." };
+  }
 
   const strength = validatePasswordStrength(input.password);
   if (!strength.ok) return { ok: false, error: strength.error };
@@ -211,6 +250,11 @@ export async function setPasswordAction(
   }
 
   await setPassword(me.id, newPassword);
+  // Changing the password revokes every existing session (logout-everywhere),
+  // then re-establishes the current device's session so the user stays signed
+  // in here. A leaked/old cookie stops working immediately.
+  await deleteSessionsForUser(me.id);
+  await setSessionCookies(me.siteId, me.id);
   revalidatePath("/account");
   revalidatePath("/account/security");
   return { ok: true };
@@ -220,12 +264,17 @@ export async function inviteUserAction(
   email: string,
   name: string,
   role: "owner" | "editor" | "viewer",
-  tempPassword: string,
 ): Promise<{ ok: true; tempPassword: string } | { ok: false; error: string }> {
   const site = await requireSite();
   const inviter = await requireUser();
+  if (inviter.role !== "owner") {
+    return { ok: false, error: "Alleen eigenaren kunnen teamleden uitnodigen." };
+  }
   if (!email || !email.includes("@")) return { ok: false, error: "Ongeldig e-mailadres." };
-  if (tempPassword.length < 6) return { ok: false, error: "Tijdelijk wachtwoord min. 6 tekens." };
+  // Generate the temp password SERVER-SIDE with a CSPRNG. It was previously a
+  // client-supplied Math.random() string that became the invitee's real
+  // credential — predictable and never rotated.
+  const tempPassword = randomBytes(12).toString("base64url");
   const existing = await findUserByEmail(site.id, email);
   if (existing) return { ok: false, error: "Deze gebruiker bestaat al op deze site." };
   const created = await createUser({
@@ -246,16 +295,18 @@ export async function inviteUserAction(
 export async function removeUserAction(userId: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const site = await requireSite();
   const me = await getCurrentUser();
-  if (me?.id === userId) return { ok: false, error: "Je kunt jezelf niet verwijderen." };
+  if (!me || me.role !== "owner") {
+    return { ok: false, error: "Alleen eigenaren kunnen gebruikers verwijderen." };
+  }
+  if (me.id === userId) return { ok: false, error: "Je kunt jezelf niet verwijderen." };
   const users = await listUsersForSite(site.id);
   const target = users.find((u) => u.id === userId);
   if (!target) return { ok: false, error: "Gebruiker niet gevonden." };
   const { deleteUser } = await import("~/lib/users");
+  // Revoke the removed user's sessions explicitly (libsql does not enable FK
+  // cascades by default, so we can't rely on ON DELETE CASCADE here).
+  await deleteSessionsForUser(userId);
   await deleteUser(userId);
   revalidatePath("/settings");
   return { ok: true };
 }
-
-// Keep a reference to silence the unused import warning when `authenticate`
-// is dead-code (current callers all go through credentials).
-export { authenticate };

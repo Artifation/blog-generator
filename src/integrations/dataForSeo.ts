@@ -106,7 +106,9 @@ export async function fetchKeywordIdeas(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
-    signal: opts.signal,
+    // Default deadline so a hung DataForSEO call can't stall the whole run
+    // (callers currently never pass a signal).
+    signal: opts.signal ?? AbortSignal.timeout(30_000),
   });
 
   if (!res.ok) {

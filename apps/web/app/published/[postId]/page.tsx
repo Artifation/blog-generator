@@ -9,6 +9,7 @@ import { listDraftsForSite } from "~/lib/drafts";
 import { listTopicsForSite } from "~/lib/topics";
 import { formatRelative } from "~/lib/utils";
 import { getPostRankingForSite } from "~/lib/ranking";
+import { sanitizeContentHtml } from "~/lib/security/sanitize-html";
 import { RepurposePanel } from "./repurpose-panel";
 import { RankingPanel } from "./ranking-panel";
 
@@ -73,7 +74,7 @@ export default async function PublishedPostPage({
               <h3>Inhoud</h3>
             </div>
             <div className="card-body">
-              <article className="prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
+              <article className="prose" dangerouslySetInnerHTML={{ __html: sanitizeContentHtml(post.contentHtml) }} />
             </div>
           </div>
         </div>

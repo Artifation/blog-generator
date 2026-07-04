@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { runStrategist } from "@/agents/strategist";
+import { runStrategist, StrategistOutputSchema } from "@/agents/strategist";
 import type { LLMProvider } from "@/llm/types";
+import { resolveAgentModel } from "@/llm/client";
 
 const out = {
   outline: {
@@ -19,6 +20,8 @@ const out = {
       { url: "https://artifation.nl/ai-scan/", anchor: "AI Scan" },
       { url: "https://artifation.nl/contact/", anchor: "neem contact op" },
       { url: "https://artifation.nl/ai-consultancy/", anchor: "AI consultancy" },
+      { url: "https://artifation.nl/cases/", anchor: "klantcases" },
+      { url: "https://artifation.nl/blog/", anchor: "ons blog" },
     ],
     external_links_to_cite: ["https://rvo.nl/wbso"],
     schema_choices: ["BlogPosting"],
@@ -39,11 +42,28 @@ const provider: LLMProvider = {
   })),
 };
 
+describe("StrategistOutputSchema", () => {
+  it("rejects an outline with fewer than 5 internal-link targets (writer + gate require ≥5)", () => {
+    const tooFew = {
+      ...out,
+      outline: {
+        ...out.outline,
+        internal_links_to_inject: out.outline.internal_links_to_inject.slice(0, 4),
+      },
+    };
+    expect(StrategistOutputSchema.safeParse(tooFew).success).toBe(false);
+  });
+
+  it("accepts an outline with 5 internal-link targets", () => {
+    expect(StrategistOutputSchema.safeParse(out).success).toBe(true);
+  });
+});
+
 describe("runStrategist", () => {
   it("returns parsed outline", async () => {
     const r = await runStrategist(
       { research: {} as any, brand_voice: "informeel", target_keyword: "AI in HR" },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("strategist"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.outline.h2_chunks).toHaveLength(5);
   });
@@ -57,7 +77,7 @@ describe("runStrategist", () => {
         intent: "commercial",
         intended_word_count_target: 900,
       },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("strategist"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.outline.h2_chunks).toHaveLength(5);
   });
@@ -76,7 +96,7 @@ describe("runStrategist", () => {
           },
         ],
       },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("strategist"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.outline.h2_chunks).toHaveLength(5);
   });

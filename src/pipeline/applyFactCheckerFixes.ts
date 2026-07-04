@@ -87,7 +87,10 @@ export function applyFactCheckerFixes(input: ApplyFixesInput): ApplyFixesResult 
       applied.push({ claim: fix.claim, rewrite: fix.suggested_rewrite });
       continue;
     }
-    working = working.replace(fix.claim, fix.suggested_rewrite);
+    // Replace ALL occurrences (split/join, not String.replace which does only
+    // the first): a leftover duplicate of a fabricated claim keeps the fact-check
+    // re-run in `fail`, rejecting a draft that was in fact corrected.
+    working = working.split(fix.claim).join(fix.suggested_rewrite);
     applied.push({ claim: fix.claim, rewrite: fix.suggested_rewrite });
   }
 

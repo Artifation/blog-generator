@@ -1,7 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { getSiteBySlug } from "~/lib/sites";
+import { requireSite } from "~/lib/auth";
+import { currentUserHasRole } from "~/lib/auth/roles";
 import { getTopic, updateTopic } from "~/lib/topics";
 import { runForSite } from "~/lib/pipeline/runForSite";
 
@@ -12,8 +13,12 @@ export async function generateForTopicAction(
   | { ok: true; draftId: string | null; verdict: string; runId: string; reason?: string }
   | { ok: false; error: string }
 > {
-  const site = await getSiteBySlug(siteSlug);
-  if (!site) return { ok: false, error: `Site ${siteSlug} niet gevonden` };
+  // Derive the site from the SESSION — never from the client-supplied slug — so
+  // a caller can't trigger an expensive pipeline run on a tenant they don't own.
+  const site = await requireSite();
+  if (site.slug !== siteSlug) return { ok: false, error: "Geen toegang tot deze site." };
+  if (!(await currentUserHasRole("editor")))
+    return { ok: false, error: "Alleen editors of eigenaren kunnen content genereren." };
 
   const topic = await getTopic(topicId);
   if (!topic || topic.siteId !== site.id)

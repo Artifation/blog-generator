@@ -23,6 +23,25 @@ const defaultSleep = (ms: number): Promise<void> =>
   new Promise((r) => setTimeout(r, ms));
 
 /**
+ * The model hit its output-token cap, so the JSON is truncated/incomplete.
+ * Thrown (and NOT retried) by runAgent: re-issuing the identical request just
+ * truncates again at the same cap, burning full input tokens each time.
+ */
+export class TruncatedResponseError extends Error {
+  /** runAgent never retries an error flagged non-retryable (see the loop). */
+  readonly nonRetryable = true;
+  readonly maxTokens: number;
+  constructor(maxTokens: number, model: string) {
+    super(
+      `LLM output truncated at maxTokens=${maxTokens} (model ${model}). ` +
+        `Raise maxTokens for this agent — retrying the same request will keep truncating.`,
+    );
+    this.name = "TruncatedResponseError";
+    this.maxTokens = maxTokens;
+  }
+}
+
+/**
  * Anthropic returns HTTP 529 + body `{"type":"error","error":{"type":"overloaded_error",...}}`
  * when its infrastructure can't accept new requests. Short retry-backoff (the
  * default 2^attempt seconds) is useless here because overload windows last
@@ -56,6 +75,11 @@ export async function runAgent<T extends z.ZodTypeAny>(
 ): Promise<RunAgentResult<T>> {
   const maxAttempts = input.maxAttempts ?? 3;
   let lastError: Error | undefined;
+  // Accumulate tokens across ALL attempts (every retry still consumed input
+  // tokens upstream), so the returned cost reflects real spend, not just the
+  // final successful call.
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -67,12 +91,26 @@ export async function runAgent<T extends z.ZodTypeAny>(
         temperature: input.temperature,
         useSearch: input.useSearch,
       });
+      totalInputTokens += raw.inputTokens ?? 0;
+      totalOutputTokens += raw.outputTokens ?? 0;
+
+      if (raw.truncated) {
+        // Output cap hit → incomplete JSON. Fail fast; don't retry (see class doc).
+        throw new TruncatedResponseError(input.maxTokens, input.model);
+      }
 
       const json = extractJson(raw.text);
       const parsed = input.schema.parse(json);
-      return { parsed, raw };
+      return {
+        parsed,
+        raw: { ...raw, inputTokens: totalInputTokens, outputTokens: totalOutputTokens },
+      };
     } catch (err) {
       lastError = err as Error;
+      // Some errors are deterministic for an identical request (truncation at a
+      // fixed maxTokens, a refusal) — surface them immediately instead of burning
+      // the remaining attempts on the same doomed call.
+      if ((err as { nonRetryable?: boolean } | null)?.nonRetryable) throw err;
       if (attempt === maxAttempts) break;
       await sleepImpl(backoffMs(attempt, isOverloadedError(lastError)));
     }
@@ -83,50 +121,145 @@ export async function runAgent<T extends z.ZodTypeAny>(
 }
 
 function extractJson(text: string): unknown {
-  const fence = text.match(/```(?:json)?\s*\n?([\s\S]*?)```/);
-  const candidate = fence ? fence[1]! : text;
-  const start = candidate.indexOf("{");
-  const startArr = candidate.indexOf("[");
-  const begin =
-    start === -1 ? startArr : startArr === -1 ? start : Math.min(start, startArr);
-  if (begin === -1) throw new Error("No JSON found in response");
-  const slice = candidate.slice(begin);
+  // Scan EVERY candidate JSON start ({ or [) in the raw text, left to right, and
+  // return the first one that both BALANCES (string/escape-aware) and PARSES. We
+  // deliberately do NOT strip a leading ``` fence or lock onto the first bracket:
+  //  - Content agents emit JSON whose string values contain markdown ``` fences
+  //    AND stray { }. A fence-delimited or first-bracket extractor slices those
+  //    in half ("Unterminated string in JSON") — extractBalanced walks the real
+  //    string boundaries so inner ``` / braces are just ordinary characters.
+  //  - Parse-validating each candidate skips prose like "{an example}" or
+  //    "[a, b]" that precedes the real object instead of locking onto it.
+  const candidates: number[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "{" || ch === "[") candidates.push(i);
+  }
+  if (candidates.length === 0) throw new Error("No JSON found in response");
+
+  let firstError: unknown = null;
+  for (const begin of candidates) {
+    const balanced = extractBalanced(text, begin);
+    if (!balanced) continue;
+    try {
+      return JSON.parse(balanced);
+    } catch (err) {
+      if (firstError === null) firstError = err;
+      // Fallback: repair common LLM-JSON mistakes before moving on.
+      try {
+        return JSON.parse(repairJson(balanced));
+      } catch {
+        /* try the next candidate */
+      }
+    }
+  }
+
+  // No candidate balanced+parsed (e.g. genuinely unbalanced/truncated braces not
+  // flagged as `truncated`). Fall back to the classic first-bracket→end-of-string
+  // slice + repair so trailing-prose truncation still gets a recovery attempt.
+  const begin = candidates[0]!;
+  const slice = text.slice(begin);
   try {
     return JSON.parse(slice);
   } catch (originalErr) {
-    // Fallback: probeer common LLM-fouten te repareren voordat we opgeven
     try {
-      const repaired = repairJson(slice);
-      return JSON.parse(repaired);
+      return JSON.parse(repairJson(slice));
     } catch {
-      throw originalErr;
+      throw firstError ?? originalErr;
     }
   }
 }
 
 /**
- * Repareer veelvoorkomende LLM-JSON fouten:
- * - Smart quotes (curly) → straight quotes
+ * Return the substring from `begin` (a `{` or `[`) to its matching close,
+ * tracking depth while respecting string/escape state. Returns null when the
+ * container is unbalanced (caller then falls back to the raw slice).
+ */
+function extractBalanced(s: string, begin: number): string | null {
+  const open = s[begin];
+  if (open !== "{" && open !== "[") return null;
+  const close = open === "{" ? "}" : "]";
+  let depth = 0;
+  let inStr = false;
+  let escaped = false;
+  for (let i = begin; i < s.length; i++) {
+    const ch = s[i];
+    if (inStr) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') inStr = true;
+    else if (ch === open) depth++;
+    else if (ch === close) {
+      depth--;
+      if (depth === 0) return s.slice(begin, i + 1);
+    }
+  }
+  return null;
+}
+
+/**
+ * Split `s` into alternating segments tagged in-string / out-of-string, tracking
+ * escape state. Best-effort on malformed input, but for the common repair target
+ * (structurally-broken JSON with intact string values) it reliably protects the
+ * CONTENT of string values from the structural regexes below.
+ */
+function splitJsonSegments(s: string): { text: string; inStr: boolean }[] {
+  const segs: { text: string; inStr: boolean }[] = [];
+  let buf = "";
+  let inStr = false;
+  let escaped = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i]!;
+    if (inStr) {
+      buf += ch;
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') {
+        segs.push({ text: buf, inStr: true });
+        buf = "";
+        inStr = false;
+      }
+      continue;
+    }
+    if (ch === '"') {
+      if (buf) segs.push({ text: buf, inStr: false });
+      buf = '"';
+      inStr = true;
+      continue;
+    }
+    buf += ch;
+  }
+  if (buf) segs.push({ text: buf, inStr });
+  return segs;
+}
+
+/**
+ * Repareer veelvoorkomende LLM-JSON fouten — maar UITSLUITEND op de structurele
+ * (buiten-string) delen, zodat we nooit de inhoud van een string-value stukmaken
+ * (een komma of `word:` binnen een string is data, geen syntax):
+ * - Smart quotes (curly) → straight quotes (alleen als delimiter, buiten strings)
  * - Trailing commas vóór ] of }
- * - Onverpakte double-quotes in HTML-attributen binnen string-values
- *   (vervang `="..."` patroon binnen JSON-string door `='...'`)
  * - Unquoted property names (Claude valt soms terug op JS-object-syntax bij
  *   lange outputs — `foo: "bar"` → `"foo": "bar"`).
+ *
+ * (De vroegere HTML-attribuut-quote-repair is verwijderd: hoog risico op
+ * false-positives en extractBalanced dekt de trailing-prose-case al af.)
  */
 function repairJson(s: string): string {
-  let r = s;
-  // Smart quotes → straight
-  r = r.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
-  // Trailing comma vóór ] of }
-  r = r.replace(/,(\s*[}\]])/g, "$1");
-  // HTML attribute quotes binnen string-values: vervang `="` door `='` en `"` daarna door `'`
-  // Risico: vals-positief op echte JSON-quotes. We doen het alleen voor HTML-achtige patronen.
-  // Pattern: `(letter|=)"` binnen een al-open string. Conservatief: replace patroon `\sclass="..."` etc.
-  r = r.replace(/(\s(?:class|id|href|src|alt|rel|target|style)=)"([^"]*?)"/g, "$1'$2'");
-  // Unquoted property names — komt voor wanneer Claude bij een lang object
-  // halverwege de JSON-discipline verliest. Match alleen aan het begin van
-  // een regel (na newline + whitespace) gevolgd door identifier + colon, om
-  // false-positives in stringwaardes te vermijden.
-  r = r.replace(/([{,]\s*\n\s*)([a-zA-Z_]\w*)(\s*:)/g, '$1"$2"$3');
-  return r;
+  return splitJsonSegments(s)
+    .map((seg) => {
+      if (seg.inStr) return seg.text; // never touch string CONTENT
+      let t = seg.text;
+      // Smart quotes used as delimiters → straight.
+      t = t.replace(/[“”]/g, '"').replace(/[‘’]/g, "'");
+      // Trailing comma before ] or }.
+      t = t.replace(/,(\s*[}\]])/g, "$1");
+      // Unquoted property names (JS-object-style keys).
+      t = t.replace(/([{,]\s*\n?\s*)([a-zA-Z_]\w*)(\s*:)/g, '$1"$2"$3');
+      return t;
+    })
+    .join("");
 }

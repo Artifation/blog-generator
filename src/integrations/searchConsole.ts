@@ -1,7 +1,8 @@
+import { readFileSync } from "node:fs";
 import { google } from "googleapis";
 
 export interface GscClientOpts {
-  serviceAccountJson: string; // raw JSON string of service account credentials
+  serviceAccountJson: string; // raw JSON string OR a path to the JSON file
 }
 
 export interface GscQueryInput {
@@ -30,11 +31,19 @@ export interface GscQueryResult {
   totals: { clicks: number; impressions: number; ctr: number; position: number };
 }
 
+function loadServiceAccount(raw: string): { client_email: string; private_key: string } {
+  const trimmed = raw.trim();
+  // Accept either inline JSON ({...}) or a path to the JSON file (as the
+  // .env docs describe). Read the file when it isn't inline JSON.
+  const jsonStr = trimmed.startsWith("{") ? trimmed : readFileSync(trimmed, "utf-8");
+  const creds = JSON.parse(jsonStr) as { client_email: string; private_key: string };
+  // Normalize \n-escaped private keys (common when the JSON is pasted into a
+  // single-line env var), otherwise the JWT signature fails.
+  return { ...creds, private_key: creds.private_key.replace(/\\n/g, "\n") };
+}
+
 function buildAuth(opts: GscClientOpts) {
-  const credentials = JSON.parse(opts.serviceAccountJson) as {
-    client_email: string;
-    private_key: string;
-  };
+  const credentials = loadServiceAccount(opts.serviceAccountJson);
   return new google.auth.JWT({
     email: credentials.client_email,
     key: credentials.private_key,

@@ -6,7 +6,7 @@ JE OUTPUT (strict JSON):
 {
   "edited_html": string,             // gecorrigeerde draft
   "meta_title": string,              // 30-70 tekens (schema accepteert tot 80), focus keyword vooraan
-  "meta_description": string,        // 120-160 tekens (schema accepteert 110-165), focus keyword + value prop + CTA-werkwoord
+  "meta_description": string,        // 110-165 tekens (sweet spot 120-160), focus keyword + value prop + CTA-werkwoord
   "slug": string,                    // kebab-case, ≤6 woorden, focus keyword vooraan
   "alt_texts_per_image_placeholder": [string, ...],  // 1 per <img> placeholder
   "fixes_applied": [string, ...]     // log: welke ban-list items vervangen, welke H2 te kort/lang, etc.

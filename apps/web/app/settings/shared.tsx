@@ -44,13 +44,28 @@ export function Field({
   help?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  // Associate the label with its control (htmlFor/id) without changing the DOM
+  // layout: stamp a generated id onto the single child input/select and point
+  // the label at it. Also surface required-state to AT via aria-required.
+  const generatedId = React.useId();
+  let control = children;
+  let htmlFor: string | undefined;
+  if (React.isValidElement(children)) {
+    const childProps = children.props as { id?: string };
+    const id = childProps.id ?? generatedId;
+    htmlFor = id;
+    control = React.cloneElement(
+      children as React.ReactElement<{ id?: string; "aria-required"?: boolean }>,
+      { id, "aria-required": required || undefined },
+    );
+  }
   return (
     <div className="field" style={{ flex: 1 }}>
-      <label>
+      <label htmlFor={htmlFor}>
         <span>{label}</span>
         {required ? <RequiredBadge /> : <OptionalBadge />}
       </label>
-      {children}
+      {control}
       {help && <FieldHelp>{help}</FieldHelp>}
     </div>
   );
@@ -69,11 +84,13 @@ export function ApiKey({
   hint?: string;
 }) {
   const [show, setShow] = React.useState(false);
+  const id = React.useId();
   return (
     <div className="field">
-      <label>{label}</label>
+      <label htmlFor={id}>{label}</label>
       <div className="row" style={{ gap: 6 }}>
         <input
+          id={id}
           className="input mono"
           type={show ? "text" : "password"}
           value={value}
@@ -159,6 +176,7 @@ export function ChipsField({
   required?: boolean;
 }) {
   const [input, setInput] = React.useState("");
+  const id = React.useId();
   function add() {
     const v = input.trim();
     if (!v || values.includes(v)) return;
@@ -167,7 +185,7 @@ export function ChipsField({
   }
   return (
     <div className="field">
-      <label>
+      <label htmlFor={id}>
         <span>{label}</span>
         {required ? <RequiredBadge /> : optional ? <OptionalBadge /> : null}
       </label>
@@ -187,6 +205,8 @@ export function ChipsField({
           </span>
         ))}
         <input
+          id={id}
+          aria-required={required || undefined}
           value={input}
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={(e) => {

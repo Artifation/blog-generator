@@ -6,10 +6,40 @@ function escapeYaml(s: string): string {
   return s.replace(/"/g, '\\"').replace(/\r?\n/g, " ");
 }
 
+/** Decode the handful of entities the writer emits, for literal code output. */
+function decodeEntities(s: string): string {
+  return s
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, "&");
+}
+
 function htmlToMarkdown(html: string): string {
   // Minimal HTML → Markdown converter. Good enough for blog posts produced
   // by the writer agent. Users can refine in their static-site generator.
   let md = html;
+
+  // Code first: turn <pre><code> into fenced blocks and inline <code> into
+  // backticks, then stash them behind a placeholder so the inline transforms +
+  // the final tag-strip below never touch (or eat the `<…>` literals in) their
+  // contents. Restored verbatim at the end.
+  const codeBlocks: string[] = [];
+  const stash = (out: string) => {
+    codeBlocks.push(out);
+    return `￼cb${codeBlocks.length - 1}￼`;
+  };
+  md = md.replace(/<pre[^>]*>\s*<code[^>]*>([\s\S]*?)<\/code>\s*<\/pre>/gi, (_, c: string) =>
+    stash("```\n" + decodeEntities(c.replace(/\r?\n$/, "")) + "\n```\n\n"),
+  );
+  md = md.replace(/<pre[^>]*>([\s\S]*?)<\/pre>/gis, (_, c: string) =>
+    stash("```\n" + decodeEntities(c.trim()) + "\n```\n\n"),
+  );
+  md = md.replace(/<code[^>]*>([\s\S]*?)<\/code>/gis, (_, c: string) =>
+    stash("`" + decodeEntities(c.trim()) + "`"),
+  );
+
   md = md.replace(/<h1[^>]*>(.*?)<\/h1>/gis, (_, t) => `# ${t.trim()}\n\n`);
   md = md.replace(/<h2[^>]*>(.*?)<\/h2>/gis, (_, t) => `## ${t.trim()}\n\n`);
   md = md.replace(/<h3[^>]*>(.*?)<\/h3>/gis, (_, t) => `### ${t.trim()}\n\n`);
@@ -25,6 +55,8 @@ function htmlToMarkdown(html: string): string {
   md = md.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_, t) => `> ${t.trim()}\n\n`);
   md = md.replace(/<[^>]+>/g, "");
   md = md.replace(/\n{3,}/g, "\n\n");
+  // Restore code blocks verbatim (after the tag-strip, so their `<…>` survive).
+  md = md.replace(/￼cb(\d+)￼/g, (_, i: string) => codeBlocks[Number(i)]);
   return md.trim() + "\n";
 }
 

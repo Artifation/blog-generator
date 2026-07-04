@@ -11,8 +11,13 @@ let _sharpFactory: typeof sharpType | null = null;
 async function getSharp(): Promise<typeof sharpType> {
   if (_sharpFactory) return _sharpFactory;
   // Try dynamic import first (works in most environments).
+  // `webpackIgnore` keeps Next/webpack from statically bundling sharp into the
+  // server chunk — without it the bundler pulls in sharp's optional native
+  // sub-packages (@img/sharp-wasm32, @img/sharp-libvips-dev) that aren't
+  // installed and fails the production build with "Module not found". sharp is
+  // resolved from node_modules at runtime instead (it's in serverExternalPackages).
   try {
-    const mod = await import("sharp");
+    const mod = await import(/* webpackIgnore: true */ "sharp");
     _sharpFactory = mod.default ?? (mod as unknown as typeof sharpType);
     if (typeof _sharpFactory === "function") return _sharpFactory;
   } catch {
@@ -31,10 +36,10 @@ export interface OptimizeInput {
 }
 
 export interface OptimizedImage {
-  /** AVIF when sharp succeeded; raw input PNG when sharp was unavailable. */
+  /** WebP when sharp succeeded; raw input PNG when sharp was unavailable. */
   bytes: Buffer;
-  /** "image/avif" when optimised; "image/png" when sharp fallback used. */
-  contentType: "image/avif" | "image/png";
+  /** "image/webp" when optimised; "image/png" when sharp fallback used. */
+  contentType: "image/webp" | "image/png";
   /** Set when sharp could decode; 0 when fallback used (no metadata). */
   width: number;
   height: number;
@@ -46,12 +51,14 @@ export async function optimizeForWeb(input: OptimizeInput): Promise<OptimizedIma
   const quality = input.quality ?? 80;
   try {
     const sharp = await getSharp();
-    // sharp strips EXIF/IPTC/XMP by default when withMetadata() is NOT called.
-    const pipeline = sharp(input.pngBytes).avif({ quality, effort: 4 });
+    // WebP (not AVIF): default WordPress REST allows webp uploads (since 5.8)
+    // but rejects avif, which hard-failed publishing. sharp strips
+    // EXIF/IPTC/XMP by default when withMetadata() is NOT called.
+    const pipeline = sharp(input.pngBytes).webp({ quality, effort: 4 });
     const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
     return {
       bytes: data,
-      contentType: "image/avif",
+      contentType: "image/webp",
       width: info.width,
       height: info.height,
       fallbackUsed: false,
