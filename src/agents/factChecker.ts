@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { runAgent } from "@/llm/runAgent";
-import { resolveAgentModel } from "@/llm/client";
+import type { AgentModelChoice } from "@/llm/client";
 import type { LLMProvider } from "@/llm/types";
+import type { OriginalityAnchor } from "./researcher.ts";
 import { FACT_CHECKER_SYSTEM_PROMPT } from "./prompts/factChecker.ts";
 
 export const FactCheckerOutputSchema = z.object({
@@ -34,22 +35,27 @@ export type FactCheckerOutput = z.infer<typeof FactCheckerOutputSchema>;
 export interface FactCheckerInput {
   edited_html: string;
   key_facts: { claim: string; source_url: string }[];
+  /** When the researcher provided a hypothetical_scenario anchor, the writer
+   * is authorised to use its industry+region+situation+outcome specifics —
+   * these should NOT be flagged as fabricated. Pass-through so the
+   * fact-checker can recognise legitimate hypothetical content. */
+  originality_anchor?: OriginalityAnchor;
 }
 
 export interface FactCheckerDeps {
   provider: LLMProvider;
+  model: AgentModelChoice;
   sleepImpl?: (ms: number) => Promise<void>;
 }
 
 export async function runFactChecker(input: FactCheckerInput, deps: FactCheckerDeps) {
-  const model = resolveAgentModel("factChecker");
   return runAgent(
     {
       provider: deps.provider,
       systemPrompt: FACT_CHECKER_SYSTEM_PROMPT,
       userPrompt: JSON.stringify(input, null, 2),
-      model: model.model,
-      maxTokens: model.maxTokens,
+      model: deps.model.model,
+      maxTokens: deps.model.maxTokens,
       schema: FactCheckerOutputSchema,
     },
     deps.sleepImpl

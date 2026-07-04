@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { runAgent } from "@/llm/runAgent";
-import { resolveAgentModel } from "@/llm/client";
+import type { AgentModelChoice } from "@/llm/client";
 import type { LLMProvider } from "@/llm/types";
 import type { ResearchOutput } from "./researcher.ts";
 import { STRATEGIST_SYSTEM_PROMPT } from "./prompts/strategist.ts";
@@ -64,18 +64,22 @@ export interface StrategistInput {
 
 export interface StrategistDeps {
   provider: LLMProvider;
+  model: AgentModelChoice;
   sleepImpl?: (ms: number) => Promise<void>;
 }
 
 export async function runStrategist(input: StrategistInput, deps: StrategistDeps) {
-  const model = resolveAgentModel("strategist");
   return runAgent(
     {
       provider: deps.provider,
       systemPrompt: STRATEGIST_SYSTEM_PROMPT,
       userPrompt: JSON.stringify(input, null, 2),
-      model: model.model,
-      maxTokens: model.maxTokens,
+      model: deps.model.model,
+      maxTokens: deps.model.maxTokens,
+      // Lagere temperature — strategist returnt complexe geneste JSON; bij
+      // default 1.0 verlies de LLM soms halverwege de JSON-syntax (klassieke
+      // "unquoted property name"-fout op positie ~4000).
+      temperature: 0.3,
       schema: StrategistOutputSchema,
     },
     deps.sleepImpl

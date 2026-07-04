@@ -10,8 +10,11 @@ export async function runNextQueuedAction(): Promise<
   | { ok: false; error: string }
 > {
   const site = await requireSite();
-  if (!site.apiKeys?.anthropic || !site.apiKeys?.gemini || !site.apiKeys?.groq) {
-    return { ok: false, error: "Mist verplichte API-keys (Anthropic, Gemini, Groq)." };
+  // Alleen Gemini is écht verplicht — andere providers worden gracieus
+  // overgeslagen via resolveAgentModel(role, registry) in de pipeline.
+  const geminiKey = site.apiKeys?.gemini ?? process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    return { ok: false, error: "Gemini API-key vereist. Ga naar Instellingen → Integraties." };
   }
   const queued = await listTopicsForSite(site.id, "queued");
   if (queued.length === 0) {

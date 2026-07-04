@@ -30,7 +30,7 @@ services:
     ports:
       # Bind to localhost so a reverse proxy (Caddy/Traefik/nginx) terminates
       # TLS in front. Change to "3000:3000" if you expose Next directly.
-      - "127.0.0.1:${BLOGTOOL_PORT:-3000}:3000"
+      - "0.0.0.0:${BLOGTOOL_PORT:-3000}:3000"
     volumes:
       - blogtool_data:/app/data
     healthcheck:

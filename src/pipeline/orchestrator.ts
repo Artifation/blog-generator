@@ -11,7 +11,7 @@ import { checkCitations, enrichSignalsWithCitationCheck } from "./citationCheck.
 import { detectAiContent } from "./aiDetection.ts";
 import { computeRunCost, type UsageEntry } from "./costTracker.ts";
 import { countPublishedThisIsoWeek, markTopicStatus } from "./state.ts";
-import { createProviderRegistry } from "@/llm/client";
+import { createProviderRegistry, resolveAgentModel } from "@/llm/client";
 import { runResearcher } from "@/agents/researcher";
 import { runStrategist, type StrategistInput } from "@/agents/strategist";
 import { derivePerformanceInsights, loadLatestSnapshot } from "./gscPerformanceInsights.ts";
@@ -153,6 +153,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
     const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
     currentStage = "researcher";
+    const researcherModel = resolveAgentModel("researcher", providers);
     const research = await runResearcher(
       {
         target_keyword: next.target_keyword,
@@ -160,10 +161,10 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         pillar: next.pillar,
         existing_site_urls: sitemap.map((e) => e.url),
       },
-      { provider: providers.get("gemini"), sleepImpl: sleep }
+      { provider: providers.get(researcherModel.provider), model: researcherModel, sleepImpl: sleep }
     );
     usage.push({
-      provider: "gemini",
+      provider: researcherModel.provider,
       model: research.raw.model,
       inputTokens: research.raw.inputTokens,
       outputTokens: research.raw.outputTokens,
@@ -295,6 +296,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
     }
 
     currentStage = "strategist";
+    const strategistModel = resolveAgentModel("strategist", providers);
     const outline = await runStrategist(
       {
         research: research.parsed,
@@ -306,16 +308,17 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         ...(serpResults && serpResults.length > 0 ? { serp_results: serpResults } : {}),
         ...(strategistPerformanceSignals ? { performance_signals: strategistPerformanceSignals } : {}),
       },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      { provider: providers.get(strategistModel.provider), model: strategistModel, sleepImpl: sleep }
     );
     usage.push({
-      provider: "anthropic",
+      provider: strategistModel.provider,
       model: outline.raw.model,
       inputTokens: outline.raw.inputTokens,
       outputTokens: outline.raw.outputTokens,
     });
 
     currentStage = "writer";
+    const writerModel = resolveAgentModel("writer", providers);
     const writer = await runWriter(
       {
         outline: outline.parsed.outline,
@@ -325,16 +328,17 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         key_facts: research.parsed.key_facts,
         originality_anchor: research.parsed.originality_anchor,
       },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      { provider: providers.get(writerModel.provider), model: writerModel, sleepImpl: sleep }
     );
     usage.push({
-      provider: "anthropic",
-      model: "claude-sonnet-4-6",
+      provider: writerModel.provider,
+      model: writerModel.model,
       inputTokens: writer.totalInputTokens,
       outputTokens: writer.totalOutputTokens,
     });
 
     currentStage = "seoEditor";
+    const seoEditorModel = resolveAgentModel("seoEditor", providers);
     const seo = await runSeoEditor(
       {
         draft_html: writer.parsed.draft_html,
@@ -342,10 +346,10 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         internal_links_target_list: outline.parsed.outline.internal_links_to_inject,
         ban_list: tenant.brand.ban_list,
       },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      { provider: providers.get(seoEditorModel.provider), model: seoEditorModel, sleepImpl: sleep }
     );
     usage.push({
-      provider: "anthropic",
+      provider: seoEditorModel.provider,
       model: seo.raw.model,
       inputTokens: seo.raw.inputTokens,
       outputTokens: seo.raw.outputTokens,
@@ -356,12 +360,17 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
     seo.parsed.edited_html = postProcessDraftHtml(seo.parsed.edited_html);
 
     currentStage = "factChecker";
+    const factCheckerModel = resolveAgentModel("factChecker", providers);
     let fc = await runFactChecker(
-      { edited_html: seo.parsed.edited_html, key_facts: research.parsed.key_facts },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      {
+        edited_html: seo.parsed.edited_html,
+        key_facts: research.parsed.key_facts,
+        originality_anchor: research.parsed.originality_anchor,
+      },
+      { provider: providers.get(factCheckerModel.provider), model: factCheckerModel, sleepImpl: sleep }
     );
     usage.push({
-      provider: "anthropic",
+      provider: factCheckerModel.provider,
       model: fc.raw.model,
       inputTokens: fc.raw.inputTokens,
       outputTokens: fc.raw.outputTokens,
@@ -385,11 +394,15 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         });
         currentStage = "factCheckerRecheck";
         const fc2 = await runFactChecker(
-          { edited_html: seo.parsed.edited_html, key_facts: research.parsed.key_facts },
-          { provider: providers.get("anthropic"), sleepImpl: sleep }
+          {
+            edited_html: seo.parsed.edited_html,
+            key_facts: research.parsed.key_facts,
+            originality_anchor: research.parsed.originality_anchor,
+          },
+          { provider: providers.get(factCheckerModel.provider), model: factCheckerModel, sleepImpl: sleep }
         );
         usage.push({
-          provider: "anthropic",
+          provider: factCheckerModel.provider,
           model: fc2.raw.model,
           inputTokens: fc2.raw.inputTokens,
           outputTokens: fc2.raw.outputTokens,
@@ -522,6 +535,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
     }
 
     currentStage = "qualityJudge";
+    const qualityJudgeModel = resolveAgentModel("qualityJudge", providers);
     const judge = await runQualityJudge(
       {
         edited_html: htmlForJudge,
@@ -537,10 +551,10 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
           alt_texts: seo.parsed.alt_texts_per_image_placeholder,
         },
       },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      { provider: providers.get(qualityJudgeModel.provider), model: qualityJudgeModel, sleepImpl: sleep }
     );
     usage.push({
-      provider: "anthropic",
+      provider: qualityJudgeModel.provider,
       model: judge.raw.model,
       inputTokens: judge.raw.inputTokens,
       outputTokens: judge.raw.outputTokens,
@@ -612,6 +626,7 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
     // hoeft niets meer gecheckt — als we hier zijn, was cap bij run-start nog vrij.
 
     currentStage = "imagePrompter";
+    const imagePrompterModel = resolveAgentModel("imagePrompter", providers);
     const ip = await runImagePrompter(
       {
         title: outline.parsed.outline.h1_suggestion,
@@ -624,10 +639,10 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
         // niet generieke abstract netwerken).
         key_entities: research.parsed.key_entities.slice(0, 5),
       },
-      { provider: providers.get("groq"), sleepImpl: sleep }
+      { provider: providers.get(imagePrompterModel.provider), model: imagePrompterModel, sleepImpl: sleep }
     );
     usage.push({
-      provider: "groq",
+      provider: imagePrompterModel.provider,
       model: ip.raw.model,
       inputTokens: ip.raw.inputTokens,
       outputTokens: ip.raw.outputTokens,
@@ -650,10 +665,11 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       appPassword: requireEnv(env, tenant.wordpress.app_password_secret_ref),
     });
     const optimized = await optimizeForWeb({ pngBytes: image.bytes });
+    const ext = optimized.contentType === "image/avif" ? "avif" : "png";
     const media = await uploadMedia(wp, {
-      bytes: optimized.avifBytes,
-      contentType: optimized.contentType,           // "image/avif"
-      filename: `${seo.parsed.slug}.avif`,
+      bytes: optimized.bytes,
+      contentType: optimized.contentType,           // "image/avif" or "image/png"
+      filename: `${seo.parsed.slug}.${ext}`,
       altText: ip.parsed.alt_text_nl,
     });
 
@@ -765,15 +781,16 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
           pillar: next.pillar,
         };
         const formats = tenant.features.repurposer.formats ?? [];
+        const repurposerModel = resolveAgentModel("repurposer", providers);
         const [linkedInResult, newsletterResult, xthreadResult] = await Promise.all([
           formats.includes("linkedin")
-            ? runRepurposerLinkedIn({ blog, brand_voice: tenant.brand.voice }, { provider: providers.get("anthropic"), sleepImpl: sleep })
+            ? runRepurposerLinkedIn({ blog, brand_voice: tenant.brand.voice }, { provider: providers.get(repurposerModel.provider), model: repurposerModel, sleepImpl: sleep })
             : null,
           formats.includes("newsletter")
-            ? runRepurposerNewsletter({ blog, brand_voice: tenant.brand.voice }, { provider: providers.get("anthropic"), sleepImpl: sleep })
+            ? runRepurposerNewsletter({ blog, brand_voice: tenant.brand.voice }, { provider: providers.get(repurposerModel.provider), model: repurposerModel, sleepImpl: sleep })
             : null,
           formats.includes("xthread")
-            ? runRepurposerXThread({ blog, brand_voice: tenant.brand.voice }, { provider: providers.get("anthropic"), sleepImpl: sleep })
+            ? runRepurposerXThread({ blog, brand_voice: tenant.brand.voice }, { provider: providers.get(repurposerModel.provider), model: repurposerModel, sleepImpl: sleep })
             : null,
         ]);
         const repurposedHtml = await render(

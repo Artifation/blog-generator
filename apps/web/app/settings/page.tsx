@@ -3,17 +3,31 @@ import { AdminShell } from "~/components/layout/app-shell";
 import { listDraftsForSite } from "~/lib/drafts";
 import { listTopicsForSite } from "~/lib/topics";
 import { listUsersForSite } from "~/lib/users";
-import { SettingsForm } from "./settings-form";
-import { TeamSection } from "./team-section";
+import { SettingsShell } from "./settings-shell";
+import { parseTab, type TabKey } from "./tab-types";
+import { BrandTab } from "./tabs/brand-tab";
+import { PublishTab } from "./tabs/publish-tab";
+import { IntegrationsTab } from "./tabs/integrations-tab";
+import { TeamTab } from "./tabs/team-tab";
+import { DangerTab } from "./tabs/danger-tab";
 
 export const dynamic = "force-dynamic";
 
-export default async function SettingsPage() {
+interface PageProps {
+  searchParams: Promise<{ tab?: string }>;
+}
+
+export default async function SettingsPage({ searchParams }: PageProps) {
   const site = await requireSite();
   const me = await getCurrentUser();
-  const pending = await listDraftsForSite(site.id, "pending_review");
-  const topics = await listTopicsForSite(site.id);
-  const users = await listUsersForSite(site.id);
+  const sp = await searchParams;
+  const tab: TabKey = parseTab(sp.tab);
+
+  const [pending, topics, users] = await Promise.all([
+    listDraftsForSite(site.id, "pending_review"),
+    listTopicsForSite(site.id, "queued"),
+    listUsersForSite(site.id),
+  ]);
   const members = users.map((u) => ({
     id: u.id,
     email: u.email,
@@ -28,31 +42,16 @@ export default async function SettingsPage() {
     <AdminShell
       site={site}
       pendingDrafts={pending.length}
-      queuedTopics={topics.filter((t) => t.status === "queued").length}
+      queuedTopics={topics.length}
       crumbs={[{ label: "Instellingen" }]}
     >
-      <SettingsForm
-        site={{
-          id: site.id,
-          slug: site.slug,
-          name: site.name,
-          domain: site.domain,
-          language: site.language,
-          brandVoice: site.brandVoice,
-          banList: site.banList,
-          signaturePhrases: site.signaturePhrases,
-          qualityThreshold: site.qualityThreshold,
-          maxPostsPerWeek: site.maxPostsPerWeek,
-          scheduleCron: site.scheduleCron,
-          publishDestination: site.publishDestination,
-          wordpressConfig: site.wordpressConfig,
-          author: site.author,
-          apiKeys: site.apiKeys,
-          pillars: site.pillars.map((p) => ({ slug: p.slug, name: p.name, weight: p.weight })),
-          features: site.features ?? {},
-        }}
-        teamSection={<TeamSection members={members} />}
-      />
+      <SettingsShell activeTab={tab}>
+        {tab === "brand" && <BrandTab site={site} />}
+        {tab === "publish" && <PublishTab site={site} />}
+        {tab === "integrations" && <IntegrationsTab site={site} />}
+        {tab === "team" && <TeamTab members={members} />}
+        {tab === "danger" && <DangerTab site={site} />}
+      </SettingsShell>
     </AdminShell>
   );
 }

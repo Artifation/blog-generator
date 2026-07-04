@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { runAgent } from "@/llm/runAgent";
-import { resolveAgentModel } from "@/llm/client";
+import type { AgentModelChoice } from "@/llm/client";
 import type { LLMProvider } from "@/llm/types";
 import type { StrategistOutput } from "./strategist.ts";
 import type { OriginalityAnchor } from "./researcher.ts";
@@ -36,6 +36,7 @@ export interface WriterInput {
 
 export interface WriterDeps {
   provider: LLMProvider;
+  model: AgentModelChoice;
   sleepImpl?: (ms: number) => Promise<void>;
 }
 
@@ -50,7 +51,6 @@ const SELF_SCORE_THRESHOLD = 7;
 const MAX_ITERATIONS = 3;
 
 export async function runWriter(input: WriterInput, deps: WriterDeps): Promise<WriterResult> {
-  const model = resolveAgentModel("writer");
   let totalInputTokens = 0;
   let totalOutputTokens = 0;
   let last: WriterOutput | undefined;
@@ -94,8 +94,8 @@ export async function runWriter(input: WriterInput, deps: WriterDeps): Promise<W
         provider: deps.provider,
         systemPrompt: WRITER_SYSTEM_PROMPT(input.brand_voice, input.ban_list),
         userPrompt,
-        model: model.model,
-        maxTokens: model.maxTokens,
+        model: deps.model.model,
+        maxTokens: deps.model.maxTokens,
         temperature: 1.0 - i * 0.1,
         schema: WriterOutputSchema,
       },

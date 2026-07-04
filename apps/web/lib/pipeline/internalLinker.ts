@@ -10,7 +10,7 @@
 import { eq, and, desc, ne, sql } from "drizzle-orm";
 import { getDb, ensureSchema } from "~/lib/db/client";
 import { publishedPosts, type Site } from "~/lib/db/schema";
-import { createProviderRegistry } from "@/llm/client";
+import { createProviderRegistry, resolveAgentModel } from "@/llm/client";
 import { runInternalLinker } from "@/agents/internalLinker";
 
 export interface InternalLinkerResult {
@@ -71,6 +71,7 @@ export async function runBuiltInInternalLinker(
   }
 
   const providers = createProviderRegistry(env);
+  const internalLinkerModel = resolveAgentModel("internalLinker", providers);
   const linksAdded: InternalLinkerResult["linksAdded"] = [];
   const skipped: InternalLinkerResult["skipped"] = [];
 
@@ -95,7 +96,7 @@ export async function runBuiltInInternalLinker(
           },
           constraint_anchor_already_used: [],
         },
-        { provider: providers.get("anthropic") }
+        { provider: providers.get(internalLinkerModel.provider), model: internalLinkerModel }
       );
 
       if (!res.parsed.should_link || res.parsed.confidence < 0.6) {

@@ -3,7 +3,7 @@ import path from "node:path";
 import { parse as parseHtml } from "node-html-parser";
 import { loadTenant } from "@/config/loader";
 import { loadTopics } from "@/config/topics";
-import { createProviderRegistry } from "@/llm/client";
+import { createProviderRegistry, resolveAgentModel } from "@/llm/client";
 import { runInternalLinker } from "@/agents/internalLinker";
 import { createWordpressClient } from "@/wordpress/client";
 import { listRecentPosts, updatePostContent, type WpPost } from "@/wordpress/posts";
@@ -78,6 +78,7 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
 
   const providers = createProviderRegistry(env);
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  const internalLinkerModel = resolveAgentModel("internalLinker", providers);
 
   let linksAddedCount = 0;
   const usedAnchorsThisRun: string[] = [];
@@ -134,7 +135,7 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
             },
             constraint_anchor_already_used: usedAnchorsThisRun,
           },
-          { provider: providers.get("anthropic"), sleepImpl: sleep }
+          { provider: providers.get(internalLinkerModel.provider), model: internalLinkerModel, sleepImpl: sleep }
         );
         log.agent_calls++;
 

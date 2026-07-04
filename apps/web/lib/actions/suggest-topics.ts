@@ -3,7 +3,7 @@
 import path from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { requireSite } from "~/lib/auth";
-import { createProviderRegistry } from "@/llm/client";
+import { createProviderRegistry, resolveAgentModel } from "@/llm/client";
 import { runTopicSuggester } from "@/agents/topicSuggester";
 import { querySearchConsole, type GscRow, type GscClientOpts } from "@/integrations/searchConsole";
 import {
@@ -301,6 +301,7 @@ export async function suggestTopicsAction(
   }
 
   try {
+    const topicSuggesterModel = resolveAgentModel("topicSuggester", providers);
     const res = await runTopicSuggester(
       {
         existing_topics: existing.slice(0, 30).map((t) => ({
@@ -314,7 +315,7 @@ export async function suggestTopicsAction(
         pillars: site.pillars.map((p) => ({ id: p.slug, weight: p.weight })),
         max_n: count,
       },
-      { provider: providers.get("gemini") }
+      { provider: providers.get(topicSuggesterModel.provider), model: topicSuggesterModel }
     );
 
     const proposals: TopicProposalView[] = res.parsed.proposals.map((p) => {

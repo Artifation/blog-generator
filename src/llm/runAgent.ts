@@ -110,6 +110,8 @@ function extractJson(text: string): unknown {
  * - Trailing commas vóór ] of }
  * - Onverpakte double-quotes in HTML-attributen binnen string-values
  *   (vervang `="..."` patroon binnen JSON-string door `='...'`)
+ * - Unquoted property names (Claude valt soms terug op JS-object-syntax bij
+ *   lange outputs — `foo: "bar"` → `"foo": "bar"`).
  */
 function repairJson(s: string): string {
   let r = s;
@@ -121,5 +123,10 @@ function repairJson(s: string): string {
   // Risico: vals-positief op echte JSON-quotes. We doen het alleen voor HTML-achtige patronen.
   // Pattern: `(letter|=)"` binnen een al-open string. Conservatief: replace patroon `\sclass="..."` etc.
   r = r.replace(/(\s(?:class|id|href|src|alt|rel|target|style)=)"([^"]*?)"/g, "$1'$2'");
+  // Unquoted property names — komt voor wanneer Claude bij een lang object
+  // halverwege de JSON-discipline verliest. Match alleen aan het begin van
+  // een regel (na newline + whitespace) gevolgd door identifier + colon, om
+  // false-positives in stringwaardes te vermijden.
+  r = r.replace(/([{,]\s*\n\s*)([a-zA-Z_]\w*)(\s*:)/g, '$1"$2"$3');
   return r;
 }
