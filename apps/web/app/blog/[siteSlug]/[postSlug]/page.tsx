@@ -4,6 +4,12 @@ import type { Metadata } from "next";
 import { getSiteBySlug } from "~/lib/sites";
 import { getPublishedPostBySlug } from "~/lib/drafts";
 import { LogoMark } from "~/components/brand/logo-mark";
+import { sanitizeContentHtml } from "~/lib/security/sanitize-html";
+
+/** Escape `<` so a `</script>` in any field can't break out of the JSON-LD block. */
+function jsonLdSafe(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
 
 export const dynamic = "force-dynamic";
 
@@ -68,7 +74,7 @@ export default async function PublicPostPage({
     <div className="app public">
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdSafe(jsonLd) }}
       />
 
       <div className="pub-shell">
@@ -122,7 +128,7 @@ export default async function PublicPostPage({
           </div>
         )}
 
-        <div className="prose" dangerouslySetInnerHTML={{ __html: post.contentHtml }} />
+        <div className="prose" dangerouslySetInnerHTML={{ __html: sanitizeContentHtml(post.contentHtml) }} />
       </article>
 
       <footer className="pub-footer">

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runQualityJudge } from "@/agents/qualityJudge";
 import type { LLMProvider } from "@/llm/types";
+import { resolveAgentModel } from "@/llm/client";
 
 const goOut = JSON.stringify({
   scores: {
@@ -58,7 +59,7 @@ describe("runQualityJudge", () => {
         fact_check_verdict: "pass",
         fabricated_claims_count: 0,
       },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("qualityJudge"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.verdict).toBe("GO");
   });
@@ -82,7 +83,7 @@ describe("runQualityJudge", () => {
         fact_check_verdict: "pass",
         fabricated_claims_count: 0,
       },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("qualityJudge"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.verdict).toBe("NO-GO");
     expect(r.parsed.hard_fails).toHaveLength(1);

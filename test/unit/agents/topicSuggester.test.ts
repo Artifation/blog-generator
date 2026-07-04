@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runTopicSuggester } from "@/agents/topicSuggester";
 import type { LLMProvider } from "@/llm/types";
+import { resolveAgentModel } from "@/llm/client";
 
 // ---------------------------------------------------------------------------
 // Fixture: valid proposal array returned by LLM
@@ -75,6 +76,7 @@ describe("runTopicSuggester", () => {
     const provider = makeProvider();
     const result = await runTopicSuggester(BASE_INPUT, {
       provider,
+      model: resolveAgentModel("topicSuggester"),
       sleepImpl: () => Promise.resolve(),
     });
 
@@ -96,6 +98,7 @@ describe("runTopicSuggester", () => {
     const provider = makeProvider();
     await runTopicSuggester(BASE_INPUT, {
       provider,
+      model: resolveAgentModel("topicSuggester"),
       sleepImpl: () => Promise.resolve(),
     });
 
@@ -119,6 +122,7 @@ describe("runTopicSuggester", () => {
     const provider = makeProvider([]);
     const result = await runTopicSuggester(BASE_INPUT, {
       provider,
+      model: resolveAgentModel("topicSuggester"),
       sleepImpl: () => Promise.resolve(),
     });
 
@@ -147,6 +151,7 @@ describe("runTopicSuggester", () => {
     await expect(
       runTopicSuggester(BASE_INPUT, {
         provider: badProvider,
+        model: resolveAgentModel("topicSuggester"),
         sleepImpl: () => Promise.resolve(),
       })
     ).rejects.toThrow();
@@ -169,6 +174,7 @@ describe("runTopicSuggester", () => {
     const provider = makeProvider(twentyProposals);
     const result = await runTopicSuggester(BASE_INPUT, {
       provider,
+      model: resolveAgentModel("topicSuggester"),
       sleepImpl: () => Promise.resolve(),
     });
 

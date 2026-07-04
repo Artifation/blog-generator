@@ -17,7 +17,12 @@ export interface IndexNowInput {
 
 export async function pingIndexNow(
   input: IndexNowInput
-): Promise<{ ok: boolean; status: number }> {
+): Promise<{ ok: boolean; status: number; skipped?: boolean }> {
+  // An empty key would fire an invalid request — skip with a clear signal so
+  // the caller can warn instead of silently "succeeding".
+  if (!input.key) {
+    return { ok: false, status: 0, skipped: true };
+  }
   const f = input.fetchImpl ?? fetch;
   const keyLocation = `https://${input.host}/${input.key}.txt`;
 
@@ -30,6 +35,7 @@ export async function pingIndexNow(
       keyLocation,
       urlList: input.urlList,
     }),
+    signal: AbortSignal.timeout(15_000),
   });
 
   return { ok: response.ok, status: response.status };

@@ -131,6 +131,15 @@ export function OnboardingWizard() {
     }
     setSaving(true);
     const slug = state.slug.trim() || slugify(state.name);
+    // The single-use invite code (stashed by the activate form) is required to
+    // create a site — pass it so createSiteAction can claim it.
+    let inviteCode = "";
+    try {
+      const rawInvite = sessionStorage.getItem("artifation_invite");
+      if (rawInvite) inviteCode = (JSON.parse(rawInvite) as { code?: string }).code ?? "";
+    } catch {
+      /* ignore */
+    }
     const result = await createSiteAction({
       name: state.name.trim(),
       slug,
@@ -164,7 +173,7 @@ export function OnboardingWizard() {
         resend: state.apiKeys.resend.trim(),
       },
       pillars: state.pillars.map((p) => ({ name: p.name.trim(), weight: p.weight })),
-    });
+    }, inviteCode);
 
     if (!result.ok) {
       setSaving(false);

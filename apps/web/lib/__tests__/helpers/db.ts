@@ -81,6 +81,8 @@ export async function resetTestDb(): Promise<void> {
   const db = getDb();
   // Order matters for FK cascades, but with SQLite we can just DELETE in any
   // order as long as ON DELETE CASCADE handles children.
+  await db.run(`DELETE FROM sessions`);
+  await db.run(`DELETE FROM invite_codes`);
   await db.run(`DELETE FROM post_refreshes`);
   await db.run(`DELETE FROM runs`);
   await db.run(`DELETE FROM published_posts`);

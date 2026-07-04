@@ -1,4 +1,4 @@
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and, gte } from "drizzle-orm";
 import { getDb, ensureSchema } from "./db/client";
 import { runs, type Run, type NewRun } from "./db/schema";
 import { newId } from "./db/ids";
@@ -33,6 +33,25 @@ export async function finishRun(
     .where(eq(runs.id, id));
   const rows = await db.select().from(runs).where(eq(runs.id, id)).limit(1);
   return rows[0]!;
+}
+
+/**
+ * Sum the recorded USD cost of a site's runs over the trailing 7 days. Backs the
+ * MAX_WEEKLY_USD spend cap — this is the persisted equivalent of the rolling
+ * 7-day counter (runs.costUsd is written on every published/rejected finishRun).
+ */
+export async function sumRunCostLast7DaysForSite(
+  siteId: string,
+  now: Date = new Date(),
+): Promise<number> {
+  await ensureSchema();
+  const db = getDb();
+  const cutoff = new Date(now.getTime() - 7 * 86_400_000).toISOString();
+  const rows = await db
+    .select({ costUsd: runs.costUsd })
+    .from(runs)
+    .where(and(eq(runs.siteId, siteId), gte(runs.startedAt, cutoff)));
+  return rows.reduce((sum, r) => sum + (r.costUsd ?? 0), 0);
 }
 
 export async function listRunsForSite(siteId: string, limit = 50): Promise<Run[]> {

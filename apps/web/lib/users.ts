@@ -2,7 +2,7 @@ import { eq, and, asc } from "drizzle-orm";
 import { getDb, ensureSchema } from "./db/client";
 import { users, type User } from "./db/schema";
 import { newId } from "./db/ids";
-import { hashPassword, verifyPassword } from "./passwords";
+import { hashPassword } from "./passwords";
 
 export type UserRole = "owner" | "editor" | "viewer";
 
@@ -85,29 +85,4 @@ export async function recordLogin(id: string): Promise<void> {
     .update(users)
     .set({ lastLoginAt: new Date().toISOString() })
     .where(eq(users.id, id));
-}
-
-export interface AuthenticateResult {
-  user: User;
-}
-
-export async function authenticate(
-  email: string,
-  password: string
-): Promise<AuthenticateResult | null> {
-  await ensureSchema();
-  const db = getDb();
-  // We search across all sites — same email may exist for multiple sites (rare).
-  // For now: pick the first match. Real multi-site users could choose later.
-  const rows = await db
-    .select()
-    .from(users)
-    .where(eq(users.email, email.toLowerCase()))
-    .limit(1);
-  const user = rows[0];
-  if (!user) return null;
-  const ok = await verifyPassword(password, user.passwordHash);
-  if (!ok) return null;
-  await recordLogin(user.id);
-  return { user };
 }

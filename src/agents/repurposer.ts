@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { runAgent } from "@/llm/runAgent";
-import { resolveAgentModel } from "@/llm/client";
+import type { AgentModelChoice } from "@/llm/client";
 import type { LLMProvider } from "@/llm/types";
 import { LINKEDIN_PROMPT, NEWSLETTER_PROMPT, XTHREAD_PROMPT } from "./prompts/repurposer.ts";
 
@@ -19,10 +19,22 @@ const NewsletterOutputSchema = z.object({
   cta_url: z.string().url(),
 });
 
-const XThreadOutputSchema = z.object({
-  tweets: z.array(z.string().min(20).max(280)).min(5).max(9),
-  blog_link_tweet_index: z.number().int().min(0), // index van tweet die naar blog linkt
-});
+const XThreadOutputSchema = z
+  .object({
+    tweets: z.array(z.string().min(20).max(280)).min(5).max(9),
+    blog_link_tweet_index: z.number().int().min(0), // index van tweet die naar blog linkt
+  })
+  // Guard against an index past the end of the array — it flows into the email
+  // template and would point at a non-existent tweet.
+  .superRefine((v, ctx) => {
+    if (v.blog_link_tweet_index >= v.tweets.length) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["blog_link_tweet_index"],
+        message: `blog_link_tweet_index ${v.blog_link_tweet_index} is out of range (tweets.length=${v.tweets.length})`,
+      });
+    }
+  });
 
 export type LinkedInOutput = z.infer<typeof LinkedInOutputSchema>;
 export type NewsletterOutput = z.infer<typeof NewsletterOutputSchema>;
@@ -41,18 +53,18 @@ export interface RepurposeInput {
 
 export interface RepurposeDeps {
   provider: LLMProvider;
+  model: AgentModelChoice;
   sleepImpl?: (ms: number) => Promise<void>;
 }
 
 export async function runRepurposerLinkedIn(input: RepurposeInput, deps: RepurposeDeps) {
-  const model = resolveAgentModel("repurposer");
   return runAgent(
     {
       provider: deps.provider,
       systemPrompt: LINKEDIN_PROMPT(input.brand_voice),
       userPrompt: JSON.stringify(input.blog, null, 2),
-      model: model.model,
-      maxTokens: model.maxTokens,
+      model: deps.model.model,
+      maxTokens: deps.model.maxTokens,
       schema: LinkedInOutputSchema,
     },
     deps.sleepImpl
@@ -60,14 +72,13 @@ export async function runRepurposerLinkedIn(input: RepurposeInput, deps: Repurpo
 }
 
 export async function runRepurposerNewsletter(input: RepurposeInput, deps: RepurposeDeps) {
-  const model = resolveAgentModel("repurposer");
   return runAgent(
     {
       provider: deps.provider,
       systemPrompt: NEWSLETTER_PROMPT(input.brand_voice),
       userPrompt: JSON.stringify(input.blog, null, 2),
-      model: model.model,
-      maxTokens: model.maxTokens,
+      model: deps.model.model,
+      maxTokens: deps.model.maxTokens,
       schema: NewsletterOutputSchema,
     },
     deps.sleepImpl
@@ -75,14 +86,13 @@ export async function runRepurposerNewsletter(input: RepurposeInput, deps: Repur
 }
 
 export async function runRepurposerXThread(input: RepurposeInput, deps: RepurposeDeps) {
-  const model = resolveAgentModel("repurposer");
   return runAgent(
     {
       provider: deps.provider,
       systemPrompt: XTHREAD_PROMPT(input.brand_voice),
       userPrompt: JSON.stringify(input.blog, null, 2),
-      model: model.model,
-      maxTokens: model.maxTokens,
+      model: deps.model.model,
+      maxTokens: deps.model.maxTokens,
       schema: XThreadOutputSchema,
     },
     deps.sleepImpl

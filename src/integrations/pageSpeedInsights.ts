@@ -36,7 +36,11 @@ export async function fetchPsi(input: PsiInput): Promise<PsiResult> {
     ...(input.apiKey ? { key: input.apiKey } : {}),
   });
 
-  const res = await f(`${PSI_ENDPOINT}?${params.toString()}`);
+  // PSI runs a full Lighthouse audit server-side, so give it a generous but
+  // finite deadline — otherwise a stuck request hangs the cwvJob loop forever.
+  const res = await f(`${PSI_ENDPOINT}?${params.toString()}`, {
+    signal: AbortSignal.timeout(60_000),
+  });
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new Error(`PSI API error ${res.status}: ${body.slice(0, 200)}`);

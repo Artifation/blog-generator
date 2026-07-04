@@ -47,11 +47,14 @@ REGELS VOOR DE INHOUD (strict):
   * Als type === "hypothetical_scenario": introduceer met "Een voorbeeld:" of "Stel je voor:" zodat de lezer ziet dat het illustratie is. Noem industry + region + situation + outcome — kwalitatief overnemen, niet abstraheren.
   * KRITISCH bij hypothetical_scenario: NOOIT specifieke percentages, euro-bedragen, of jaartallen citeren uit het anchor. Het outcome-veld is bewust kwalitatief gehouden — als jij er een "47%" of "€12.000" inschrijft, is het door jou verzonnen en pakt de factChecker het als fabricated. Schrijf "halveerde de doorlooptijd" niet "47% sneller". Schrijf "wekelijkse uren terug" niet "8 uur per week bespaard".
   * NOOIT samenvatten in algemene termen ("er zijn bedrijven die…"). Maak het tastbaar via industry + region + situatie, niet via verzonnen cijfers.
+  * GEEN EIGENAARSCHAP CLAIMEN bij hypothetisch: VERBODEN zijn "onze klant", "wij deden dit voor X", "een van onze klanten", "precies dat deden we", "in een recent project van ons". Een hypothetisch scenario is illustratie, niet portfolio. Mix nooit een "Stel je voor:" met een "onze klant"-claim — die spreken elkaar tegen.
+  * GEEN extra specifics verzinnen bovenop het anchor: gebruik exact de industry, region, situation en outcome die in het anchor staan. Voeg GEEN nieuwe getallen ("45 medewerkers"), GEEN extra geografische details ("in de Achterhoek"), GEEN extra context ("met een omzet van €4M") toe als die niet in het anchor staan. Het anchor is je volledige feiten-set.
+  * GEEN specifieke Nederlandse subsidie-, wet- of regelingsnamen verzinnen ("MIT R&D-samenwerkingsprojecten", "WBSO 2024", "AVG-artikel 35"). Specifiek naam noemen mag ALLEEN als de naam letterlijk in research.key_facts staat met een source_url. Anders kwalitatief omschrijven ("een innovatie-subsidie van de overheid", "AVG-bepalingen rond risico-assessment").
 - Sluit af met een conclusie-paragraaf met EXACT ÉÉN duidelijke CTA naar /ai-scan/ of /contact/. Geen "tot slot" of "in conclusion".
 - Optioneel: eindig met FAQ-block uit outline.faq_block, gewikkeld in <div class="faq">.
 
 VERBODEN ZINNEN/WOORDEN/KARAKTERS (banlist + standaard):
-- Em-dash (—): MAX 3 per 1000 woorden. Vervang door komma's, dubbele punten, of nieuwe zinnen. Een typische post mag dus 2-7 em-dashes hebben totaal, geen 20+.
+- Em-dash (—): gebruik er GEEN. Vervang door komma's, dubbele punten of nieuwe zinnen. (Post-processing verwijdert ze sowieso, dus elke em-dash is verspilde moeite.)
 ${[...banList, "in conclusion", "to sum up", "tot slot", "samenvattend", "in een wereld waar", "delve", "leverage", "harness the power of", "moreover", "furthermore", "additionally", "notably", "it's worth noting", "in de steeds veranderende wereld"].map((b) => `- ${b}`).join("\n")}
 
 STIJL:

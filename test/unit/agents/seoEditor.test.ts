@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runSeoEditor } from "@/agents/seoEditor";
 import type { LLMProvider } from "@/llm/types";
+import { resolveAgentModel } from "@/llm/client";
 
 const out = JSON.stringify({
   edited_html: "<div class='tldr'>...</div>" + "x".repeat(2000),
@@ -32,7 +33,7 @@ describe("runSeoEditor", () => {
         internal_links_target_list: [{ url: "https://artifation.nl/ai-scan/", anchor: "AI Scan" }],
         ban_list: ["leverage"],
       },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("seoEditor"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.meta_title.length).toBeLessThanOrEqual(80);
     expect(r.parsed.slug).toMatch(/^[a-z0-9-]+$/);

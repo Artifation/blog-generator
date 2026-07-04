@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { runAgent } from "@/llm/runAgent";
-import { resolveAgentModel } from "@/llm/client";
+import type { AgentModelChoice } from "@/llm/client";
 import type { LLMProvider } from "@/llm/types";
 import { INTERNAL_LINKER_SYSTEM_PROMPT } from "./prompts/internalLinker.ts";
 
@@ -29,6 +29,7 @@ export interface InternalLinkerInput {
 
 export interface InternalLinkerDeps {
   provider: LLMProvider;
+  model: AgentModelChoice;
   sleepImpl?: (ms: number) => Promise<void>;
 }
 
@@ -36,14 +37,13 @@ export async function runInternalLinker(
   input: InternalLinkerInput,
   deps: InternalLinkerDeps
 ) {
-  const model = resolveAgentModel("internalLinker");
   return runAgent(
     {
       provider: deps.provider,
       systemPrompt: INTERNAL_LINKER_SYSTEM_PROMPT,
       userPrompt: JSON.stringify(input, null, 2),
-      model: model.model,
-      maxTokens: model.maxTokens,
+      model: deps.model.model,
+      maxTokens: deps.model.maxTokens,
       schema: InternalLinkerOutputSchema,
     },
     deps.sleepImpl

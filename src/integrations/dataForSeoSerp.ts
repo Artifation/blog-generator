@@ -50,7 +50,10 @@ export async function fetchSerpResults(
       location_code: input.locationCode ?? 2528, // Netherlands
       language_code: input.languageCode ?? "nl",
       device: input.device ?? "desktop",
-      depth: 10,
+      // Request 30 SERP items: the response mixes item types (featured snippet,
+      // "people also ask", ads, organic, …); asking for only 10 total then
+      // filtering to `organic` + slice(0,10) frequently left far fewer than 10.
+      depth: 30,
     },
   ];
 
@@ -61,6 +64,7 @@ export async function fetchSerpResults(
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: AbortSignal.timeout(30_000),
   });
 
   if (!res.ok) {

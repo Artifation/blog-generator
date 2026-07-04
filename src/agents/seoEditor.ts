@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { runAgent } from "@/llm/runAgent";
-import { resolveAgentModel } from "@/llm/client";
+import type { AgentModelChoice } from "@/llm/client";
 import type { LLMProvider } from "@/llm/types";
 import { SEO_EDITOR_SYSTEM_PROMPT } from "./prompts/seoEditor.ts";
 
@@ -23,18 +23,18 @@ export interface SeoEditorInput {
 
 export interface SeoEditorDeps {
   provider: LLMProvider;
+  model: AgentModelChoice;
   sleepImpl?: (ms: number) => Promise<void>;
 }
 
 export async function runSeoEditor(input: SeoEditorInput, deps: SeoEditorDeps) {
-  const model = resolveAgentModel("seoEditor");
   return runAgent(
     {
       provider: deps.provider,
       systemPrompt: SEO_EDITOR_SYSTEM_PROMPT,
       userPrompt: JSON.stringify(input, null, 2),
-      model: model.model,
-      maxTokens: model.maxTokens,
+      model: deps.model.model,
+      maxTokens: deps.model.maxTokens,
       schema: SeoEditorOutputSchema,
     },
     deps.sleepImpl

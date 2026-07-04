@@ -2,7 +2,7 @@ import * as React from "react";
 import fs from "node:fs/promises";
 import path from "node:path";
 
-import { createProviderRegistry } from "@/llm/client";
+import { createProviderRegistry, resolveAgentModel } from "@/llm/client";
 import { runResearcher } from "@/agents/researcher";
 import { runStrategist } from "@/agents/strategist";
 import { runWriter } from "@/agents/writer";
@@ -22,16 +22,22 @@ import type { TenantConfig } from "@/config/tenant";
 import { checkCitations, enrichSignalsWithCitationCheck } from "@/pipeline/citationCheck";
 import { filterDeadResearchUrls } from "@/pipeline/researchUrlFilter";
 import { extractExternalHrefs, stripDeadLinks, filterDefinitivelyDead } from "@/pipeline/stripDeadLinks";
-import { computeRunCost, type UsageEntry } from "@/pipeline/costTracker";
+import {
+  computeRunCost,
+  parseUsdLimit,
+  assertRunBudget,
+  exceedsWeeklyBudget,
+  type UsageEntry,
+} from "@/pipeline/costTracker";
 import { derivePerformanceInsights, loadLatestSnapshot } from "@/pipeline/gscPerformanceInsights";
 import { applyFactCheckerFixes } from "@/pipeline/applyFactCheckerFixes";
 import type { StrategistInput } from "@/agents/strategist";
 
 import type { Site, Topic, Pillar, Draft } from "~/lib/db/schema";
 import { createDraft, getLatestRejectedDraftForTopic } from "~/lib/drafts";
-import { startRun, finishRun } from "~/lib/runs";
-import { updateTopic } from "~/lib/topics";
-import { listPublishedPostsForSite, countPublishedThisIsoWeekForSite } from "~/lib/drafts";
+import { startRun, finishRun, sumRunCostLast7DaysForSite } from "~/lib/runs";
+import { updateTopic, claimTopicForRun } from "~/lib/topics";
+import { listPublishedPostsForSite, countPublishedThisIsoWeekForSite, countDraftsThisIsoWeekForSite } from "~/lib/drafts";
 import { getDb } from "~/lib/db/client";
 import { sites } from "~/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -98,10 +104,15 @@ export async function runForSite(
   // researcher/writer/judge wanneer de site al z'n weekcap heeft bereikt.
   // Markeert het topic als cap_deferred zodat het volgende week opnieuw
   // geprobeerd wordt, en finished de run zonder kosten te maken.
+  // Cap on the most expensive metric: published posts OR drafts generated this
+  // week (each draft is a paid run). Counting only published let a non-auto-
+  // publish site generate unlimited paid drafts.
   const publishedThisWeek = await countPublishedThisIsoWeekForSite(site.id);
-  if (publishedThisWeek >= site.maxPostsPerWeek) {
+  const generatedThisWeek = await countDraftsThisIsoWeekForSite(site.id);
+  const usedThisWeek = Math.max(publishedThisWeek, generatedThisWeek);
+  if (usedThisWeek >= site.maxPostsPerWeek) {
     const run = await startRun(site.id, topic.id);
-    const reason = `weekcap bereikt (${publishedThisWeek}/${site.maxPostsPerWeek})`;
+    const reason = `weekcap bereikt (${usedThisWeek}/${site.maxPostsPerWeek})`;
     await updateTopic(topic.id, { status: "cap_deferred", rejectReason: reason });
     const finalRun = await finishRun(run.id, {
       verdict: "cap_deferred",
@@ -115,6 +126,52 @@ export async function runForSite(
       weightedTotal: null,
       hardFails: [],
       reason,
+      costUsd: 0,
+    };
+  }
+
+  // Optional hard USD guardrails (opt-in via env; unset = no cap). The per-run
+  // ceiling is enforced at the stage boundaries below; the weekly cap is a
+  // pre-flight gate that defers the topic, mirroring the post-count cap.
+  const runUsdCeiling = parseUsdLimit(process.env.MAX_RUN_USD);
+  const weeklyUsdCap = parseUsdLimit(process.env.MAX_WEEKLY_USD);
+  if (weeklyUsdCap != null) {
+    const spentThisWeek = await sumRunCostLast7DaysForSite(site.id);
+    if (exceedsWeeklyBudget(spentThisWeek, weeklyUsdCap)) {
+      const run = await startRun(site.id, topic.id);
+      const reason = `weekbudget bereikt ($${spentThisWeek.toFixed(2)}/$${weeklyUsdCap.toFixed(2)})`;
+      await updateTopic(topic.id, { status: "cap_deferred", rejectReason: reason });
+      const finalRun = await finishRun(run.id, {
+        verdict: "cap_deferred",
+        reason,
+        stages: [{ stage: "cost-cap-early", ms: 0, ok: true }],
+      });
+      return {
+        runId: finalRun.id,
+        draftId: null,
+        verdict: "rejected",
+        weightedTotal: null,
+        hardFails: [],
+        reason,
+        costUsd: 0,
+      };
+    }
+  }
+
+  // Atomically claim the topic (queued -> in_progress) BEFORE doing any paid
+  // work. SQLite serializes the UPDATE, so if a concurrent trigger (cron tick,
+  // the UI "Run next" button, or a second process) selected the same queued
+  // topic, only one wins the claim — the rest skip here instead of running the
+  // full ~€0.15 pipeline twice and creating duplicate drafts.
+  const claimed = await claimTopicForRun(topic.id);
+  if (!claimed) {
+    return {
+      runId: "",
+      draftId: null,
+      verdict: "error",
+      weightedTotal: null,
+      hardFails: [],
+      reason: "topic al geclaimd door een gelijktijdige run",
       costUsd: 0,
     };
   }
@@ -190,6 +247,7 @@ export async function runForSite(
 
     // Researcher
     endStage = startStage("researcher");
+    const researcherModel = resolveAgentModel("researcher", providers);
     const research = await runResearcher(
       {
         target_keyword: topic.targetKeyword,
@@ -197,10 +255,11 @@ export async function runForSite(
         pillar: topic.pillarSlug,
         existing_site_urls: existingUrls,
       },
-      { provider: providers.get("gemini"), sleepImpl: sleep }
+      { provider: providers.get(researcherModel.provider), model: researcherModel, sleepImpl: sleep }
     );
     endStage(true);
-    usage.push({ provider: "gemini", model: research.raw.model, inputTokens: research.raw.inputTokens, outputTokens: research.raw.outputTokens });
+    usage.push({ provider: researcherModel.provider, model: research.raw.model, inputTokens: research.raw.inputTokens, outputTokens: research.raw.outputTokens });
+    assertRunBudget(usage, runUsdCeiling);
 
     // URL self-verification
     endStage = startStage("urlVerify");
@@ -272,6 +331,7 @@ export async function runForSite(
 
     // Strategist
     endStage = startStage("strategist");
+    const strategistModel = resolveAgentModel("strategist", providers);
     const outline = await runStrategist(
       {
         research: research.parsed,
@@ -282,10 +342,11 @@ export async function runForSite(
         custom_instructions: combinedInstructions,
         ...(strategistPerformanceSignals ? { performance_signals: strategistPerformanceSignals } : {}),
       },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      { provider: providers.get(strategistModel.provider), model: strategistModel, sleepImpl: sleep }
     );
     endStage(true);
-    usage.push({ provider: "anthropic", model: outline.raw.model, inputTokens: outline.raw.inputTokens, outputTokens: outline.raw.outputTokens });
+    usage.push({ provider: strategistModel.provider, model: outline.raw.model, inputTokens: outline.raw.inputTokens, outputTokens: outline.raw.outputTokens });
+    assertRunBudget(usage, runUsdCeiling);
 
     // Retry-feedback loop: if this topic was rejected before, read the
     // factChecker's fabricated_claims out of the previous rejected draft and
@@ -307,6 +368,7 @@ export async function runForSite(
 
     // Writer
     endStage = startStage("writer");
+    const writerModel = resolveAgentModel("writer", providers);
     const writer = await runWriter(
       {
         outline: outline.parsed.outline,
@@ -319,13 +381,15 @@ export async function runForSite(
         previous_fabricated_claims:
           previousFabricatedClaims.length > 0 ? previousFabricatedClaims : undefined,
       },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      { provider: providers.get(writerModel.provider), model: writerModel, sleepImpl: sleep }
     );
     endStage(true);
-    usage.push({ provider: "anthropic", model: "claude-sonnet-4-6", inputTokens: writer.totalInputTokens, outputTokens: writer.totalOutputTokens });
+    usage.push({ provider: writerModel.provider, model: writerModel.model, inputTokens: writer.totalInputTokens, outputTokens: writer.totalOutputTokens });
+    assertRunBudget(usage, runUsdCeiling);
 
     // SEO editor
     endStage = startStage("seoEditor");
+    const seoEditorModel = resolveAgentModel("seoEditor", providers);
     const seo = await runSeoEditor(
       {
         draft_html: writer.parsed.draft_html,
@@ -333,11 +397,12 @@ export async function runForSite(
         internal_links_target_list: outline.parsed.outline.internal_links_to_inject,
         ban_list: site.banList,
       },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      { provider: providers.get(seoEditorModel.provider), model: seoEditorModel, sleepImpl: sleep }
     );
     endStage(true);
     seo.parsed.edited_html = postProcessDraftHtml(seo.parsed.edited_html);
-    usage.push({ provider: "anthropic", model: seo.raw.model, inputTokens: seo.raw.inputTokens, outputTokens: seo.raw.outputTokens });
+    usage.push({ provider: seoEditorModel.provider, model: seo.raw.model, inputTokens: seo.raw.inputTokens, outputTokens: seo.raw.outputTokens });
+    assertRunBudget(usage, runUsdCeiling);
 
     // Final dead-link scrub on the SEO-edited HTML. researchUrlFilter only
     // caught dead source URLs in research output; the writer / seoEditor can
@@ -375,14 +440,22 @@ export async function runForSite(
       endStage(false);
     }
 
-    // Fact-check
+    // Fact-check — pass originality_anchor so the checker recognises
+    // researcher-supplied hypothetical-scenario specifics as legitimate
+    // (otherwise it flags them as fabricated and forces NO-GO).
     endStage = startStage("factChecker");
+    const factCheckerModel = resolveAgentModel("factChecker", providers);
     let fc = await runFactChecker(
-      { edited_html: seo.parsed.edited_html, key_facts: research.parsed.key_facts },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      {
+        edited_html: seo.parsed.edited_html,
+        key_facts: research.parsed.key_facts,
+        originality_anchor: research.parsed.originality_anchor,
+      },
+      { provider: providers.get(factCheckerModel.provider), model: factCheckerModel, sleepImpl: sleep }
     );
     endStage(true);
-    usage.push({ provider: "anthropic", model: fc.raw.model, inputTokens: fc.raw.inputTokens, outputTokens: fc.raw.outputTokens });
+    usage.push({ provider: factCheckerModel.provider, model: fc.raw.model, inputTokens: fc.raw.inputTokens, outputTokens: fc.raw.outputTokens });
+    assertRunBudget(usage, runUsdCeiling);
 
     // AUTO-FIX LOOP (bounded: 1 retry max). Wanneer factChecker fail-verdict
     // gaf MAAR de fabricated_claims hebben suggested_rewrites, probeer ze
@@ -410,10 +483,14 @@ export async function runForSite(
         // pakt het op met de NIEUWE fabricated_claims (kan minder zijn dan
         // de eerste run als auto-fix gedeeltelijk werkte).
         const fc2 = await runFactChecker(
-          { edited_html: seo.parsed.edited_html, key_facts: research.parsed.key_facts },
-          { provider: providers.get("anthropic"), sleepImpl: sleep }
+          {
+            edited_html: seo.parsed.edited_html,
+            key_facts: research.parsed.key_facts,
+            originality_anchor: research.parsed.originality_anchor,
+          },
+          { provider: providers.get(factCheckerModel.provider), model: factCheckerModel, sleepImpl: sleep }
         );
-        usage.push({ provider: "anthropic", model: fc2.raw.model, inputTokens: fc2.raw.inputTokens, outputTokens: fc2.raw.outputTokens });
+        usage.push({ provider: factCheckerModel.provider, model: fc2.raw.model, inputTokens: fc2.raw.inputTokens, outputTokens: fc2.raw.outputTokens });
         fc = fc2;
         endStage(true);
         console.log(
@@ -478,6 +555,7 @@ export async function runForSite(
 
     // Quality judge
     endStage = startStage("qualityJudge");
+    const qualityJudgeModel = resolveAgentModel("qualityJudge", providers);
     const judge = await runQualityJudge(
       {
         edited_html: seo.parsed.edited_html,
@@ -492,10 +570,10 @@ export async function runForSite(
           alt_texts: seo.parsed.alt_texts_per_image_placeholder,
         },
       },
-      { provider: providers.get("anthropic"), sleepImpl: sleep }
+      { provider: providers.get(qualityJudgeModel.provider), model: qualityJudgeModel, sleepImpl: sleep }
     );
     endStage(true);
-    usage.push({ provider: "anthropic", model: judge.raw.model, inputTokens: judge.raw.inputTokens, outputTokens: judge.raw.outputTokens });
+    usage.push({ provider: qualityJudgeModel.provider, model: judge.raw.model, inputTokens: judge.raw.inputTokens, outputTokens: judge.raw.outputTokens });
 
     const cost = computeRunCost(usage);
 
@@ -587,6 +665,7 @@ export async function runForSite(
 
     // Image generation
     endStage = startStage("imagePrompter");
+    const imagePrompterModel = resolveAgentModel("imagePrompter", providers);
     const ip = await runImagePrompter(
       {
         title: outline.parsed.outline.h1_suggestion,
@@ -596,10 +675,10 @@ export async function runForSite(
         target_keyword: topic.targetKeyword,
         key_entities: research.parsed.key_entities.slice(0, 5),
       },
-      { provider: providers.get("groq"), sleepImpl: sleep }
+      { provider: providers.get(imagePrompterModel.provider), model: imagePrompterModel, sleepImpl: sleep }
     );
     endStage(true);
-    usage.push({ provider: "groq", model: ip.raw.model, inputTokens: ip.raw.inputTokens, outputTokens: ip.raw.outputTokens });
+    usage.push({ provider: imagePrompterModel.provider, model: ip.raw.model, inputTokens: ip.raw.inputTokens, outputTokens: ip.raw.outputTokens });
 
     endStage = startStage("imageGen");
     let imagePath: string | null = null;
@@ -607,7 +686,8 @@ export async function runForSite(
       const image = await generateBlogImage(
         { prompt: ip.parsed.prompt, negative_prompt: ip.parsed.negative_prompt },
         {
-          FAL_API_KEY: env.FAL_API_KEY ?? "",
+          FAL_API_KEY: env.FAL_API_KEY,
+          GEMINI_API_KEY: env.GEMINI_API_KEY,
           CF_ACCOUNT_ID: env.CF_ACCOUNT_ID,
           CF_API_TOKEN: env.CF_API_TOKEN,
         }
@@ -615,9 +695,10 @@ export async function runForSite(
       const optimized = await optimizeForWeb({ pngBytes: image.bytes });
       const imgDir = path.resolve(process.cwd(), "../../data/images", site.slug);
       await fs.mkdir(imgDir, { recursive: true });
-      const file = path.join(imgDir, `${seo.parsed.slug}.avif`);
-      await fs.writeFile(file, optimized.avifBytes);
-      imagePath = `data/images/${site.slug}/${seo.parsed.slug}.avif`;
+      const ext = optimized.contentType === "image/webp" ? "webp" : "png";
+      const file = path.join(imgDir, `${seo.parsed.slug}.${ext}`);
+      await fs.writeFile(file, optimized.bytes);
+      imagePath = `data/images/${site.slug}/${seo.parsed.slug}.${ext}`;
       endStage(true);
     } catch (err) {
       endStage(false);
@@ -695,6 +776,17 @@ export async function runForSite(
   } catch (err) {
     const errObj = err as Error;
     const message = errObj.message;
+    // Release the claim: an aborted run must not strand the topic in
+    // `in_progress` (it would silently drop out of the queue forever). Reset to
+    // `queued` so the next tick can retry — matching the pre-claim behaviour
+    // where an errored topic stayed selectable. Best-effort; a failed reset
+    // shouldn't mask the original error.
+    await updateTopic(topic.id, { status: "queued" }).catch(() => {});
+    // Record whatever was already spent before the abort so a hard per-run
+    // ceiling (or any mid-pipeline failure) still counts toward the weekly cap
+    // and the cost dashboard — otherwise a topic that keeps aborting could burn
+    // up to the ceiling every tick without ever tripping the weekly budget.
+    const partialCost = computeRunCost(usage).totalUsd;
     // Capture in the central error-store BEFORE finishRun so the operator
     // can correlate the error_event with the run row. Last-completed stage
     // is the most actionable single field; we keep the full stage history
@@ -721,6 +813,7 @@ export async function runForSite(
       verdict: "error",
       reason: message,
       errorMessage: message,
+      costUsd: partialCost,
       stages,
     });
     return {
@@ -730,7 +823,7 @@ export async function runForSite(
       weightedTotal: null,
       hardFails: [],
       reason: message,
-      costUsd: 0,
+      costUsd: partialCost,
     };
   }
 }

@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { runAgent } from "@/llm/runAgent";
-import { resolveAgentModel } from "@/llm/client";
+import type { AgentModelChoice } from "@/llm/client";
 import type { LLMProvider } from "@/llm/types";
 import type { ResearchOutput } from "./researcher.ts";
 import { STRATEGIST_SYSTEM_PROMPT } from "./prompts/strategist.ts";
@@ -24,7 +24,10 @@ export const StrategistOutputSchema = z.object({
       )
       .min(5)
       .max(9),
-    internal_links_to_inject: z.array(z.object({ url: z.string().url(), anchor: z.string() })).min(3),
+    // Floor is 5: the writer prompt + the deterministic publish gate both
+    // require ≥5 internal links, so a schema-legal 3 left the pipeline unable to
+    // satisfy its own requirement. The researcher already returns 5–8 targets.
+    internal_links_to_inject: z.array(z.object({ url: z.string().url(), anchor: z.string() })).min(5),
     external_links_to_cite: z.array(z.string().url()),
     schema_choices: z.array(z.string()).min(1),
     faq_block: z.array(z.object({ q: z.string(), a_short: z.string() })).max(5),
@@ -64,18 +67,22 @@ export interface StrategistInput {
 
 export interface StrategistDeps {
   provider: LLMProvider;
+  model: AgentModelChoice;
   sleepImpl?: (ms: number) => Promise<void>;
 }
 
 export async function runStrategist(input: StrategistInput, deps: StrategistDeps) {
-  const model = resolveAgentModel("strategist");
   return runAgent(
     {
       provider: deps.provider,
       systemPrompt: STRATEGIST_SYSTEM_PROMPT,
       userPrompt: JSON.stringify(input, null, 2),
-      model: model.model,
-      maxTokens: model.maxTokens,
+      model: deps.model.model,
+      maxTokens: deps.model.maxTokens,
+      // Lagere temperature — strategist returnt complexe geneste JSON; bij
+      // default 1.0 verlies de LLM soms halverwege de JSON-syntax (klassieke
+      // "unquoted property name"-fout op positie ~4000).
+      temperature: 0.3,
       schema: StrategistOutputSchema,
     },
     deps.sleepImpl

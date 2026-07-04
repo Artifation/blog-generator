@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { runAgent } from "@/llm/runAgent";
-import { resolveAgentModel } from "@/llm/client";
+import type { AgentModelChoice } from "@/llm/client";
 import type { LLMProvider } from "@/llm/types";
 import { IMAGE_PROMPTER_SYSTEM_PROMPT } from "./prompts/imagePrompter.ts";
 
@@ -23,18 +23,18 @@ export interface ImagePrompterInput {
 
 export interface ImagePrompterDeps {
   provider: LLMProvider;
+  model: AgentModelChoice;
   sleepImpl?: (ms: number) => Promise<void>;
 }
 
 export async function runImagePrompter(input: ImagePrompterInput, deps: ImagePrompterDeps) {
-  const model = resolveAgentModel("imagePrompter");
   return runAgent(
     {
       provider: deps.provider,
       systemPrompt: IMAGE_PROMPTER_SYSTEM_PROMPT,
       userPrompt: JSON.stringify(input, null, 2),
-      model: model.model,
-      maxTokens: model.maxTokens,
+      model: deps.model.model,
+      maxTokens: deps.model.maxTokens,
       schema: ImagePrompterOutputSchema,
     },
     deps.sleepImpl

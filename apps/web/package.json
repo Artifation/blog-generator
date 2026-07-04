@@ -12,7 +12,8 @@
     "test": "node --test --import tsx \"lib/**/__tests__/*.test.ts\"",
     "db:push": "drizzle-kit push",
     "db:studio": "drizzle-kit studio",
-    "import:yaml": "tsx scripts/import-yaml.ts"
+    "import:yaml": "tsx scripts/import-yaml.ts",
+    "cleanup:orphans": "tsx scripts/cleanup-orphans.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.95.1",
@@ -39,6 +40,7 @@
     "drizzle-orm": "^0.38.3",
     "googleapis": "^171.4.0",
     "groq-sdk": "1.1.2",
+    "ipaddr.js": "^2.4.0",
     "js-yaml": "4.1.1",
     "lucide-react": "^0.475.0",
     "next": "^15.1.6",
@@ -47,6 +49,7 @@
     "react": "19.2.6",
     "react-dom": "19.2.6",
     "resend": "6.12.3",
+    "sanitize-html": "^2.17.5",
     "sharp": "^0.34.5",
     "sonner": "^1.7.2",
     "tailwind-merge": "^2.6.0",
@@ -60,6 +63,7 @@
     "@types/node": "25.6.2",
     "@types/react": "19.2.14",
     "@types/react-dom": "19.0.3",
+    "@types/sanitize-html": "^2.16.1",
     "drizzle-kit": "^0.30.2",
     "tailwindcss": "^4.0.0",
     "tsx": "4.21.0",

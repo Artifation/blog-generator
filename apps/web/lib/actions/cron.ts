@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSite } from "~/lib/auth";
+import { currentUserHasRole } from "~/lib/auth/roles";
 import { listTopicsForSite } from "~/lib/topics";
 import { runForSite } from "~/lib/pipeline/runForSite";
 
@@ -10,8 +11,13 @@ export async function runNextQueuedAction(): Promise<
   | { ok: false; error: string }
 > {
   const site = await requireSite();
-  if (!site.apiKeys?.anthropic || !site.apiKeys?.gemini || !site.apiKeys?.groq) {
-    return { ok: false, error: "Mist verplichte API-keys (Anthropic, Gemini, Groq)." };
+  if (!(await currentUserHasRole("editor")))
+    return { ok: false, error: "Alleen editors of eigenaren kunnen een run starten." };
+  // Alleen Gemini is écht verplicht — andere providers worden gracieus
+  // overgeslagen via resolveAgentModel(role, registry) in de pipeline.
+  const geminiKey = site.apiKeys?.gemini ?? process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    return { ok: false, error: "Gemini API-key vereist. Ga naar Instellingen → Integraties." };
   }
   const queued = await listTopicsForSite(site.id, "queued");
   if (queued.length === 0) {

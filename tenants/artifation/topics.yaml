@@ -205,9 +205,9 @@
   intended_word_count: 1800
   status: cap_deferred
   priority: 58
-  last_attempted: '2026-05-15T09:12:37.444Z'
-  retry_after: '2026-05-18T04:15:00.000Z'
   intent: commercial
+  retry_after: '2026-05-18T04:15:00.000Z'
+  last_attempted: '2026-05-15T09:12:37.444Z'
 - id: ai-voor-horeca
   title: 'AI voor horeca: van reserveringen tot voorraadbeheer'
   pillar: sector-extensie
@@ -232,33 +232,24 @@
   pillar: ai-per-afdeling
   target_keyword: AI in administratie MKB
   intended_word_count: 1500
-  status: rejected
+  status: queued
   priority: 75
-  last_attempted: '2026-05-26T08:02:31.228Z'
-  retry_after: '2026-06-02T08:02:31.228Z'
-  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
   intent: commercial
 - id: ai-in-it-support
   title: 'AI voor IT-support en helpdesk: tickets sneller oplossen'
   pillar: ai-per-afdeling
   target_keyword: AI voor IT-support MKB
   intended_word_count: 1500
-  status: rejected
+  status: queued
   priority: 70
-  last_attempted: '2026-05-29T08:10:30.839Z'
-  retry_after: '2026-06-05T08:10:30.839Z'
-  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
   intent: commercial
 - id: ai-in-recruitment
   title: 'AI in recruitment: van CV-scan tot pre-screening'
   pillar: ai-per-afdeling
   target_keyword: AI in recruitment MKB
   intended_word_count: 1500
-  status: rejected
+  status: queued
   priority: 72
-  last_attempted: '2026-05-28T08:13:01.882Z'
-  retry_after: '2026-06-04T08:13:01.882Z'
-  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
   intent: commercial
 - id: ai-in-projectmanagement
   title: 'AI in projectmanagement: planning, risico en voortgang'
@@ -281,68 +272,40 @@
   pillar: ai-act
   target_keyword: AI Act high-risk systemen
   intended_word_count: 1500
-  status: rejected
+  status: queued
   priority: 78
-  last_attempted: '2026-05-23T06:47:30.837Z'
-  retry_after: '2026-05-30T06:47:30.837Z'
-  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
   intent: informational
 - id: ai-act-transparantieplicht
   title: 'Transparantieplicht AI Act: wat MKB moet vertellen aan klanten'
   pillar: ai-act
   target_keyword: AI Act transparantieplicht
   intended_word_count: 1500
-  status: rejected
+  status: queued
   priority: 74
-  last_attempted: '2026-05-27T08:13:14.281Z'
-  retry_after: '2026-06-03T08:13:14.281Z'
-  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
   intent: informational
 - id: ai-act-conformity-assessment
   title: 'Conformity assessment AI Act: stappenplan voor MKB'
   pillar: ai-act
   target_keyword: AI Act conformity assessment MKB
   intended_word_count: 1500
-  status: rejected
+  status: queued
   priority: 66
-  last_attempted: '2026-06-01T09:36:27.455Z'
-  retry_after: '2026-06-08T09:36:27.455Z'
-  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
   intent: informational
 - id: ai-act-verboden-praktijken
-  title: Verboden AI-praktijken onder de AI Act die je MKB moet kennen
+  title: 'Verboden AI-praktijken onder de AI Act die je MKB moet kennen'
   pillar: ai-act
   target_keyword: verboden AI-praktijken AI Act
   intended_word_count: 1500
-  status: published
+  status: queued
   priority: 68
-  last_attempted: '2026-05-30T07:21:23.157Z'
-  wp_post_id: 2856
-  wp_post_url: https://artifation.nl/?p=2856
-  key_entities:
-    - AI Act (AI-verordening)
-    - Onaanvaardbaar risico
-    - Social scoring
-    - Manipulatieve technieken (subliminal & deceptive)
-    - Uitbuiting van kwetsbaarheden
-    - Biometrische categorisering
-    - Emotieherkenning (op de werkvloer/onderwijs)
-    - Ongerechtvaardigd scrapen (gezichtsafbeeldingen)
-    - Predictive policing
-    - Autoriteit Persoonsgegevens (AP)
-    - Europese Commissie
-    - MKB (Midden- en Kleinbedrijf)
   intent: informational
 - id: ai-act-vs-avg
   title: 'AI Act vs AVG: overlap, verschillen en MKB-compliance'
   pillar: ai-act
   target_keyword: AI Act vs AVG MKB
   intended_word_count: 1800
-  status: rejected
+  status: queued
   priority: 76
-  last_attempted: '2026-05-25T08:40:59.968Z'
-  retry_after: '2026-06-01T08:40:59.968Z'
-  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
   intent: informational
 - id: ai-voor-bouw
   title: 'AI in de bouw: planning, calculatie en kwaliteitscontrole'
@@ -381,22 +344,6 @@
   pillar: sector-extensie
   target_keyword: AI voor zorg MKB
   intended_word_count: 1800
-  status: rejected
+  status: queued
   priority: 67
-  last_attempted: '2026-05-31T07:53:14.678Z'
-  retry_after: '2026-06-07T07:53:14.678Z'
-  reject_reason: research te dun na filtering (key_facts=0, sources=0); writer kan geen named citations leveren
   intent: commercial
-- id: 20240521-ai-voor-woningcorporaties
-  title: 'AI voor woningcorporaties: efficiëntie in beheer en onderhoud'
-  pillar: sector-extensie
-  target_keyword: AI voor woningcorporaties
-  intended_word_count: 1800
-  status: proposed
-  priority: 4
-  intent: informational
-  proposed_at: '2026-06-01T13:40:44.364Z'
-  proposal_source: competitor_sitemap
-  proposal_rationale: >-
-    Een concurrent heeft dit recent gepubliceerd, wat duidt op relevantie. Dit vult een gat in onze sector-specifieke
-    content en is nog niet behandeld.

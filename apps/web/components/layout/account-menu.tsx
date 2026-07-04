@@ -16,8 +16,15 @@ export function AccountMenu({ name, email }: { name: string; email: string }) {
     const onClick = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setOpen(false);
+    };
     document.addEventListener("mousedown", onClick);
-    return () => document.removeEventListener("mousedown", onClick);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onClick);
+      document.removeEventListener("keydown", onKey);
+    };
   }, [open]);
 
   const initials = name
@@ -67,16 +74,24 @@ export function AccountMenu({ name, email }: { name: string; email: string }) {
           </button>
         </div>
       )}
-      <div className="sidebar-footer" onClick={() => setOpen((o) => !o)}>
+      <button
+        type="button"
+        className="sidebar-footer"
+        onClick={() => setOpen((o) => !o)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="Account menu"
+        style={{ width: "100%", background: "transparent", border: "none", textAlign: "left", color: "inherit", cursor: "pointer" }}
+      >
         <div className="user-avatar">{initials || "AB"}</div>
         <div className="user-meta">
           <div className="user-name">{name}</div>
-          <div className="user-email">{email}</div>
+          {email && <div className="user-email">{email}</div>}
         </div>
-        <button type="button" className="icon-btn" style={{ color: "inherit" }} aria-label="Account menu">
+        <span className="icon-btn" aria-hidden="true" style={{ color: "inherit" }}>
           <MoreHorizontal size={14} />
-        </button>
-      </div>
+        </span>
+      </button>
     </div>
   );
 }

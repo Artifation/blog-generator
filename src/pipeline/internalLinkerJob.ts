@@ -3,7 +3,7 @@ import path from "node:path";
 import { parse as parseHtml } from "node-html-parser";
 import { loadTenant } from "@/config/loader";
 import { loadTopics } from "@/config/topics";
-import { createProviderRegistry } from "@/llm/client";
+import { createProviderRegistry, resolveAgentModel } from "@/llm/client";
 import { runInternalLinker } from "@/agents/internalLinker";
 import { createWordpressClient } from "@/wordpress/client";
 import { listRecentPosts, updatePostContent, type WpPost } from "@/wordpress/posts";
@@ -78,6 +78,7 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
 
   const providers = createProviderRegistry(env);
   const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+  const internalLinkerModel = resolveAgentModel("internalLinker", providers);
 
   let linksAddedCount = 0;
   const usedAnchorsThisRun: string[] = [];
@@ -134,7 +135,7 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
             },
             constraint_anchor_already_used: usedAnchorsThisRun,
           },
-          { provider: providers.get("anthropic"), sleepImpl: sleep }
+          { provider: providers.get(internalLinkerModel.provider), model: internalLinkerModel, sleepImpl: sleep }
         );
         log.agent_calls++;
 
@@ -147,10 +148,27 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
           continue;
         }
 
+        // Sanitize + validate the model's HTML before it is published live:
+        // strip dangerous tags/attrs and require exactly one anchor pointing at
+        // the intended new_post URL. Defeats prompt-injection in old_post_html
+        // that tries to inject markup or links to an attacker-controlled URL.
+        const safeRewrite = sanitizeRewrittenParagraph(
+          r.parsed.rewritten_paragraph_html,
+          newPost.link
+        );
+        if (safeRewrite === null) {
+          log.skipped.push({
+            from_post_id: oldPost.id,
+            to_post_id: newPost.id,
+            reason: "rewrite failed sanitization / link-target check",
+          });
+          continue;
+        }
+
         const newHtml = replaceParagraphBySignature(
           oldPost.content.rendered,
           r.parsed.target_paragraph_signature,
-          r.parsed.rewritten_paragraph_html
+          safeRewrite
         );
         if (newHtml === null) {
           log.skipped.push({
@@ -197,6 +215,32 @@ export async function runInternalLinkerJob(opts: InternalLinkerJobOpts): Promise
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * Sanitize a model-rewritten paragraph before it is published to WordPress.
+ * Strips dangerous tags/attributes and requires the paragraph to contain
+ * exactly one anchor pointing at `expectedUrl`. Returns null when the rewrite
+ * is unsafe or doesn't carry the single intended link.
+ */
+const FORBIDDEN_REWRITE_TAGS = ["script", "style", "iframe", "object", "embed", "form", "link", "meta", "base"];
+export function sanitizeRewrittenParagraph(html: string, expectedUrl: string): string | null {
+  const frag = parseHtml(html);
+  for (const el of frag.querySelectorAll(FORBIDDEN_REWRITE_TAGS.join(","))) el.remove();
+  for (const el of frag.querySelectorAll("*")) {
+    for (const name of Object.keys(el.attributes)) {
+      const lower = name.toLowerCase();
+      const value = (el.getAttribute(name) ?? "").replace(/\s+/g, "").toLowerCase();
+      if (lower.startsWith("on")) el.removeAttribute(name);
+      else if ((lower === "href" || lower === "src") && value.startsWith("javascript:")) el.removeAttribute(name);
+      else if (lower === "srcdoc") el.removeAttribute(name);
+    }
+  }
+  const anchors = frag.querySelectorAll("a");
+  if (anchors.length !== 1) return null;
+  const href = (anchors[0]!.getAttribute("href") ?? "").replace(/\/+$/, "");
+  if (href !== expectedUrl.replace(/\/+$/, "")) return null;
+  return frag.toString();
 }
 
 function isAlreadyLinked(html: string, url: string): boolean {

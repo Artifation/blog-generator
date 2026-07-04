@@ -180,6 +180,12 @@ export async function recordError(input: RecordErrorInput): Promise<string | nul
 
 export interface ListErrorsFilter {
   siteId?: string | null;
+  /**
+   * When `siteId` is a concrete site, also include scheduler/global rows
+   * (site_id IS NULL). Used by the "deze site + systeem" scope so an operator
+   * sees platform-level errors WITHOUT leaking OTHER tenants' rows.
+   */
+  includeGlobal?: boolean;
   source?: ErrorSource;
   severity?: ErrorSeverity;
   since?: string; // ISO
@@ -199,6 +205,9 @@ export async function listErrors(filter: ListErrorsFilter = {}): Promise<ErrorEv
   if (filter.siteId !== undefined) {
     if (filter.siteId === null) {
       where.push("site_id IS NULL");
+    } else if (filter.includeGlobal) {
+      where.push("(site_id = ? OR site_id IS NULL)");
+      params.push(filter.siteId);
     } else {
       where.push("site_id = ?");
       params.push(filter.siteId);
@@ -249,7 +258,9 @@ export interface CountByBucketRow {
  * Tellingen voor de nav-badge + dashboard headers. Eén query (drie sub-counts)
  * zodat we 'm zonder zorgen elke render kunnen aanroepen.
  */
-export async function countErrors(filter: { siteId?: string | null } = {}): Promise<CountByBucketRow> {
+export async function countErrors(
+  filter: { siteId?: string | null; includeGlobal?: boolean } = {},
+): Promise<CountByBucketRow> {
   try {
     await ensureSchema();
     const db = getDb();
@@ -258,6 +269,9 @@ export async function countErrors(filter: { siteId?: string | null } = {}): Prom
     if (filter.siteId !== undefined) {
       if (filter.siteId === null) {
         whereSite = " AND site_id IS NULL";
+      } else if (filter.includeGlobal) {
+        whereSite = " AND (site_id = ? OR site_id IS NULL)";
+        params.push(filter.siteId);
       } else {
         whereSite = " AND site_id = ?";
         params.push(filter.siteId);
@@ -289,21 +303,24 @@ export async function countErrors(filter: { siteId?: string | null } = {}): Prom
 
 export async function markResolved(
   id: string,
+  siteId: string,
   by: string,
   note?: string,
 ): Promise<void> {
   await ensureSchema();
   const db = getDb();
+  // Scope by the caller's site (plus global/scheduler rows) so a tenant can't
+  // resolve/stamp another tenant's error events via a forged id.
   await db.run(
-    sql`UPDATE error_events SET resolved_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), resolved_by = ${by}, resolved_note = ${note ?? null} WHERE id = ${id}`,
+    sql`UPDATE error_events SET resolved_at = strftime('%Y-%m-%dT%H:%M:%fZ','now'), resolved_by = ${by}, resolved_note = ${note ?? null} WHERE id = ${id} AND (site_id = ${siteId} OR site_id IS NULL)`,
   );
 }
 
-export async function markUnresolved(id: string): Promise<void> {
+export async function markUnresolved(id: string, siteId: string): Promise<void> {
   await ensureSchema();
   const db = getDb();
   await db.run(
-    sql`UPDATE error_events SET resolved_at = NULL, resolved_by = NULL, resolved_note = NULL WHERE id = ${id}`,
+    sql`UPDATE error_events SET resolved_at = NULL, resolved_by = NULL, resolved_note = NULL WHERE id = ${id} AND (site_id = ${siteId} OR site_id IS NULL)`,
   );
 }
 

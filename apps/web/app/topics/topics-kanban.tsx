@@ -712,21 +712,26 @@ function AddTopicModal({
       return;
     }
     setSaving(true);
-    const r = await createTopicAction(siteSlug, {
-      title: title.trim(),
-      targetKeyword: keyword.trim(),
-      pillarSlug,
-      intent,
-      intendedWordCount: wordCount,
-      priority,
-      customInstructions: customInstructions.trim() || undefined,
-    });
-    setSaving(false);
-    if (r.ok) {
-      toast.success("Topic toegevoegd");
-      onCreated();
-    } else {
-      toast.error(r.error);
+    try {
+      const r = await createTopicAction(siteSlug, {
+        title: title.trim(),
+        targetKeyword: keyword.trim(),
+        pillarSlug,
+        intent,
+        intendedWordCount: wordCount,
+        priority,
+        customInstructions: customInstructions.trim() || undefined,
+      });
+      if (r.ok) {
+        toast.success("Topic toegevoegd");
+        onCreated();
+      } else {
+        toast.error(r.error);
+      }
+    } catch (err) {
+      toast.error(`Server-fout: ${(err as Error).message ?? "onbekend"}`);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -735,7 +740,7 @@ function AddTopicModal({
       <div
         className="card"
         onClick={(e) => e.stopPropagation()}
-        style={{ width: "min(92vw, 520px)", maxHeight: "88vh", overflow: "hidden", boxShadow: "var(--shadow-lg)" }}
+        style={{ width: "min(92vw, 520px)", maxHeight: "88vh", overflow: "hidden", display: "flex", flexDirection: "column", boxShadow: "var(--shadow-lg)" }}
       >
         <div className="card-header">
           <h3>Nieuw topic</h3>
@@ -743,7 +748,7 @@ function AddTopicModal({
             <X size={16} />
           </button>
         </div>
-        <div className="card-body col" style={{ gap: 12 }}>
+        <div className="card-body col" style={{ gap: 12, overflowY: "auto", flex: 1, minHeight: 0 }}>
           <div className="field">
             <label>
               <span>Werktitel</span>
@@ -921,29 +926,34 @@ function EditTopicModal({
       return;
     }
     setSaving(true);
-    const r = await updateTopicAction(topic.id, {
-      title: title.trim(),
-      targetKeyword: keyword.trim(),
-      pillarSlug,
-      intent,
-      intendedWordCount: wordCount,
-      priority,
-      customInstructions: customInstructions.trim() || null,
-      // Only set status when resetting — otherwise leave whatever it currently is.
-      ...(resetStatus && topic.status === "rejected"
-        ? { status: "queued" as const, rejectReason: null }
-        : {}),
-    });
-    setSaving(false);
-    if (r.ok) {
-      toast.success(
-        resetStatus && topic.status === "rejected"
-          ? "Topic bijgewerkt + status terug naar queued"
-          : "Topic bijgewerkt"
-      );
-      onSaved();
-    } else {
-      toast.error(r.error);
+    try {
+      const r = await updateTopicAction(topic.id, {
+        title: title.trim(),
+        targetKeyword: keyword.trim(),
+        pillarSlug,
+        intent,
+        intendedWordCount: wordCount,
+        priority,
+        customInstructions: customInstructions.trim() || null,
+        // Only set status when resetting — otherwise leave whatever it currently is.
+        ...(resetStatus && topic.status === "rejected"
+          ? { status: "queued" as const, rejectReason: null }
+          : {}),
+      });
+      if (r.ok) {
+        toast.success(
+          resetStatus && topic.status === "rejected"
+            ? "Topic bijgewerkt + status terug naar queued"
+            : "Topic bijgewerkt"
+        );
+        onSaved();
+      } else {
+        toast.error(r.error);
+      }
+    } catch (err) {
+      toast.error(`Server-fout: ${(err as Error).message ?? "onbekend"}`);
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -1135,12 +1145,17 @@ function SuggestionsModal({
       return;
     }
     setSaving(true);
-    const res = await acceptTopicProposalsAction(siteSlug, chosen);
-    setSaving(false);
-    if (res.ok) {
-      onAdded(res.created);
-    } else {
-      toast.error(res.error);
+    try {
+      const res = await acceptTopicProposalsAction(siteSlug, chosen);
+      if (res.ok) {
+        onAdded(res.created);
+      } else {
+        toast.error(res.error);
+      }
+    } catch (err) {
+      toast.error(`Server-fout: ${(err as Error).message ?? "onbekend"}`);
+    } finally {
+      setSaving(false);
     }
   }
 

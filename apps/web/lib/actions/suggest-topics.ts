@@ -3,7 +3,8 @@
 import path from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { requireSite } from "~/lib/auth";
-import { createProviderRegistry } from "@/llm/client";
+import { currentUserHasRole } from "~/lib/auth/roles";
+import { createProviderRegistry, resolveAgentModel } from "@/llm/client";
 import { runTopicSuggester } from "@/agents/topicSuggester";
 import { querySearchConsole, type GscRow, type GscClientOpts } from "@/integrations/searchConsole";
 import {
@@ -49,6 +50,11 @@ function readSearchConsoleFeature(features: Record<string, unknown>): SearchCons
 }
 
 function gscSnapshotPath(siteSlug: string): string {
+  // Defensive: slugs are DB-controlled today, but never let a stray "/" or ".."
+  // reach a filesystem path if that ever changes.
+  if (!/^[a-z0-9][a-z0-9-]*$/i.test(siteSlug)) {
+    throw new Error(`Invalid site slug for snapshot path: ${siteSlug}`);
+  }
   // Webapp cwd = apps/web; snapshots live at repo-root/data/gsc-snapshots
   return path.resolve(process.cwd(), "../../data/gsc-snapshots", `${siteSlug}.json`);
 }
@@ -242,6 +248,8 @@ export async function suggestTopicsAction(
   customPrompt?: string
 ): Promise<{ ok: true; proposals: TopicProposalView[] } | { ok: false; error: string }> {
   const site = await requireSite();
+  if (!(await currentUserHasRole("editor")))
+    return { ok: false, error: "Alleen editors of eigenaren kunnen topics laten voorstellen." };
   const key = site.apiKeys?.gemini ?? site.apiKeys?.anthropic;
   if (!key) {
     return { ok: false, error: "API-key ontbreekt — vul Gemini of Anthropic in onder Instellingen." };
@@ -301,6 +309,7 @@ export async function suggestTopicsAction(
   }
 
   try {
+    const topicSuggesterModel = resolveAgentModel("topicSuggester", providers);
     const res = await runTopicSuggester(
       {
         existing_topics: existing.slice(0, 30).map((t) => ({
@@ -314,7 +323,7 @@ export async function suggestTopicsAction(
         pillars: site.pillars.map((p) => ({ id: p.slug, weight: p.weight })),
         max_n: count,
       },
-      { provider: providers.get("gemini") }
+      { provider: providers.get(topicSuggesterModel.provider), model: topicSuggesterModel }
     );
 
     const proposals: TopicProposalView[] = res.parsed.proposals.map((p) => {
@@ -346,6 +355,8 @@ export async function acceptTopicProposalsAction(
 ): Promise<{ ok: true; created: number } | { ok: false; error: string }> {
   const site = await requireSite();
   if (site.slug !== siteSlug) return { ok: false, error: "Site mismatch" };
+  if (!(await currentUserHasRole("editor")))
+    return { ok: false, error: "Alleen editors of eigenaren kunnen voorstellen accepteren." };
   let created = 0;
   const validPillars = new Set(site.pillars.map((p) => p.slug));
   for (const p of proposals) {

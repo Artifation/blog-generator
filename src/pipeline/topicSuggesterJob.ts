@@ -279,7 +279,7 @@ export async function runTopicSuggesterJob(opts: TopicSuggesterJobOpts): Promise
 
   // 5. Run topic-suggester agent
   const registry = createProviderRegistry(env);
-  const model = (await import("@/llm/client")).resolveAgentModel("topicSuggester");
+  const model = (await import("@/llm/client")).resolveAgentModel("topicSuggester", registry);
   const provider = registry.get(model.provider);
 
   // 5a. Performance feedback — leest de meest recente gsc-snapshot uit
@@ -342,7 +342,7 @@ export async function runTopicSuggesterJob(opts: TopicSuggesterJobOpts): Promise
         max_n: cfg.max_proposals_per_week,
         ...(performanceSignals ? { performance_signals: performanceSignals } : {}),
       },
-      { provider }
+      { provider, model }
     );
     proposals = result.parsed.proposals;
   } catch (err) {

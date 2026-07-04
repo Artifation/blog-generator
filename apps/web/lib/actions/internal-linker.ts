@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireSite } from "~/lib/auth";
+import { currentUserHasRole } from "~/lib/auth/roles";
 import { runBuiltInInternalLinker } from "~/lib/pipeline/internalLinker";
 
 export async function runInternalLinkerAction(): Promise<
@@ -9,8 +10,13 @@ export async function runInternalLinkerAction(): Promise<
   | { ok: false; error: string }
 > {
   const site = await requireSite();
-  if (!site.apiKeys?.anthropic) {
-    return { ok: false, error: "Anthropic API-key ontbreekt — vul die in onder Instellingen." };
+  if (!(await currentUserHasRole("editor")))
+    return { ok: false, error: "Alleen editors of eigenaren kunnen de internal-linker draaien." };
+  // Internal-linker falls back to Gemini in the pipeline if Anthropic isn't
+  // configured, so only the Gemini key is strictly required.
+  const geminiKey = site.apiKeys?.gemini ?? process.env.GEMINI_API_KEY;
+  if (!geminiKey) {
+    return { ok: false, error: "Gemini API-key vereist. Ga naar Instellingen → Integraties." };
   }
   try {
     const result = await runBuiltInInternalLinker(site);

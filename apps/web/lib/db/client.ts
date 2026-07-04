@@ -44,6 +44,13 @@ export async function ensureSchema(): Promise<void> {
   if (_initPromise) return _initPromise;
   const db = getDb();
   _initPromise = (async () => {
+    // Enforce foreign keys on THIS connection (libSQL/SQLite default them OFF).
+    // Without it every ON DELETE CASCADE / SET NULL in the schema is inert and
+    // deleteSite orphans all child rows. The pragma is per-connection and
+    // non-persistent, so it must run before any query; ensureSchema is awaited
+    // by every data-access path and closeDb resets _initPromise, so a re-open
+    // re-applies it.
+    await db.run(`PRAGMA foreign_keys = ON`);
     await db.run(`CREATE TABLE IF NOT EXISTS sites (
       id TEXT PRIMARY KEY,
       slug TEXT NOT NULL,
@@ -214,7 +221,13 @@ export async function ensureSchema(): Promise<void> {
     // in `sites` rows from earlier deploys. Idempotent — uses isEncrypted()
     // to skip rows that are already done.
     await migratePlaintextSiteSecrets(db);
-  })();
+  })().catch((err) => {
+    // Don't cache a rejected init forever (a transient DDL failure or a missing
+    // encryption key would otherwise wedge every future query until restart).
+    // Clear it so the next ensureSchema() call retries.
+    _initPromise = null;
+    throw err;
+  });
   return _initPromise;
 }
 

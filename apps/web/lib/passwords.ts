@@ -47,3 +47,22 @@ export async function verifyPassword(plain: string, stored: string): Promise<boo
   if (derived.length !== expected.length) return false;
   return timingSafeEqual(derived, expected);
 }
+
+// A single valid dummy hash (computed once per process) used to equalize the
+// timing of the "no such user" login branch. Without running a scrypt there,
+// unknown emails return ~instantly while known emails pay the full KDF cost —
+// a reliable account-enumeration oracle.
+let _dummyHash: Promise<string> | null = null;
+function dummyHash(): Promise<string> {
+  if (!_dummyHash) _dummyHash = hashPassword(randomBytes(24).toString("hex"));
+  return _dummyHash;
+}
+
+/**
+ * Run the same KDF work a real verify would, then discard it. Call on the
+ * user-not-found branch of login so response time doesn't reveal whether an
+ * account exists.
+ */
+export async function equalizeVerifyTiming(plain: string): Promise<void> {
+  await verifyPassword(plain, await dummyHash());
+}

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { runInternalLinker } from "@/agents/internalLinker";
 import type { LLMProvider } from "@/llm/types";
+import { resolveAgentModel } from "@/llm/client";
 
 const linkOut = JSON.stringify({
   should_link: true,
@@ -47,7 +48,7 @@ describe("runInternalLinker", () => {
         },
         constraint_anchor_already_used: [],
       },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("internalLinker"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.should_link).toBe(true);
     expect(r.parsed.confidence).toBeGreaterThan(0.7);
@@ -77,7 +78,7 @@ describe("runInternalLinker", () => {
         },
         constraint_anchor_already_used: [],
       },
-      { provider, sleepImpl: () => Promise.resolve() }
+      { provider, model: resolveAgentModel("internalLinker"), sleepImpl: () => Promise.resolve() }
     );
     expect(r.parsed.should_link).toBe(false);
   });

@@ -58,4 +58,26 @@ describe("postProcessDraftHtml", () => {
       "<h3>AVG, kort</h3><p><strong>Term</strong></p>"
     );
   });
+
+  it("does not turn ** inside a <pre><code> block into <strong>", () => {
+    const input = "<pre><code>result = base ** exp ** 2</code></pre>";
+    expect(postProcessDraftHtml(input)).toBe(input);
+  });
+
+  it("does not turn ** inside inline <code> into <strong>", () => {
+    const input = "<p>Gebruik <code>def f(**kwargs)</code> en <code>a ** b</code>.</p>";
+    expect(postProcessDraftHtml(input)).toBe(input);
+  });
+
+  it("preserves em-dashes inside code blocks (literal source)", () => {
+    const input = "<pre><code>const sep = &quot;—&quot;;</code></pre>";
+    expect(postProcessDraftHtml(input)).toBe(input);
+  });
+
+  it("still transforms text outside a code block while leaving the code intact", () => {
+    const input = "<p>Het principe **X** — zie <code>a ** b</code>.</p>";
+    expect(postProcessDraftHtml(input)).toBe(
+      "<p>Het principe <strong>X</strong>, zie <code>a ** b</code>.</p>"
+    );
+  });
 });

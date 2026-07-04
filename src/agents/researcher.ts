@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { runAgent } from "@/llm/runAgent";
 import type { LLMProvider } from "@/llm/types";
-import { resolveAgentModel } from "@/llm/client";
+import type { AgentModelChoice } from "@/llm/client";
 import { RESEARCHER_SYSTEM_PROMPT } from "./prompts/researcher.ts";
 
 // Limits zijn ruim gezet (was 400/500): LLM's tellen karakters slecht en
@@ -51,18 +51,18 @@ export interface ResearcherInput {
 
 export interface ResearcherDeps {
   provider: LLMProvider;
+  model: AgentModelChoice;
   sleepImpl?: (ms: number) => Promise<void>;
 }
 
 export async function runResearcher(input: ResearcherInput, deps: ResearcherDeps) {
-  const model = resolveAgentModel("researcher");
   const result = await runAgent(
     {
       provider: deps.provider,
       systemPrompt: RESEARCHER_SYSTEM_PROMPT,
       userPrompt: JSON.stringify(input, null, 2),
-      model: model.model,
-      maxTokens: model.maxTokens,
+      model: deps.model.model,
+      maxTokens: deps.model.maxTokens,
       schema: ResearchOutputSchema,
       useSearch: true,  // Gemini grounding → URIs uit live SERP, niet uit parametric memory
     },
@@ -97,7 +97,13 @@ function sameHostAndPath(a: string, b: string): boolean {
     if (ua.host !== ub.host) return false;
     const pa = ua.pathname.replace(/\/$/, "");
     const pb = ub.pathname.replace(/\/$/, "");
-    return pa === pb || pa.startsWith(pb) || pb.startsWith(pa);
+    if (pa === pb) return true;
+    // A prefix match only counts when the shorter path is NON-empty. A grounded
+    // root URL normalizes to "" and would otherwise startsWith-match every
+    // same-host candidate, defeating the anti-hallucination grounding filter.
+    if (pb !== "" && pa.startsWith(pb)) return true;
+    if (pa !== "" && pb.startsWith(pa)) return true;
+    return false;
   } catch {
     return false;
   }

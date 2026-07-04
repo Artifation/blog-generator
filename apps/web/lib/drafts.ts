@@ -1,7 +1,8 @@
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, desc, count, gte, lt } from "drizzle-orm";
 import { getDb, ensureSchema } from "./db/client";
 import { drafts, publishedPosts, topics, type Draft, type PublishedPost } from "./db/schema";
 import { newId } from "./db/ids";
+import { sanitizeContentHtml } from "./security/sanitize-html";
 
 export async function listDraftsForSite(siteId: string, status?: Draft["status"]): Promise<Draft[]> {
   await ensureSchema();
@@ -91,7 +92,7 @@ export async function createDraft(input: CreateDraftInput): Promise<Draft> {
     runId: input.runId ?? null,
     title: input.title,
     slug: input.slug,
-    contentHtml: input.contentHtml,
+    contentHtml: sanitizeContentHtml(input.contentHtml),
     metaTitle: input.metaTitle ?? "",
     metaDescription: input.metaDescription ?? "",
     tldr: input.tldr ?? "",
@@ -122,7 +123,7 @@ export async function updateDraftContent(
   const data: Partial<typeof drafts.$inferInsert> = {};
   if (patch.title !== undefined) data.title = patch.title;
   if (patch.slug !== undefined) data.slug = patch.slug;
-  if (patch.contentHtml !== undefined) data.contentHtml = patch.contentHtml;
+  if (patch.contentHtml !== undefined) data.contentHtml = sanitizeContentHtml(patch.contentHtml);
   if (patch.metaTitle !== undefined) data.metaTitle = patch.metaTitle;
   if (patch.metaDescription !== undefined) data.metaDescription = patch.metaDescription;
   if (patch.tldr !== undefined) data.tldr = patch.tldr;
@@ -161,6 +162,17 @@ export async function publishDraftBuiltIn(input: PublishedPostInput): Promise<Pu
   const db = getDb();
   const draft = await getDraft(input.draftId);
   if (!draft) throw new Error(`Draft ${input.draftId} not found`);
+
+  // Idempotency: if this draft was already published, return the existing row
+  // instead of inserting a second one (avoids duplicate posts + a unique-index
+  // crash on a retry / double-click).
+  const already = await db
+    .select()
+    .from(publishedPosts)
+    .where(eq(publishedPosts.draftId, draft.id))
+    .limit(1);
+  if (already[0]) return already[0];
+
   const id = newId("pub");
   let pillarSlug = "";
   let targetKeyword = "";
@@ -170,40 +182,48 @@ export async function publishDraftBuiltIn(input: PublishedPostInput): Promise<Pu
     pillarSlug = t?.pillarSlug ?? "";
     targetKeyword = t?.targetKeyword ?? "";
   }
-  await db.insert(publishedPosts).values({
-    id,
-    siteId: draft.siteId,
-    draftId: draft.id,
-    slug: draft.slug,
-    title: draft.title,
-    contentHtml: draft.contentHtml,
-    metaTitle: draft.metaTitle,
-    metaDescription: draft.metaDescription,
-    tldr: draft.tldr,
-    imagePath: draft.imagePath,
-    imageAlt: draft.imageAlt,
-    targetKeyword,
-    pillarSlug,
-    externalUrl: input.externalUrl ?? null,
-    externalId: input.externalId ?? null,
+  // Atomic: insert the published row + flip the draft + flip the topic in one
+  // transaction. A crash between these previously left a published_posts row
+  // whose draft stayed pending_review and topic unpublished — and the
+  // idempotency guard above then made that half-state permanent on retry.
+  await db.transaction(async (tx) => {
+    await tx.insert(publishedPosts).values({
+      id,
+      siteId: draft.siteId,
+      draftId: draft.id,
+      slug: draft.slug,
+      title: draft.title,
+      // Defense-in-depth: published copy is sanitized even if a legacy draft row
+      // pre-dates write-time sanitization.
+      contentHtml: sanitizeContentHtml(draft.contentHtml),
+      metaTitle: draft.metaTitle,
+      metaDescription: draft.metaDescription,
+      tldr: draft.tldr,
+      imagePath: draft.imagePath,
+      imageAlt: draft.imageAlt,
+      targetKeyword,
+      pillarSlug,
+      externalUrl: input.externalUrl ?? null,
+      externalId: input.externalId ?? null,
+    });
+
+    await tx
+      .update(drafts)
+      .set({ status: "published", reviewedAt: new Date().toISOString() })
+      .where(eq(drafts.id, draft.id));
+
+    if (draft.topicId) {
+      await tx
+        .update(topics)
+        .set({
+          status: "published",
+          publishedDraftId: draft.id,
+          publishedUrl: input.externalUrl ?? `/${draft.slug}`,
+          updatedAt: new Date().toISOString(),
+        })
+        .where(eq(topics.id, draft.topicId));
+    }
   });
-
-  await db
-    .update(drafts)
-    .set({ status: "published", reviewedAt: new Date().toISOString() })
-    .where(eq(drafts.id, draft.id));
-
-  if (draft.topicId) {
-    await db
-      .update(topics)
-      .set({
-        status: "published",
-        publishedDraftId: draft.id,
-        publishedUrl: input.externalUrl ?? `/${draft.slug}`,
-        updatedAt: new Date().toISOString(),
-      })
-      .where(eq(topics.id, draft.topicId));
-  }
 
   const rows = await db.select().from(publishedPosts).where(eq(publishedPosts.id, id)).limit(1);
   return rows[0]!;
@@ -232,11 +252,47 @@ export async function countPublishedThisIsoWeekForSite(
   const db = getDb();
   const weekStart = startOfIsoWeekUtc(now).toISOString();
   const weekEnd = new Date(startOfIsoWeekUtc(now).getTime() + 7 * 86_400_000).toISOString();
-  const all = await db
-    .select()
+  // Count in SQL (ISO-8601 strings sort lexicographically = chronologically),
+  // half-open [weekStart, weekEnd), so we don't load every row (incl. contentHtml)
+  // just to count a week's worth on every pipeline tick.
+  const rows = await db
+    .select({ c: count() })
     .from(publishedPosts)
-    .where(eq(publishedPosts.siteId, siteId));
-  return all.filter((p) => p.publishedAt >= weekStart && p.publishedAt < weekEnd).length;
+    .where(
+      and(
+        eq(publishedPosts.siteId, siteId),
+        gte(publishedPosts.publishedAt, weekStart),
+        lt(publishedPosts.publishedAt, weekEnd),
+      ),
+    );
+  return rows[0]?.c ?? 0;
+}
+
+/**
+ * Aantal DRAFTS gegenereerd in de huidige ISO-week voor deze site (ongeacht
+ * status). Elke draft = één betaalde pipeline-run, dus dit is de juiste teller
+ * voor een kosten-cap — anders genereert een niet-auto-publish site oneindig
+ * veel betaalde concepten omdat de published-teller op 0 blijft staan.
+ */
+export async function countDraftsThisIsoWeekForSite(
+  siteId: string,
+  now: Date = new Date()
+): Promise<number> {
+  await ensureSchema();
+  const db = getDb();
+  const weekStart = startOfIsoWeekUtc(now).toISOString();
+  const weekEnd = new Date(startOfIsoWeekUtc(now).getTime() + 7 * 86_400_000).toISOString();
+  const rows = await db
+    .select({ c: count() })
+    .from(drafts)
+    .where(
+      and(
+        eq(drafts.siteId, siteId),
+        gte(drafts.createdAt, weekStart),
+        lt(drafts.createdAt, weekEnd),
+      ),
+    );
+  return rows[0]?.c ?? 0;
 }
 
 function startOfIsoWeekUtc(d: Date): Date {

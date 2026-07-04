@@ -1,4 +1,5 @@
 import { fal } from "@fal-ai/client";
+import { IMAGE_TIMEOUT_MS, withTimeout } from "../llm/timeout.ts";
 
 export interface GenerateImageInput {
   prompt: string;
@@ -35,21 +36,26 @@ export async function generateImageWithFal(input: GenerateImageInput): Promise<G
 
   const finalPrompt = composeBrandedPrompt(input.prompt, input.negative_prompt);
 
-  const result = await fal.subscribe("fal-ai/flux-pro/v1.1-ultra", {
-    input: {
-      prompt: finalPrompt,
-      num_images: 1,
-      safety_tolerance: "2",
-      output_format: "png",
-      aspect_ratio: "16:9",
-    },
-  });
+  // fal.subscribe is a long-poll with no built-in deadline — bound it.
+  const result = await withTimeout(
+    fal.subscribe("fal-ai/flux-pro/v1.1-ultra", {
+      input: {
+        prompt: finalPrompt,
+        num_images: 1,
+        safety_tolerance: "2",
+        output_format: "png",
+        aspect_ratio: "16:9",
+      },
+    }),
+    IMAGE_TIMEOUT_MS,
+    "fal.subscribe(flux-pro)",
+  );
 
   const url = (result as { data: { images: { url: string }[] } }).data.images[0]?.url;
   if (!url) throw new Error("Fal.ai returned no image URL");
 
   const f = input.fetchImpl ?? fetch;
-  const res = await f(url);
+  const res = await f(url, { signal: AbortSignal.timeout(IMAGE_TIMEOUT_MS) });
   if (!res.ok) throw new Error(`Image fetch failed: ${res.status}`);
   const arr = await res.arrayBuffer();
 
