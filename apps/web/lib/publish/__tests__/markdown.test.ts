@@ -14,8 +14,15 @@ import path from "node:path";
 import "../../__tests__/helpers/db"; // sets APP_ENCRYPTION_KEY (not strictly
 // needed for markdown but keeps env consistent across the suite)
 
-import { exportDraftAsMarkdown } from "../markdown";
+import { exportDraftAsMarkdown, exportsBaseDir } from "../markdown";
 import type { Draft, Site } from "../../db/schema";
+
+/** Map the returned public URL (/exports/<site>/<file>) back to its on-disk path. */
+function diskPathFromUrl(url: string): string {
+  const rel = url.replace(/^\/exports\//, "");
+  const segs = rel.split("/").map(decodeURIComponent);
+  return path.join(exportsBaseDir(), ...segs);
+}
 
 const TMP_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "blog-md-test-"));
 const PREV_CWD = process.cwd();
@@ -95,11 +102,11 @@ function fakeSite(over: Partial<Site> = {}): Site {
 test("exportDraftAsMarkdown writes a file with frontmatter + non-empty body", async () => {
   const draft = fakeDraft();
   const site = fakeSite();
-  const relPath = await exportDraftAsMarkdown(draft, site);
-  assert.ok(relPath.endsWith("hello-world.md"), `unexpected path: ${relPath}`);
+  const url = await exportDraftAsMarkdown(draft, site);
+  // The exporter now returns the PUBLIC URL served by /exports/[...path].
+  assert.equal(url, "/exports/test-site/hello-world.md");
 
-  // The exporter returns a path relative to <cwd>/../../, so resolve from cwd.
-  const absPath = path.resolve(process.cwd(), "../..", relPath);
+  const absPath = diskPathFromUrl(url);
   assert.ok(fs.existsSync(absPath), `output file should exist at ${absPath}`);
   const content = fs.readFileSync(absPath, "utf8");
 
@@ -130,7 +137,7 @@ test("exportDraftAsMarkdown converts code to fenced/inline markdown and decodes 
   });
   const site = fakeSite();
   const relPath = await exportDraftAsMarkdown(draft, site);
-  const absPath = path.resolve(process.cwd(), "../..", relPath);
+  const absPath = diskPathFromUrl(relPath);
   const content = fs.readFileSync(absPath, "utf8");
   const body = content.split(/\n---\n/)[1] ?? "";
   // Fenced block with contents intact and entities decoded to literals.
@@ -147,7 +154,7 @@ test("exportDraftAsMarkdown falls back to tldr when metaDescription is empty", a
   });
   const site = fakeSite();
   const relPath = await exportDraftAsMarkdown(draft, site);
-  const absPath = path.resolve(process.cwd(), "../..", relPath);
+  const absPath = diskPathFromUrl(relPath);
   const content = fs.readFileSync(absPath, "utf8");
   assert.match(content, /description: "Fallback description"/);
 });
@@ -159,7 +166,7 @@ test("exportDraftAsMarkdown escapes double quotes in title", async () => {
   });
   const site = fakeSite();
   const relPath = await exportDraftAsMarkdown(draft, site);
-  const absPath = path.resolve(process.cwd(), "../..", relPath);
+  const absPath = diskPathFromUrl(relPath);
   const content = fs.readFileSync(absPath, "utf8");
   assert.match(content, /title: "A title with \\"quotes\\" in it"/);
 });

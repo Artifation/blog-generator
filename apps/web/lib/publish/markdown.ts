@@ -60,8 +60,23 @@ function htmlToMarkdown(html: string): string {
   return md.trim() + "\n";
 }
 
+/**
+ * Absolute path to the on-disk exports root (`<data>/exports`). Lives on the
+ * mounted `/app/data` volume in production. The `/exports/[...path]` route
+ * serves files from here, so the exporter and the route MUST agree on it.
+ */
+export function exportsBaseDir(): string {
+  return path.resolve(process.cwd(), "../../data/exports");
+}
+
+/**
+ * Write the draft as a Markdown file and return the PUBLIC URL under which the
+ * `/exports/[...path]` route serves it (e.g. `/exports/<site>/<slug>.md`).
+ * Returning a real URL — not the filesystem path — is what makes the link in
+ * the publish toast actually open instead of 404'ing.
+ */
 export async function exportDraftAsMarkdown(draft: Draft, site: Site): Promise<string> {
-  const baseDir = path.resolve(process.cwd(), "../../data/exports", site.slug);
+  const baseDir = path.join(exportsBaseDir(), site.slug);
   await fs.mkdir(baseDir, { recursive: true });
   const file = path.join(baseDir, `${draft.slug}.md`);
 
@@ -80,5 +95,7 @@ export async function exportDraftAsMarkdown(draft: Draft, site: Site): Promise<s
 
   const body = htmlToMarkdown(draft.contentHtml);
   await fs.writeFile(file, frontmatter + "\n" + body, "utf8");
-  return path.relative(path.resolve(process.cwd(), "../../"), file).replace(/\\/g, "/");
+  // Public URL served by app/exports/[...path]/route.ts (encode each segment
+  // so unusual slugs don't break the URL).
+  return `/exports/${encodeURIComponent(site.slug)}/${encodeURIComponent(`${draft.slug}.md`)}`;
 }

@@ -13,16 +13,21 @@
  */
 import { sql } from "drizzle-orm";
 
-import { getDb, ensureSchema } from "../db/client";
+import { getDb, getRawClient, ensureSchema } from "../db/client";
 import { newId } from "../db/ids";
 import { forwardToSentry } from "./sentry";
 import { maybeSendErrorAlertEmail } from "./email-alert";
 
-// drizzle's typed run() doesn't accept the libsql {sql,args} object form,
-// but the underlying session passes it through verbatim at runtime.
+// Parameterised dynamic SELECTs go through the raw libsql client's execute().
+// Drizzle's db.run() rejects the {sql,args} form — it treats the object as an
+// SQL wrapper and calls .getSQL() on it (TypeError: a.getSQL is not a function,
+// which crashed the /errors page). getRawClient() shares getDb()'s connection.
 type RawRunner = (q: { sql: string; args: unknown[] }) => Promise<{ rows: unknown[] }>;
-const runRaw = (db: ReturnType<typeof getDb>): RawRunner =>
-  (db as unknown as { run: RawRunner }).run.bind(db);
+const runRaw = (_db: ReturnType<typeof getDb>): RawRunner =>
+  (q) =>
+    getRawClient().execute({ sql: q.sql, args: q.args as never }) as unknown as Promise<{
+      rows: unknown[];
+    }>;
 
 export type ErrorSource =
   | "pipeline"

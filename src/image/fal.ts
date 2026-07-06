@@ -18,13 +18,17 @@ export interface GeneratedImage {
 // onafhankelijk van imagePrompter LLM-output. Flux-Pro v1.1-Ultra heeft geen
 // dedicated negative_prompt parameter, dus negatives gaan inline in de prompt.
 export const BRAND_STYLE_PREFIX =
-  "Editorial corporate photography, professional Dutch B2B business environment, modern office or industrial setting, blue and dark navy color palette with subtle accents, soft natural window light, shallow depth of field, clean minimalist composition, premium stock photography quality, photorealistic";
+  "Candid documentary-style photograph of a real, calm professional Dutch B2B workplace, natural and understated everyday scene, " +
+  "neutral color palette with restrained subtle blue accents, soft natural window light, shallow depth of field, realistic textures, " +
+  "shot on a full-frame DSLR with a 35mm lens, unposed, quiet and grounded, premium editorial stock photography, photorealistic";
 
 export const BRAND_NEGATIVE_TERMS =
-  "text, words, letters, watermarks, logos, brand names, signatures, cartoon, illustration, painting, sketch, vector art, " +
+  "text, words, letters, watermarks, logos, brand names, signatures, cartoon, illustration, painting, sketch, vector art, 3d render, cgi, " +
+  "futuristic, sci-fi, science fiction, cyberpunk, high-tech, digital overlay, holographic display, hologram, HUD, augmented reality overlay, " +
+  "floating data, glowing screens, glowing lines, neon glow, neon colors, dramatic lighting, lens flare, oversaturation, " +
   "glowing molecular network, abstract connected nodes, dot-and-line network, glowing brain with circuits, " +
-  "puzzle pieces with AI text, robotic handshake, holographic UI floating in air, generic AI cliché imagery, " +
-  "deformed faces, distorted hands, oversaturation, neon colors, cluttered background, amateur snapshot, low resolution, blurry";
+  "puzzle pieces with AI text, robotic handshake, generic AI cliché imagery, " +
+  "deformed faces, distorted hands, cluttered background, amateur snapshot, low resolution, blurry";
 
 export function composeBrandedPrompt(subjectPrompt: string, extraNegatives: string): string {
   const negatives = [BRAND_NEGATIVE_TERMS, extraNegatives].filter(Boolean).join(", ");

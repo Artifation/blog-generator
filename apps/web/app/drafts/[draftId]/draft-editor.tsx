@@ -90,7 +90,14 @@ export function DraftEditor({
     const r = await publishDraftAction(draft.id);
     setPublishing(false);
     if (r.ok) {
-      toast.success(r.message ?? "Gepubliceerd");
+      // Offer a one-click "Openen" for the resulting URL (markdown export,
+      // WordPress post, or built-in blog post) so the operator doesn't have to
+      // hand-assemble the link — r.url is same-origin for markdown/built_in.
+      toast.success(r.message ?? "Gepubliceerd", {
+        action: r.url
+          ? { label: "Openen", onClick: () => window.open(r.url!, "_blank") }
+          : undefined,
+      });
       router.push("/drafts");
     } else {
       toast.error(r.error);
@@ -264,7 +271,7 @@ export function DraftEditor({
                 <div className="qc-rubric">
                   {Object.entries(draft.rubricScores).map(([k, v]) => (
                     <div key={k} className="qc-row">
-                      <span className="qc-label">{k}</span>
+                      <span className="qc-label">{k.replace(/_/g, " ")}</span>
                       <div className="qc-bar">
                         <div className="qc-bar-fill" style={{ width: `${(v / 10) * 100}%` }} />
                       </div>

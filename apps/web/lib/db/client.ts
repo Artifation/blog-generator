@@ -36,6 +36,20 @@ export function getDb() {
 }
 
 /**
+ * The underlying @libsql/client, sharing the same connection as getDb().
+ *
+ * Drizzle's `db.run()` only accepts a string or an SQL wrapper — passing the
+ * libsql `{ sql, args }` statement form makes it call `.getSQL()` on the plain
+ * object and throw `a.getSQL is not a function`. Code that needs parameterised
+ * dynamic SQL (e.g. the error store's filtered SELECTs) must call
+ * `getRawClient().execute({ sql, args })` on the raw client instead.
+ */
+export function getRawClient() {
+  getDb(); // ensures _client is initialised on the same connection
+  return _client!;
+}
+
+/**
  * Ensure the schema is in place. Call from any data-access function before
  * issuing queries. Idempotent — runs the CREATE-IF-NOT-EXISTS statements once
  * per process. Returns a Promise the caller should await.

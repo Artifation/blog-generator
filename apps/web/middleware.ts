@@ -19,13 +19,14 @@ import type { NextRequest } from "next/server";
  *               blog images; see the matcher below.
  *   - /login, /activate, /onboarding — the pre-session entry flow.
  *   - /blog/* — the public, unauthenticated blog.
+ *   - /exports/* — public Markdown exports served from the data volume.
  *   - /      — self-redirects to /dashboard or /login based on session.
  *   - Next internals + static assets (excluded by the matcher).
  */
 
 const SESSION_COOKIE = "artifation_session";
 
-const PUBLIC_PREFIXES = ["/login", "/activate", "/onboarding", "/blog"];
+const PUBLIC_PREFIXES = ["/login", "/activate", "/onboarding", "/blog", "/exports"];
 
 function isPublic(pathname: string): boolean {
   if (pathname === "/") return true;
