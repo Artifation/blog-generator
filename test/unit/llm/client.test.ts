@@ -61,7 +61,9 @@ describe("resolveAgentModel with availability fallback", () => {
     const m = resolveAgentModel("imagePrompter", reg);
     expect(m.provider).toBe("gemini");
     expect(m.model).toBe("gemini-2.5-flash");
-    expect(m.maxTokens).toBe(1000);
+    // 4000, not 1000: gemini-2.5-flash's thinking tokens count against maxTokens,
+    // and a 1000 ceiling truncated the image-prompt JSON on longer topics.
+    expect(m.maxTokens).toBe(4000);
   });
 
   it("throws when primary missing AND gemini missing (defense in depth)", () => {

@@ -61,7 +61,12 @@ const GEMINI_FALLBACK: Record<AgentRole, AgentModelChoice> = {
   seoEditor: { provider: "gemini", model: "gemini-2.5-flash", maxTokens: 8000 },
   factChecker: { provider: "gemini", model: "gemini-2.5-pro", maxTokens: 4000 },
   qualityJudge: { provider: "gemini", model: "gemini-2.5-pro", maxTokens: 4000 },
-  imagePrompter: { provider: "gemini", model: "gemini-2.5-flash", maxTokens: 1000 },
+  // 4000 not 1000: gemini-2.5-flash spends "thinking" tokens that count against
+  // maxTokens, so a 1000 ceiling truncated the image-prompt JSON mid-output on
+  // longer topics (Gemini-only sites like "blog" failed repeatedly with
+  // "output truncated"). The prompt output itself is small — the higher ceiling
+  // just leaves room for the model's reasoning.
+  imagePrompter: { provider: "gemini", model: "gemini-2.5-flash", maxTokens: 4000 },
   internalLinker: { provider: "gemini", model: "gemini-2.5-pro", maxTokens: 4000 },
   repurposer: { provider: "gemini", model: "gemini-2.5-pro", maxTokens: 2000 },
   topicSuggester: { provider: "gemini", model: "gemini-2.5-pro", maxTokens: 4000 },
