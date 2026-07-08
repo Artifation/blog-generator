@@ -14,13 +14,13 @@ OUTPUT (strict JSON):
 STRIKTE REGEL — TOPIC-RELEVANTIE:
 De afbeelding MOET de lezer onmiddellijk de inhoud van DEZE specifieke blog signaleren — niet "een willekeurige AI-blog". Gebruik pillar + key_entities om de werkelijke werkomgeving te kiezen.
 
-Voorbeelden van GOEDE topic-mapping (concrete scènes uit de werkelijke werkdomein):
-- pillar "ai-act" of "avg" → close-up van een EU/NL juridisch document op een bureau met laptop en koffie; OF een professioneel kantoor met archiefkasten en compliance-documenten; OF een rechtszaal-omgeving (zonder gezichten in beeld).
-- pillar "ai-per-afdeling" + sales → moderne kantoor-meetingroom met salestabellen op een groot scherm en notitieblokken; OF een laptop met CRM-dashboard naast een telefoon.
-- pillar "ai-per-afdeling" + marketing → desk met grafieken op tablet, koffie, marketing-planning op papier.
-- pillar "ai-per-afdeling" + inkoop → magazijn met pallets en clipboards; OF inkoper achter laptop met leveranciers-data.
-- pillar "sector-extensie" + accountants → accountantskantoor met spreadsheets/financiële papieren op een bureau; OF rekenmachine + jaarstukken.
-- pillar "sector-extensie" + advocaten → kantoor met wetboeken, dossiermappen, een laptop met juridische tekst.
+Voorbeelden van GOEDE topic-mapping — kies FYSIEKE, tastbare scènes (papier, mappen, gereedschap, objecten op een bureau). Vermijd schermen als hoofdonderwerp:
+- pillar "ai-act" of "avg" → close-up van een gedrukt EU/NL juridisch document en een pen op een houten bureau met een kop koffie; OF een kantoor met archiefkasten en mappen vol compliance-documenten.
+- pillar "ai-per-afdeling" + sales → een vergadertafel met gedrukte salesrapporten op papier en notitieblokken, een telefoon met het scherm naar beneden.
+- pillar "ai-per-afdeling" + marketing → een bureau met een gedrukte marketingplanning, post-its, een pen en een kop koffie.
+- pillar "ai-per-afdeling" + inkoop → een magazijn met pallets en een klembord; OF een inkoper met een gedrukte leverancierslijst in de hand aan een bureau.
+- pillar "sector-extensie" + accountants → een accountantsbureau met gedrukte jaarstukken, een rekenmachine en een leesbril.
+- pillar "sector-extensie" + advocaten → een kantoor met wetboeken, dossiermappen, een notitieblok en pen.
 
 VERBODEN (deze visuele clichés zijn generic AI-imagery, niet topic-relevant):
 - Netwerken van glow-bollen, knooppunten, "connected dots/molecules"
@@ -36,6 +36,7 @@ VERBODEN (deze visuele clichés zijn generic AI-imagery, niet topic-relevant):
 Deze MOGEN NIET als hoofdonderwerp van het beeld voorkomen, óók niet als de blog over AI gaat. De WERKOMGEVING/SECTOR van de blog moet centraal staan, niet "AI als abstract begrip".
 
 ANDERE REGELS:
-- Geen mensen-in-focus (max in profile/back-view of body parts only — handen op toetsenbord, etc.). B2B header, geen portret.
-- Concreet object/scène > abstract concept. "Documents and tablet on accountant's desk" > "concept of compliance".
+- SCHERMEN: kies bij voorkeur fysieke objecten (papier, mappen, gereedschap, koffie) i.p.v. schermen. Komt er tóch een laptop/monitor/tablet in beeld, dan staat het scherm UIT of toont het alleen platte, saaie tekst — NOOIT grafieken, dashboards, datavisualisaties, kaarten of gloeiende UI. Beschrijf het scherm expliciet als "switched off" of "showing plain text".
+- Geen mensen-in-focus (max in profile/back-view of body parts only — handen die schrijven, handen op een werkbank, etc.). B2B header, geen portret.
+- Concreet, gewoon, alledaags object/scène > abstract concept. "Printed annual report and a calculator on an accountant's desk" > "concept of compliance". Denk aan een echte foto uit een gewone werkdag, niet aan een reclamebeeld.
 - Engelstalig (Flux begrijpt alleen Engels goed).`;

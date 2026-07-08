@@ -18,9 +18,11 @@ export interface GeneratedImage {
 // onafhankelijk van imagePrompter LLM-output. Flux-Pro v1.1-Ultra heeft geen
 // dedicated negative_prompt parameter, dus negatives gaan inline in de prompt.
 export const BRAND_STYLE_PREFIX =
-  "Candid documentary-style photograph of a real, calm professional Dutch B2B workplace, natural and understated everyday scene, " +
-  "neutral color palette with restrained subtle blue accents, soft natural window light, shallow depth of field, realistic textures, " +
-  "shot on a full-frame DSLR with a 35mm lens, unposed, quiet and grounded, premium editorial stock photography, photorealistic";
+  "A real, candid documentary photograph taken by a professional photographer on a full-frame DSLR with a 35mm lens. " +
+  "An ordinary, calm Dutch small-business workplace on a normal working day. Soft natural daylight from a window, muted true-to-life colours, " +
+  "real materials and textures, unposed and understated composition, shallow depth of field. It looks like a genuine everyday photo, not an advertisement. " +
+  "Any computer, tablet or phone screens are switched off or show only plain simple text — never charts, dashboards, data visualisations, maps, glowing graphics, " +
+  "holograms, neon light, blue digital glow or digital overlays. Nothing futuristic, nothing sci-fi, no digital effects";
 
 export const BRAND_NEGATIVE_TERMS =
   "text, words, letters, watermarks, logos, brand names, signatures, cartoon, illustration, painting, sketch, vector art, 3d render, cgi, " +
