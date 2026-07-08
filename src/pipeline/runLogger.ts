@@ -1,4 +1,4 @@
-import { mkdir, writeFile, appendFile } from "node:fs/promises";
+import { mkdir, writeFile, appendFile, readFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import type { RubricSignals } from "./rubric.ts";
 
@@ -41,4 +41,47 @@ export async function persistRunSummary(
   await mkdir(dirname(runFile), { recursive: true });
   await writeFile(runFile, JSON.stringify(summary, null, 2), "utf8");
   await appendFile(historyFile, JSON.stringify(summary) + "\n", "utf8");
+}
+
+/**
+ * Sum of `costUsd` across persisted run summaries for a tenant within the last
+ * `windowDays` (default 7), read from score-history.jsonl. This is the src/
+ * pipeline's source of rolling spend for the MAX_WEEKLY_USD pre-flight gate —
+ * parity with the web path's DB-backed `sumRunCostLast7DaysForSite`.
+ *
+ * Fail-open by design: a missing history file (fresh install), malformed lines,
+ * or entries without a cost/timestamp are treated as zero so a bad log line can
+ * never wrongly block a run. Entries are matched on `tenantSlug`, so one shared
+ * history file across tenants is fine.
+ */
+export async function sumRunCostLast7Days(
+  tenantSlug: string,
+  now: Date,
+  baseDir: string = "data",
+  windowDays: number = 7,
+): Promise<number> {
+  let raw: string;
+  try {
+    raw = await readFile(`${baseDir}/score-history.jsonl`, "utf8");
+  } catch {
+    return 0; // no history yet
+  }
+  const cutoff = now.getTime() - windowDays * 86_400_000;
+  let total = 0;
+  for (const line of raw.split("\n")) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let entry: Partial<RunSummary>;
+    try {
+      entry = JSON.parse(trimmed) as Partial<RunSummary>;
+    } catch {
+      continue; // skip a malformed / partially-written line
+    }
+    if (entry.tenantSlug !== tenantSlug) continue;
+    if (typeof entry.costUsd !== "number" || !Number.isFinite(entry.costUsd)) continue;
+    const ts = entry.finishedAt ? Date.parse(entry.finishedAt) : NaN;
+    if (!Number.isFinite(ts) || ts < cutoff) continue;
+    total += entry.costUsd;
+  }
+  return total;
 }

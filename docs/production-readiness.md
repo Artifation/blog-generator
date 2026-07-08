@@ -75,8 +75,10 @@ Schema evolueert nu via hand-geschreven `CREATE TABLE IF NOT EXISTS` + `safeAddC
 
 ## 🟠 Belangrijk (geen showstopper)
 
-- [ ] **#A — Weekly cap ook op `src/`-orchestrator.** Nu enforced `exceedsWeeklyBudget` alleen op het web-pad;
-  de `src/`-orchestrator dwingt alleen de per-run cap af. Voeg de weekly-check daar ook toe.
+- [x] **#A — Weekly cap ook op `src/`-orchestrator.** (KLAAR, 2026-07-08) `src/pipeline/orchestrator.ts` heeft nu
+  een pre-flight weekly-USD-gate na de post-count cap: leest 7-daagse spend uit `score-history.jsonl` via de
+  nieuwe `sumRunCostLast7Days()` in `runLogger.ts` en markeert het topic `cap_deferred` bij overschrijding —
+  parity met het web-pad. Fail-open bij ontbrekende/kapotte history. 4 tests toegevoegd; root-suite 441 groen.
 - [ ] **#B — Externe error-alerting aanzetten.** Sentry is bewust een no-op tenzij `@sentry/node`
   geïnstalleerd + `SENTRY_DSN` gezet (`apps/web/lib/errors/sentry.ts`). Nu alleen DB + optionele e-mail.
   Ofwel Sentry activeren, ofwel de e-mail-alert-fan-out (`email-alert.ts`) bevestigen als voldoende.

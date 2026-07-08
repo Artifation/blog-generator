@@ -13,6 +13,7 @@ import {
   computeRunCost,
   parseUsdLimit,
   assertRunBudget,
+  exceedsWeeklyBudget,
   type UsageEntry,
 } from "./costTracker.ts";
 import { countPublishedThisIsoWeek, markTopicStatus } from "./state.ts";
@@ -45,7 +46,7 @@ import { Repurposed } from "@/email/templates/Repurposed";
 import { runRepurposerLinkedIn, runRepurposerNewsletter, runRepurposerXThread } from "@/agents/repurposer";
 import { buildAllSchemaJsonLd } from "./schemaGenerator.ts";
 import { detectCannibalizationViaGsc } from "./cannibalizationGsc.ts";
-import { logStage, persistRunSummary, type RunSummary } from "./runLogger.ts";
+import { logStage, persistRunSummary, sumRunCostLast7Days, type RunSummary } from "./runLogger.ts";
 import { filterDeadResearchUrls } from "./researchUrlFilter.ts";
 import { fetchSerpResults } from "@/integrations/dataForSeoSerp";
 import type { RubricSignals } from "./rubric.ts";
@@ -105,6 +106,39 @@ export async function runPipeline(opts: OrchestratorOpts): Promise<void> {
       dataDir
     );
     return;
+  }
+
+  // WEEKLY USD CAP — pre-flight gate mirroring the post-count cap above and the
+  // web path (runForSite.ts). Refuse to start a paid run when the tenant's
+  // rolling 7-day spend already meets MAX_WEEKLY_USD (unset = no cap). The spend
+  // is read from persisted run summaries (score-history.jsonl). The topic is
+  // deferred, not lost — the selector re-evaluates it once spend rolls off.
+  const weeklyUsdCap = parseUsdLimit(env.MAX_WEEKLY_USD);
+  if (weeklyUsdCap != null) {
+    const spentThisWeek = await sumRunCostLast7Days(opts.tenantSlug, now, dataDir);
+    if (exceedsWeeklyBudget(spentThisWeek, weeklyUsdCap)) {
+      const reason = `weekbudget bereikt ($${spentThisWeek.toFixed(2)}/$${weeklyUsdCap.toFixed(2)})`;
+      logStage({
+        stage: "cost-cap-early",
+        action: "skip",
+        topicId: next.id,
+        spentThisWeekUsd: spentThisWeek,
+        capUsd: weeklyUsdCap,
+      });
+      topics = markTopicStatus(topics, next.id, "cap_deferred", now, {
+        reject_reason: reason,
+        retry_after: nextMondayIso(now),
+      });
+      await saveTopics(topics, opts.tenantSlug, baseDir);
+      await persistRunSummary(
+        buildSummary({
+          runId, tenantSlug: opts.tenantSlug, topic: next, startedAt, now,
+          verdict: "cap_deferred", reason,
+        }),
+        dataDir
+      );
+      return;
+    }
   }
 
   const usage: UsageEntry[] = [];
