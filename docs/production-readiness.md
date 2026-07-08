@@ -37,7 +37,13 @@ docker compose logs --tail=20 blogtool  # bevestig healthy
 > **weekly** cap wordt alleen op het `apps/web/lib/pipeline/runForSite.ts`-pad afgedwongen,
 > niet op de `src/`-orchestrator. Zie 🟠 #A.
 
-### [~] #1 — Back-ups automatiseren + verifiëren (TOOLING KLAAR, 2026-07-08 — VPS-stap open)
+### [x] #1 — Back-ups automatiseren + verifiëren (LIVE op VPS, 2026-07-08)
+> **VPS-stap gedaan:** `sqlite3` op de host geïnstalleerd; `/etc/blogtool/backup.env` wijst naar de Docker-volume-mount
+> (`/var/lib/docker/volumes/blogtool_blogtool_data/_data`); Docker-aangepaste `blogtool-backup.{service,timer}` in
+> `/etc/systemd/system/` (draait als root tegen de volume-mount, dagelijks 03:00 UTC), timer enabled. Test-run groen:
+> `integrity_check: ok … verified`, `.db.gz` in de volume-backups-map. **Nog optioneel:** off-site kopie — zet
+> `RCLONE_REMOTE` in `backup.env` + installeer `rclone` (host-verlies = dataverlies zolang dit lokaal blijft).
+
 Gedaan in de repo:
 1. **Integriteitscheck** — `scripts/backup.sh` draait nu `PRAGMA integrity_check` op de snapshot
    én `gunzip -t` op de gzip; faalt luid (exit ≠ 0) en **prunet géén** oude backups als de nieuwe stuk is.
