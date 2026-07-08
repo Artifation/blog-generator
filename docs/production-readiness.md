@@ -17,8 +17,9 @@ Toegevoegd, typecheck groen:
 - `apps/web/app/global-error.tsx` — root-fallback met eigen `<html>/<body>` + inline stijl.
 - `.err-*` stijlblok in `apps/web/app/globals.css`.
 
-### [ ] #2 — Kostenplafonds op productie zetten  ← DOE DIT NU
-Caps shippen blanco (`.env.example:127-128`) → leeg = **onbeperkt** = risico op runaway LLM-spend.
+### [x] #2 — Kostenplafonds op productie (KLAAR + LIVE, 2026-07-08)
+`MAX_RUN_USD=5` + `MAX_WEEKLY_USD=40` gezet in de prod-`.env` en meegedeployed (commit 390ae06);
+bevestigd in de draaiende container via `printenv`. Runaway-kostenrisico afgedekt.
 Gekozen waarden: **`MAX_RUN_USD=5`**, **`MAX_WEEKLY_USD=40`** (per site; ~€0,17/post nu).
 
 Uitvoeren op de VPS (kan niet blind vanaf laptop — prod-`.env` is gitignored):
