@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Plus, Sparkles, Trash2, X, RefreshCw, ExternalLink, Wand2, Check, Pencil, FileText, AlertTriangle, RotateCcw, Search, ChevronDown, Clock, XCircle, CheckCircle, MoreHorizontal } from "lucide-react";
+import { Plus, Sparkles, Trash2, X, RefreshCw, ExternalLink, Wand2, Check, Pencil, FileText, AlertTriangle, RotateCcw, Search, ChevronDown, Clock, XCircle, CheckCircle } from "lucide-react";
 import { createTopicAction, deleteTopicAction, updateTopicAction } from "~/lib/actions/topics";
 import { generateForTopicAction } from "~/lib/actions/generate";
 import { suggestTopicsAction, acceptTopicProposalsAction, type TopicProposalView } from "~/lib/actions/suggest-topics";

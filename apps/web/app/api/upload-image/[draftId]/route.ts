@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import fs from "node:fs/promises";
 import path from "node:path";
-import { getDraft, updateDraftContent } from "~/lib/drafts";
+import { getDraft } from "~/lib/drafts";
 import { getSiteById } from "~/lib/sites";
 import { getCurrentSite } from "~/lib/auth";
 import { getDb } from "~/lib/db/client";

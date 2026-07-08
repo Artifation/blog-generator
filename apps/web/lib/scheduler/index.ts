@@ -45,7 +45,6 @@ import { recordError } from "~/lib/errors/store";
 let _cronImpl: typeof import("node-cron") | null = null;
 async function loadCron(): Promise<typeof import("node-cron")> {
   if (_cronImpl) return _cronImpl;
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
   _cronImpl = (await import("node-cron")) as typeof import("node-cron");
   return _cronImpl;
 }

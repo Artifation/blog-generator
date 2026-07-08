@@ -33,7 +33,7 @@ import { derivePerformanceInsights, loadLatestSnapshot } from "@/pipeline/gscPer
 import { applyFactCheckerFixes } from "@/pipeline/applyFactCheckerFixes";
 import type { StrategistInput } from "@/agents/strategist";
 
-import type { Site, Topic, Pillar, Draft } from "~/lib/db/schema";
+import type { Site, Topic, Pillar } from "~/lib/db/schema";
 import { createDraft, getLatestRejectedDraftForTopic } from "~/lib/drafts";
 import { startRun, finishRun, sumRunCostLast7DaysForSite } from "~/lib/runs";
 import { updateTopic } from "~/lib/topics";

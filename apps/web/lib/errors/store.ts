@@ -131,7 +131,6 @@ export async function recordError(input: RecordErrorInput): Promise<string | nul
   } catch (err) {
     // Laatste redmiddel — als de DB-write zelf faalt willen we hier in elk
     // geval een stdout-spoor hebben. NEVER throw.
-    // eslint-disable-next-line no-console
     console.error(
       JSON.stringify({
         stage: "errors/store",

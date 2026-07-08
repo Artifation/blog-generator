@@ -290,7 +290,6 @@ async function migratePlaintextSiteSecrets(db: LibsqlDb): Promise<void> {
           "and add it to your env before starting the app.",
       );
     }
-    // eslint-disable-next-line no-console
     console.warn(
       "\n[security] APP_ENCRYPTION_KEY is not set — secrets in the SQLite DB are stored as PLAINTEXT.\n" +
         "          Generate a key:\n" +
@@ -340,7 +339,6 @@ async function migratePlaintextSiteSecrets(db: LibsqlDb): Promise<void> {
   }
 
   if (migrated > 0) {
-    // eslint-disable-next-line no-console
     console.info(
       `[security] Encrypted plaintext secrets in ${migrated} site row(s) at boot.`,
     );

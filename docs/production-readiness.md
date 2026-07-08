@@ -84,8 +84,13 @@ Schema evolueert nu via hand-geschreven `CREATE TABLE IF NOT EXISTS` + `safeAddC
   Ofwel Sentry activeren, ofwel de e-mail-alert-fan-out (`email-alert.ts`) bevestigen als voldoende.
 - [ ] **#C — TLS / reverse-proxy verifiëren.** `docker-compose.yml:33` bindt standaard op `0.0.0.0:3000` en de
   Caddy/Traefik-blokken staan uitgecommentarieerd. Bevestig dat er een HTTPS-proxy vóór hangt (of zet er één).
-- [ ] **#D — Lint in CI + ESLint-config.** `ci.yml` gate't typecheck/test/build maar **niet** lint; er is geen
-  committed ESLint-config. `next lint` bestaat als script maar draait nergens. Config toevoegen + lint-stap in CI.
+- [x] **#D — Lint in CI + ESLint-config.** (KLAAR, 2026-07-08) `apps/web/eslint.config.mjs` toegevoegd (flat config,
+  `next/core-web-vitals` + `next/typescript`; `react/no-unescaped-entities` uit = 325 false hits weg; `^_`-ignore voor
+  unused-vars). Baseline schoongemaakt: 5 ongebruikte imports verwijderd, 5 verouderde `no-console`-disable-directives +
+  1 stale `no-require-imports` weg, publieke blog-`<img>` inline-gedisabled met reden. `lint`-script nu
+  `next lint --max-warnings 0` (strikte gate) en toegevoegd aan de web-job in `ci.yml`. Lint schoon, web-tests 111 groen.
+  > Follow-up: `next lint` is in Next 16 deprecated — dan migreren naar de ESLint CLI (`next-lint-to-eslint-cli`).
+  > Root `src/` heeft nog geen lint (aparte config + deps nodig) — optionele uitbreiding.
 - [ ] **#E — Tests voor API-routes.** `app/api/**/route.ts` (cron-auth, image-upload, publish) en
   `lib/auth/credentials.ts`/`password.ts` zijn ongetest; alleen de laag eronder is gedekt. Geen E2E.
 

@@ -115,6 +115,10 @@ export default async function PublicPostPage({
         )}
 
         {post.imagePath && (
+          // Served from an API route (dynamic per-post generated/WP blob), not a
+          // static asset — next/image optimization isn't wired for API-served
+          // images here, so a plain <img> is intentional.
+          // eslint-disable-next-line @next/next/no-img-element
           <img
             src={`/api/post-image/${post.id}`}
             alt={post.imageAlt ?? post.title}

@@ -66,7 +66,6 @@ async function ensureSentry(): Promise<any | null> {
   } catch (err) {
     if (!warningEmitted) {
       warningEmitted = true;
-      // eslint-disable-next-line no-console
       console.warn(
         JSON.stringify({
           stage: "errors/sentry",

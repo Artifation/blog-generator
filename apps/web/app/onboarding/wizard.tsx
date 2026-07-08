@@ -9,7 +9,7 @@ import { slugify } from "~/lib/utils";
 import { createSiteAction } from "~/lib/actions/sites";
 import { loginAction, createOwnerUserAction } from "~/lib/actions/auth";
 import { scrapeWebsiteAction } from "~/lib/actions/scrape";
-import { RequiredBadge, OptionalBadge, FieldHelp } from "~/components/ui/form-help";
+import { RequiredBadge, FieldHelp } from "~/components/ui/form-help";
 
 const STEPS = ["Basis", "Brand voice", "Pillars", "Kwaliteit", "Publiceren & keys"] as const;
 

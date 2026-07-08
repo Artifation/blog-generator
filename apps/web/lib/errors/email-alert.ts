@@ -112,7 +112,6 @@ export async function maybeSendErrorAlertEmail(
     });
     return { sent: true };
   } catch (err) {
-    // eslint-disable-next-line no-console
     console.warn(
       JSON.stringify({
         stage: "errors/email-alert",
