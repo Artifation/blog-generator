@@ -82,8 +82,16 @@ Schema evolueert nu via hand-geschreven `CREATE TABLE IF NOT EXISTS` + `safeAddC
 - [ ] **#B — Externe error-alerting aanzetten.** Sentry is bewust een no-op tenzij `@sentry/node`
   geïnstalleerd + `SENTRY_DSN` gezet (`apps/web/lib/errors/sentry.ts`). Nu alleen DB + optionele e-mail.
   Ofwel Sentry activeren, ofwel de e-mail-alert-fan-out (`email-alert.ts`) bevestigen als voldoende.
-- [ ] **#C — TLS / reverse-proxy verifiëren.** `docker-compose.yml:33` bindt standaard op `0.0.0.0:3000` en de
-  Caddy/Traefik-blokken staan uitgecommentarieerd. Bevestig dat er een HTTPS-proxy vóór hangt (of zet er één).
+- [~] **#C — TLS / reverse-proxy.** (GEVERIFIEERD 2026-07-08 op de VPS — bevinding: GÉÉN HTTPS.) Het
+  admin-dashboard draait op **platte HTTP, open naar het internet**: app bindt `0.0.0.0:3000`, ufw laat 3000 open
+  voor "Anywhere" (v4+v6), geen reverse proxy / geen Cloudflare-tunnel / niets op 80/443, en `SESSION_COOKIE_SECURE=false`
+  staat bewust in `.env`. Login, sessiecookie, WP app-passwords en API-keys reizen dus onversleuteld → sniffbaar
+  session-takeover-risico. (Publieke blogs draaien op de WordPress-sites van klanten met hún eigen TLS — dit betreft
+  puur het operator/klant-dashboard.) **Besluit 2026-07-08: nu niets aan de server wijzigen** (geen domein beschikbaar).
+  Aanbevolen route zodra er een (sub)domein naar 187.124.171.70 wijst: Caddy reverse proxy + Let's Encrypt (repo levert
+  `docs/deployment/caddy/Caddyfile` + compose-blok), app naar `127.0.0.1:3000`, poort 3000 dicht in ufw, en
+  `SESSION_COOKIE_SECURE` override droppen zodat cookies weer `Secure` worden. Interim-optie zonder domein: bind op
+  127.0.0.1 + sluit 3000, admin via SSH-tunnel (klanten kunnen dan niet zelf inloggen).
 - [x] **#D — Lint in CI + ESLint-config.** (KLAAR, 2026-07-08) `apps/web/eslint.config.mjs` toegevoegd (flat config,
   `next/core-web-vitals` + `next/typescript`; `react/no-unescaped-entities` uit = 325 false hits weg; `^_`-ignore voor
   unused-vars). Baseline schoongemaakt: 5 ongebruikte imports verwijderd, 5 verouderde `no-console`-disable-directives +
