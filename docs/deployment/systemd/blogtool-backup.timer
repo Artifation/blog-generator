@@ -1,0 +1,26 @@
+; Draait blogtool-backup.service dagelijks. Enablen:
+;   sudo cp docs/deployment/systemd/blogtool-backup.{service,timer} /etc/systemd/system/
+;   sudo systemctl daemon-reload
+;   sudo systemctl enable --now blogtool-backup.timer
+;   systemctl list-timers blogtool-backup.timer   # controleer next-run
+;   sudo systemctl start blogtool-backup.service   # eenmalig testen
+;
+; De service verifieert elke snapshot (integrity_check + gunzip -t); een
+; corrupte back-up faalt luid en roteert géén goede kopieën weg.
+
+[Unit]
+Description=Dagelijkse blogtool SQLite backup
+Requires=blogtool-backup.service
+
+[Timer]
+; Dagelijks om 03:00 UTC. Pas OnCalendar naar smaak aan.
+OnCalendar=*-*-* 03:00:00
+; Gemiste tick (server uit / reboot) bij hervatten alsnog uitvoeren.
+Persistent=true
+; Spreid de last als er meer timers op hetzelfde tijdstip staan.
+RandomizedDelaySec=180
+AccuracySec=1min
+Unit=blogtool-backup.service
+
+[Install]
+WantedBy=timers.target

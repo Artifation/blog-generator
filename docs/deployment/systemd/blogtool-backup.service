@@ -1,0 +1,38 @@
+; Oneshot service die scripts/backup.sh draait: verifieerde SQLite-snapshot
+; (integrity_check + gunzip -t) met retentie en optionele off-site kopie.
+;
+; Env (via /etc/blogtool/backup.env — allemaal optioneel, defaults werken):
+;   DB_FILE        pad naar app.db      (default: /opt/blogtool/data/app.db)
+;   BACKUP_DIR     doelmap              (default: <repo>/data/backups)
+;   KEEP_DAYS      retentie in dagen    (default: 14)
+;   RCLONE_REMOTE  bv. b2:blogtool-backups — leeg = geen off-site kopie
+;
+; DOCKER: laat DB_FILE/BACKUP_DIR naar de volume-mount wijzen, bv.
+;   DB_FILE=/var/lib/docker/volumes/blogtool_data/_data/app.db
+;   BACKUP_DIR=/var/lib/docker/volumes/blogtool_data/_data/backups
+;
+; Een niet-nul exit (corrupte snapshot / kapotte gzip) triggert
+; OnFailure=blogtool-backup-alert@%n zodat een gebroken back-upketen opvalt.
+; Maak zo'n alert-unit (bv. een `mail`/curl-oneshot) of vervang de regel.
+
+[Unit]
+Description=Blogtool SQLite backup (verified)
+After=network-online.target
+Wants=network-online.target
+OnFailure=blogtool-backup-alert@%n.service
+
+[Service]
+Type=oneshot
+; EnvironmentFile is optioneel; verwijder de - als je 'm verplicht wilt maken.
+EnvironmentFile=-/etc/blogtool/backup.env
+ExecStart=/opt/blogtool/scripts/backup.sh
+; Draai als de blogtool-systeemgebruiker zodat de backups niet root-owned zijn.
+; Pas User/Group aan je deploy aan (of verwijder voor root).
+User=blogtool
+Group=blogtool
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7
+
+[Install]
+WantedBy=multi-user.target

@@ -133,8 +133,15 @@ The SQLite file (`data/app.db`) holds every site config, draft, published post,
 score history, and refresh log. **Back it up.**
 
 The repo ships [`scripts/backup.sh`](../../scripts/backup.sh), which uses
-SQLite's online-backup API (safe to run while the app is writing) and prunes
-backups older than 14 days.
+SQLite's online-backup API (safe to run while the app is writing), **verifies**
+every snapshot (`PRAGMA integrity_check` + `gunzip -t`) before trusting it, and
+prunes backups older than 14 days. A failed verification exits non-zero and does
+**not** prune — so a corrupt snapshot can never rotate away the last good copies.
+
+> **Schedule it — this is not optional.** Out of the box nothing runs the
+> script; pick one of the options below. The **systemd timer is recommended**
+> (see [`systemd/README.md`](systemd/README.md#backups)) because a failed backup
+> surfaces via `OnFailure` / `journalctl` instead of failing silently.
 
 ### Cron — bare metal
 
@@ -168,10 +175,20 @@ VOL=$(docker volume inspect blogtool_data --format '{{ .Mountpoint }}')
 
 ### Off-site copy
 
-Ship `data/backups/` to S3 / Backblaze B2 / a second VPS:
+**A local backup on the same VPS is not a backup** — if the host dies you lose
+everything. Ship `data/backups/` to S3 / Backblaze B2 / a second VPS.
+
+The script has this built in: set `RCLONE_REMOTE` and (if `rclone` is installed)
+each run mirrors the verified backup dir off-site — no separate cron entry:
 
 ```bash
-# Append to the backup cron:
+# In /etc/blogtool/backup.env (or the cron/systemd environment):
+RCLONE_REMOTE=b2:blogtool-backups
+```
+
+Or run it as a separate cron line if you prefer to decouple it:
+
+```bash
 30 3 * * * rclone copy /var/lib/docker/volumes/blogtool_data/_data/backups remote:blogtool-backups
 ```
 

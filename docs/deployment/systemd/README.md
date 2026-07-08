@@ -52,9 +52,30 @@ The Next.js process exposes `/api/cron/[siteSlug]?token=...`. Three options:
 3. **In-process scheduler** — once `apps/web/lib/scheduler/` lands, the app
    ticks itself based on each site's `scheduleCron`.
 
+## Backups
+
+Ship the verified daily backup as a timer (recommended over a raw crontab line
+so failures surface via `OnFailure` / `journalctl`):
+
+```bash
+sudo cp /opt/blogtool/docs/deployment/systemd/blogtool-backup.{service,timer} /etc/systemd/system/
+# Optional tuning (retention, off-site remote, docker volume paths):
+sudo $EDITOR /etc/blogtool/backup.env      # DB_FILE / BACKUP_DIR / KEEP_DAYS / RCLONE_REMOTE
+sudo systemctl daemon-reload
+sudo systemctl enable --now blogtool-backup.timer
+sudo systemctl start blogtool-backup.service   # test one run now
+journalctl -u blogtool-backup -n 30            # confirm "integrity_check: ok ... verified"
+```
+
+Each run verifies the snapshot (`PRAGMA integrity_check` + `gunzip -t`) and
+refuses to prune older backups if the fresh one is bad. Set `RCLONE_REMOTE` in
+`backup.env` for an off-site copy.
+
 ## Files in this directory
 
-- `blogtool.service`        — main app server unit (Next.js + agents)
-- `blogtool-cron.service`   — templated curl-trigger for `/api/cron/<slug>`
-- `blogtool-cron.timer`     — periodic firing of the above (per-site instance)
-- `README.md`               — this file
+- `blogtool.service`         — main app server unit (Next.js + agents)
+- `blogtool-cron.service`    — templated curl-trigger for `/api/cron/<slug>`
+- `blogtool-cron.timer`      — periodic firing of the above (per-site instance)
+- `blogtool-backup.service`  — oneshot verified SQLite backup (`scripts/backup.sh`)
+- `blogtool-backup.timer`    — daily firing of the backup
+- `README.md`                — this file
