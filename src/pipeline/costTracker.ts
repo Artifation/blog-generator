@@ -103,6 +103,31 @@ export function exceedsWeeklyBudget(spentUsdLast7Days: number, limitUsd: number 
   return spentUsdLast7Days >= limitUsd;
 }
 
+/**
+ * Fixed EUR→USD rate for the budget caps. Deliberately a constant, not a live
+ * FX lookup: these are safety guardrails on cents-per-post amounts, not billing.
+ * Change here if the rate drifts materially.
+ */
+export const USD_PER_EUR = 1.08;
+
+export const eurToUsd = (eur: number): number => eur * USD_PER_EUR;
+export const usdToEur = (usd: number): number => usd / USD_PER_EUR;
+
+/**
+ * Resolve the effective **USD** cap from a per-site euro value + an env USD
+ * fallback. A positive per-site euro cap wins (converted to USD); otherwise the
+ * env cap (`parseUsdLimit` → null when blank/invalid/≤0); both empty → null (no
+ * cap). A per-site 0/negative is treated as "unset" so it can't silently block
+ * every run — clearing the field (null) and entering 0 both fall back to env.
+ */
+export function effectiveUsdCap(
+  perSiteEur: number | null | undefined,
+  envUsd: string | undefined,
+): number | null {
+  if (perSiteEur != null && perSiteEur > 0) return eurToUsd(perSiteEur);
+  return parseUsdLimit(envUsd);
+}
+
 export interface RollingCounter {
   totalUsdLast7Days: number;
   history: { dateIso: string; costUsd: number }[];
