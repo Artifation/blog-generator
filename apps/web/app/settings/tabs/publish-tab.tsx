@@ -26,11 +26,13 @@ function QualityCard({ site }: Props) {
   const [qualityThreshold, setQt] = React.useState(site.qualityThreshold);
   const [maxPostsPerWeek, setMpw] = React.useState(site.maxPostsPerWeek);
   const [scheduleCron, setSc] = React.useState(site.scheduleCron);
+  const [maxRunEur, setMre] = React.useState<number | null>(site.maxRunEur);
+  const [maxWeeklyEur, setMwe] = React.useState<number | null>(site.maxWeeklyEur);
 
   const { status, flush } = useAutoSave({
     siteId: site.id,
     cardKey: "Kwaliteit & cadans",
-    values: { qualityThreshold, maxPostsPerWeek, scheduleCron },
+    values: { qualityThreshold, maxPostsPerWeek, scheduleCron, maxRunEur, maxWeeklyEur },
   });
 
   return (
@@ -76,6 +78,30 @@ function QualityCard({ site }: Props) {
               onChange={(e) => setSc(e.target.value)}
               onBlur={flush}
               placeholder="0 6 * * 1,3,5"
+            />
+          </Field>
+          <Field label="Budget per run (€)" help="Leeg = standaardlimiet.">
+            <input
+              className="input tnum"
+              type="number"
+              min={0}
+              step={0.01}
+              value={maxRunEur ?? ""}
+              onChange={(e) => setMre(e.target.value === "" ? null : Number(e.target.value))}
+              onBlur={flush}
+              placeholder="standaard"
+            />
+          </Field>
+          <Field label="Budget per week (€)" help="Leeg = standaardlimiet.">
+            <input
+              className="input tnum"
+              type="number"
+              min={0}
+              step={0.01}
+              value={maxWeeklyEur ?? ""}
+              onChange={(e) => setMwe(e.target.value === "" ? null : Number(e.target.value))}
+              onBlur={flush}
+              placeholder="standaard"
             />
           </Field>
         </div>
