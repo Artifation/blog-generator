@@ -143,6 +143,8 @@ export interface CreateSiteInput {
   signaturePhrases?: string[];
   qualityThreshold?: number;
   maxPostsPerWeek?: number;
+  maxRunEur?: number | null;
+  maxWeeklyEur?: number | null;
   scheduleCron?: string;
   publishDestination?: "built_in" | "wordpress" | "markdown";
   wordpressConfig?: { baseUrl: string; user: string; appPassword: string } | null;
@@ -177,6 +179,8 @@ export async function createSite(input: CreateSiteInput): Promise<SiteWithPillar
     signaturePhrases: input.signaturePhrases ?? [],
     qualityThreshold: input.qualityThreshold ?? 8.0,
     maxPostsPerWeek: input.maxPostsPerWeek ?? 2,
+    maxRunEur: input.maxRunEur ?? null,
+    maxWeeklyEur: input.maxWeeklyEur ?? null,
     scheduleCron: input.scheduleCron ?? "0 6 * * 1,3,5",
     publishDestination: input.publishDestination ?? "built_in",
     wordpressConfig: sealWordpressConfig(input.wordpressConfig ?? null),
@@ -221,6 +225,8 @@ export async function updateSite(id: string, input: UpdateSiteInput): Promise<Si
   if (input.signaturePhrases !== undefined) patch.signaturePhrases = input.signaturePhrases;
   if (input.qualityThreshold !== undefined) patch.qualityThreshold = input.qualityThreshold;
   if (input.maxPostsPerWeek !== undefined) patch.maxPostsPerWeek = input.maxPostsPerWeek;
+  if (input.maxRunEur !== undefined) patch.maxRunEur = input.maxRunEur;
+  if (input.maxWeeklyEur !== undefined) patch.maxWeeklyEur = input.maxWeeklyEur;
   if (input.scheduleCron !== undefined) patch.scheduleCron = input.scheduleCron;
   if (input.publishDestination !== undefined) patch.publishDestination = input.publishDestination;
   if (input.wordpressConfig !== undefined) {

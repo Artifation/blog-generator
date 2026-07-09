@@ -30,6 +30,11 @@ export const sites = sqliteTable(
     scheduleCron: text("schedule_cron").notNull().default("0 6 * * 1,3,5"),
     autoPublish: integer("auto_publish", { mode: "boolean" }).notNull().default(false),
 
+    // per-site budget caps (euro). null = use the global MAX_RUN_USD /
+    // MAX_WEEKLY_USD env default. Nullable on purpose (no .notNull()).
+    maxRunEur: real("max_run_eur"),
+    maxWeeklyEur: real("max_weekly_eur"),
+
     // publishing
     publishDestination: text("publish_destination", {
       enum: ["built_in", "wordpress", "markdown"],

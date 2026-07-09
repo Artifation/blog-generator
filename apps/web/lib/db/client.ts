@@ -193,6 +193,8 @@ export async function ensureSchema(): Promise<void> {
     // libsql ignores "duplicate column" errors when we wrap each in a try.
     await safeAddColumn(db, "published_posts", "repurposed TEXT");
     await safeAddColumn(db, "topics", "custom_instructions TEXT");
+    await safeAddColumn(db, "sites", "max_run_eur REAL");
+    await safeAddColumn(db, "sites", "max_weekly_eur REAL");
 
     // Post refreshes — tracks the lifecycle of every refresh job so we can
     // (a) enforce a cooldown window per post, (b) compute before/after lift,

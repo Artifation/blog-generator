@@ -163,3 +163,35 @@ test("createSite normalizes pillar weights to sum to ~1", async () => {
   assert.equal(sorted[0]!.weight, 0.75);
   assert.equal(sorted[1]!.weight, 0.25);
 });
+
+test("budget caps: createSite stores euro caps, updateSite clears to null", async () => {
+  const created = await createSite({
+    name: "Budget Site",
+    domain: "budget.example.com",
+    brandVoice: "x",
+    maxRunEur: 3,
+    maxWeeklyEur: 25,
+    author: { name: "G" },
+    pillars: [{ name: "Core", weight: 1 }],
+  });
+  assert.equal(created.maxRunEur, 3);
+  assert.equal(created.maxWeeklyEur, 25);
+
+  // Clearing a cap in the UI sends null → falls back to the env default.
+  await updateSite(created.id, { maxWeeklyEur: null });
+  const read = await getSiteById(created.id);
+  assert.equal(read!.maxRunEur, 3);
+  assert.equal(read!.maxWeeklyEur, null);
+});
+
+test("budget caps: default to null when omitted", async () => {
+  const created = await createSite({
+    name: "No Budget Site",
+    domain: "nobudget.example.com",
+    brandVoice: "x",
+    author: { name: "H" },
+    pillars: [{ name: "Core", weight: 1 }],
+  });
+  assert.equal(created.maxRunEur, null);
+  assert.equal(created.maxWeeklyEur, null);
+});
