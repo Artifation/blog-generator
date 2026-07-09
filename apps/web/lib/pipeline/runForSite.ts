@@ -24,9 +24,10 @@ import { filterDeadResearchUrls } from "@/pipeline/researchUrlFilter";
 import { extractExternalHrefs, stripDeadLinks, filterDefinitivelyDead } from "@/pipeline/stripDeadLinks";
 import {
   computeRunCost,
-  parseUsdLimit,
   assertRunBudget,
   exceedsWeeklyBudget,
+  effectiveUsdCap,
+  usdToEur,
   type UsageEntry,
 } from "@/pipeline/costTracker";
 import { derivePerformanceInsights, loadLatestSnapshot } from "@/pipeline/gscPerformanceInsights";
@@ -133,13 +134,13 @@ export async function runForSite(
   // Optional hard USD guardrails (opt-in via env; unset = no cap). The per-run
   // ceiling is enforced at the stage boundaries below; the weekly cap is a
   // pre-flight gate that defers the topic, mirroring the post-count cap.
-  const runUsdCeiling = parseUsdLimit(process.env.MAX_RUN_USD);
-  const weeklyUsdCap = parseUsdLimit(process.env.MAX_WEEKLY_USD);
+  const runUsdCeiling = effectiveUsdCap(site.maxRunEur, process.env.MAX_RUN_USD);
+  const weeklyUsdCap = effectiveUsdCap(site.maxWeeklyEur, process.env.MAX_WEEKLY_USD);
   if (weeklyUsdCap != null) {
     const spentThisWeek = await sumRunCostLast7DaysForSite(site.id);
     if (exceedsWeeklyBudget(spentThisWeek, weeklyUsdCap)) {
       const capRun = await startRun(site.id, topic.id);
-      const reason = `weekbudget bereikt ($${spentThisWeek.toFixed(2)}/$${weeklyUsdCap.toFixed(2)})`;
+      const reason = `weekbudget bereikt (€${usdToEur(spentThisWeek).toFixed(2)}/€${usdToEur(weeklyUsdCap).toFixed(2)})`;
       await updateTopic(topic.id, { status: "cap_deferred", rejectReason: reason });
       const finalRun = await finishRun(capRun.id, {
         verdict: "cap_deferred",
